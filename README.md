@@ -1,6 +1,6 @@
 # SAIDA.ai (Core)
 
-<p align="center">
+<p align="left">
   <img src="assets/logo.png" alt="SAIDA.ai logo" width="180" />
 </p>
 
