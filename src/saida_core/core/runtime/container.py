@@ -9,6 +9,7 @@ from saida_core.adapters.llm.mock_adapter import MockLLMAdapter
 from saida_core.adapters.llm.openai_adapter import OpenAILLMAdapter
 from saida_core.adapters.vector_store.chroma_adapter import ChromaVectorStoreAdapter
 from saida_core.adapters.vector_store.mock_vector_store_adapter import MockVectorStoreAdapter
+from saida_core.core.domain.errors import ProviderNotRegisteredError
 from saida_core.core.runtime.config import RuntimeConfig
 from saida_core.core.runtime.registry import ProviderRegistry
 from saida_core.core.services.analytics_service import AnalyticsService
@@ -37,7 +38,10 @@ def build_container(config: RuntimeConfig | None = None) -> OrchestrationService
 
     llm = registry.get("llm", cfg.llm_provider)
     embedding = registry.get("embeddings", cfg.embedding_provider)
-    vector_store = registry.get("vector_store", cfg.vector_store_provider)
+    try:
+        vector_store = registry.get("vector_store", cfg.vector_store_provider)
+    except ProviderNotRegisteredError:
+        vector_store = registry.get("vector_store", "mock")
     data_source = registry.get("data_source", cfg.data_source_provider)
     retriever = VectorStoreRetriever(embedding=embedding, vector_store=vector_store)
 
