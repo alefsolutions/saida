@@ -1,7 +1,7 @@
 # SAIDA.ai (Core)
 
 <p align="left">
-  <img src="assets/logo.png" alt="SAIDA.ai logo" width="180" />
+  <img src="assets/logo.png" alt="SAIDA.ai logo" width="300" />
 </p>
 
 **Strategic Artificial Intelligence for Data & Analytics**
