@@ -8,6 +8,32 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: ankane/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: saida
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d saida"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: saida
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 20
     strategy:
       fail-fast: false
       matrix:
@@ -27,9 +53,40 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e .[dev]
 
+      - name: Wait for DB services
+        env:
+          TEST_POSTGRES_DSN: postgresql+psycopg://postgres:postgres@127.0.0.1:5432/saida
+          TEST_MYSQL_DSN: mysql+pymysql://root:root@127.0.0.1:3306/saida
+        run: |
+          python - <<'PY'
+          import time
+          from sqlalchemy import create_engine, text
+
+          def wait(dsn, query, name, attempts=40):
+              for i in range(attempts):
+                  try:
+                      e = create_engine(dsn, future=True)
+                      with e.connect() as c:
+                          c.execute(text(query))
+                      print(f"{name} ready")
+                      return
+                  except Exception:
+                      time.sleep(2)
+              raise SystemExit(f"{name} not ready in time")
+
+          wait("postgresql+psycopg://postgres:postgres@127.0.0.1:5432/saida", "SELECT 1", "postgres")
+          wait("mysql+pymysql://root:root@127.0.0.1:3306/saida", "SELECT 1", "mysql")
+          PY
+
+      - name: Run migrations (PostgreSQL)
+        run: |
+          python -m alembic -c alembic.ini -x db_url=postgresql+psycopg://postgres:postgres@127.0.0.1:5432/saida upgrade head
+
       - name: Run tests
         env:
           SAIDA_LLM_PROVIDER: mock
           SAIDA_EMBEDDING_PROVIDER: mock
           SAIDA_CONTROL_PLANE_DSN: sqlite+pysqlite:///:memory:
+          TEST_POSTGRES_DSN: postgresql+psycopg://postgres:postgres@127.0.0.1:5432/saida
+          TEST_MYSQL_DSN: mysql+pymysql://root:root@127.0.0.1:3306/saida
         run: python -m pytest -q
