@@ -7,9 +7,12 @@ from langchain_core.runnables import RunnableLambda
 from langchain_core.tools import tool
 
 from saida.analytics.engine import DuckDBAnalyticsEngine
+from saida.analytics.sql_planner import SQLPlanner
+from saida.analytics.sql_validator import SQLValidator
 from saida.embeddings.base import BaseEmbeddingProvider
 from saida.llm.base import BaseLLMProvider
 from saida.models.types import QueryResult
+from saida.orchestration.llm_guard import enforce_no_unverified_numbers
 from saida.orchestration.router import QueryRouter
 from saida.semantic.store import SemanticStore
 from saida.storage.control_plane import ControlPlaneStore
@@ -46,6 +49,8 @@ class LangChainOrchestrator:
         self.llm_provider = llm_provider
         self.analytics_engine = analytics_engine
         self.router = QueryRouter()
+        self.sql_planner = SQLPlanner()
+        self.sql_validator = SQLValidator()
 
         self.semantic_retrieve_tool = self._build_semantic_retrieve_tool()
         self.analytics_query_tool = self._build_analytics_query_tool()
@@ -80,12 +85,11 @@ class LangChainOrchestrator:
 
     def _build_analytics_query_tool(self):
         @tool("analytics_query")
-        def analytics_query(query: str, parquet_path: str) -> dict:
-            """Run deterministic DuckDB analytics over a parquet dataset."""
-            if not parquet_path:
+        def analytics_query(sql: str | None) -> dict:
+            """Run deterministic DuckDB analytics from a pre-validated SQL plan."""
+            if not sql:
                 return {"sql": None, "rows": []}
-            escaped = parquet_path.replace("'", "''")
-            sql = f"SELECT * FROM read_parquet('{escaped}') LIMIT 25"
+            self.sql_validator.validate(sql)
             rows = self.analytics_engine.execute(sql)
             return {"sql": sql, "rows": rows}
 
@@ -110,11 +114,13 @@ class LangChainOrchestrator:
         if state.route != "analytics":
             return state
 
-        top = next((r for r in state.retrieved if r.get("parquet_path")), None)
-        if top is None:
+        plan = self.sql_planner.plan(state.query, state.route, state.retrieved)
+        if not plan.sql:
+            state.sql = None
+            state.analytics_rows = []
             return state
 
-        result = self.analytics_query_tool.invoke({"query": state.query, "parquet_path": top["parquet_path"]})
+        result = self.analytics_query_tool.invoke({"sql": plan.sql})
         state.sql = result.get("sql")
         state.analytics_rows = result.get("rows", [])
         return state
@@ -125,10 +131,12 @@ class LangChainOrchestrator:
             "Do not fabricate numeric values not present in analytics rows.\n"
             f"query={state.query}\n"
             f"route={state.route}\n"
-            f"retrieved_context={state.retrieved}\n"
+            f"retrieved_context={[{'dataset_id': r.get('dataset_id'), 'source': r.get('source')} for r in state.retrieved]}\n"
             f"analytics_rows={state.analytics_rows}"
         )
         explanation = self.llm_provider.explain(prompt)
+        if state.route == "analytics":
+            enforce_no_unverified_numbers(state.query, state.analytics_rows, explanation)
         return QueryResult(
             query=state.query,
             route=state.route,

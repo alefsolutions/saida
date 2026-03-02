@@ -7,4 +7,4 @@ class MockLLMProvider(BaseLLMProvider):
     name = "mock"
 
     def explain(self, prompt: str) -> str:
-        return f"[mock-llm] {prompt[:500]}"
+        return "Mock explanation generated from validated tool outputs."
