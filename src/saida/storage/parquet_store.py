@@ -14,9 +14,12 @@ class ParquetStore:
         out = self.root / f"{dataset_id}.parquet"
         con = duckdb.connect()
         try:
-            in_path = csv_path.replace("'", "''")
-            out_path = str(out).replace("'", "''")
-            con.execute(f"COPY (SELECT * FROM read_csv_auto('{in_path}')) TO '{out_path}' (FORMAT PARQUET)")
+            in_path = csv_path.replace("\\", "/").replace("'", "''")
+            out_path = str(out).replace("\\", "/").replace("'", "''")
+            con.execute(
+                f"COPY (SELECT * FROM read_csv_auto('{in_path}', sample_size=-1, strict_mode=false, header=true)) "
+                f"TO '{out_path}' (FORMAT PARQUET)"
+            )
         finally:
             con.close()
         return str(out)
@@ -25,8 +28,8 @@ class ParquetStore:
         out = self.root / f"{dataset_id}.parquet"
         con = duckdb.connect()
         try:
-            in_path = json_path.replace("'", "''")
-            out_path = str(out).replace("'", "''")
+            in_path = json_path.replace("\\", "/").replace("'", "''")
+            out_path = str(out).replace("\\", "/").replace("'", "''")
             con.execute(f"COPY (SELECT * FROM read_json_auto('{in_path}')) TO '{out_path}' (FORMAT PARQUET)")
         finally:
             con.close()

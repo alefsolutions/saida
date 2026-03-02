@@ -1,0 +1,36 @@
+{
+    "description":  "Core benchmark suite for deterministic analytics and semantic reasoning.",
+    "name":  "saida-core-v1",
+    "cases":  [
+                  {
+                      "query":  "count rows in revenue dataset",
+                      "expected_rows_min":  1,
+                      "name":  "analytics-count-rows",
+                      "expected_sql_nonempty":  true
+                  },
+                  {
+                      "query":  "show revenue by quarter",
+                      "expected_rows_min":  1,
+                      "name":  "analytics-quarter-revenue",
+                      "expected_sql_nonempty":  true
+                  },
+                  {
+                      "query":  "what datasets are available?",
+                      "expected_rows_min":  0,
+                      "name":  "semantic-dataset-discovery",
+                      "expected_sql_nonempty":  false
+                  },
+                  {
+                      "query":  "summarize operations notes",
+                      "expected_rows_min":  0,
+                      "name":  "semantic-ops-summary",
+                      "expected_sql_nonempty":  false
+                  }
+              ],
+    "thresholds":  {
+                       "ris":  90,
+                       "sss":  95,
+                       "ses":  90,
+                       "ais":  95
+                   }
+}

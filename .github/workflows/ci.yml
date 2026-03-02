@@ -82,6 +82,14 @@ jobs:
         run: |
           python -m alembic -c alembic.ini -x db_url=postgresql+psycopg://postgres:postgres@127.0.0.1:5432/saida upgrade head
 
+      - name: Enforce Benchmark Threshold Gate
+        run: |
+          python -m saida.benchmarking.ci_gate \
+            --suite benchmarks/suites/core_v1.json \
+            --datasets benchmarks/datasets \
+            --dsn sqlite+pysqlite:///:memory: \
+            --parquet-root ./.saida/ci-bench-parquet
+
       - name: Run tests
         env:
           SAIDA_LLM_PROVIDER: mock

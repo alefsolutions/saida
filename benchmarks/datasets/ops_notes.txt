@@ -1,0 +1,4 @@
+Operations notes:
+- Support ticket volume increased in Q3.
+- Customer satisfaction stabilized in Q4.
+- Infrastructure spend increased due to scaling.

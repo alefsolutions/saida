@@ -14,7 +14,9 @@ class DatasetProfiler:
         try:
             escaped = path.replace("'", "''")
             if ext == ".csv":
-                relation = con.sql(f"SELECT * FROM read_csv_auto('{escaped}')")
+                relation = con.sql(
+                    f"SELECT * FROM read_csv_auto('{escaped}', sample_size=-1, strict_mode=false, header=true)"
+                )
             else:
                 relation = con.sql(f"SELECT * FROM read_json_auto('{escaped}')")
             columns = [c[0] for c in relation.description]
