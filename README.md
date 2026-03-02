@@ -240,6 +240,68 @@ SAIDA must not create uncontrolled PostgreSQL tables per spreadsheet.
 
 ---
 
+# 9.1 Production PostgreSQL Setup & Migration Workflow
+
+For production deployments, initialize PostgreSQL and run schema migrations before starting SAIDA workloads.
+
+## 1. Create PostgreSQL database
+
+```bash
+psql -U postgres -h localhost -c "CREATE DATABASE saida;"
+```
+
+## 2. Configure environment
+
+```bash
+export SAIDA_CONTROL_PLANE_DSN="postgresql+psycopg://postgres:postgres@localhost:5432/saida"
+export SAIDA_LLM_PROVIDER=mock
+export SAIDA_EMBEDDING_PROVIDER=mock
+```
+
+## 3. Run Alembic migrations
+
+```bash
+python -m alembic -c alembic.ini upgrade head
+```
+
+Alternative with explicit DB URL override:
+
+```bash
+python -m alembic -c alembic.ini -x db_url="postgresql+psycopg://postgres:postgres@localhost:5432/saida" upgrade head
+```
+
+## 4. Verify pgvector extension
+
+```sql
+CREATE EXTENSION IF NOT EXISTS vector;
+SELECT extname FROM pg_extension WHERE extname = 'vector';
+```
+
+## 5. Add vector index for semantic search
+
+Use one of the following index strategies depending on your workload:
+
+```sql
+-- HNSW (high recall, fast query; PostgreSQL 15+ recommended)
+CREATE INDEX IF NOT EXISTS idx_semantic_embeddings_hnsw
+ON semantic_embeddings
+USING hnsw (embedding_vector vector_cosine_ops);
+
+-- IVFFlat (faster build, requires ANALYZE/training characteristics)
+CREATE INDEX IF NOT EXISTS idx_semantic_embeddings_ivfflat
+ON semantic_embeddings
+USING ivfflat (embedding_vector vector_cosine_ops)
+WITH (lists = 100);
+```
+
+Operational notes:
+
+- Run `ANALYZE semantic_embeddings;` after major ingestion batches.
+- Re-run `python -m alembic -c alembic.ini upgrade head` during deployments to apply new schema revisions.
+- Keep migrations as the only schema change path in production.
+
+---
+
 # 10. Analytics Subsystem
 
 ## DuckDB
