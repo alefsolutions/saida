@@ -15,6 +15,7 @@ from saida.llm.openai_provider import OpenAILLMProvider
 from saida.models.types import BenchmarkCase, BenchmarkReport, DatasetAsset, QueryResult
 from saida.orchestration.langchain_orchestrator import LangChainOrchestrator
 from saida.semantic.store import SemanticStore
+from saida.storage.db import build_engine, build_session_factory, init_schema
 from saida.storage.control_plane import ControlPlaneStore
 from saida.storage.parquet_store import ParquetStore
 from saida.utils.config import SaidaConfig
@@ -25,9 +26,13 @@ class SaidaAgent:
         self.config = config or SaidaConfig()
         self.connectors: list[BaseConnector] = []
 
-        self.control_plane = ControlPlaneStore()
+        self.engine = build_engine(self.config.control_plane_dsn)
+        init_schema(self.engine)
+        self.session_factory = build_session_factory(self.engine)
+
+        self.control_plane = ControlPlaneStore(self.session_factory)
         self.parquet_store = ParquetStore(self.config.parquet_root)
-        self.semantic_store = SemanticStore()
+        self.semantic_store = SemanticStore(self.session_factory)
 
         self.embedding_provider: BaseEmbeddingProvider = self._build_embedding_provider(self.config.embedding_provider)
         self.llm_provider: BaseLLMProvider = self._build_llm_provider(self.config.llm_provider)

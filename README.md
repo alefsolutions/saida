@@ -331,7 +331,7 @@ Background ingestion is considered deployment-level functionality.
 
 # 15. Benchmarking & Evaluation Subsystem
 
-The Benchmarking Subsystem measures SAIDA’s intelligence.
+The Benchmarking Subsystem measures SAIDA's intelligence.
 
 It must:
 
@@ -347,22 +347,22 @@ It must:
 ## Intelligence Dimensions
 
 Analytical Intelligence Score (AIS):
-(Correct Analytical Results / Total Analytical Tests) × 100
+(Correct Analytical Results / Total Analytical Tests) x 100
 
 Semantic Intelligence Score (SES):
-(Correct Semantic Matches / Total Semantic Tests) × 100
+(Correct Semantic Matches / Total Semantic Tests) x 100
 
 Reasoning Intelligence Score (RIS):
-(Faithful Explanations / Total Explanations) × 100
+(Faithful Explanations / Total Explanations) x 100
 
 System Stability Score (SSS):
-(Successful Executions / Total Executions) × 100
+(Successful Executions / Total Executions) x 100
 
 Composite SAIDA Intelligence Score:
-0.40 × AIS
-+ 0.30 × SES
-+ 0.20 × RIS
-+ 0.10 × SSS
+0.40 x AIS
++ 0.30 x SES
++ 0.20 x RIS
++ 0.10 x SSS
 
 Weights must be configurable.
 
@@ -392,10 +392,10 @@ Each folder must correspond to a subsystem defined above.
 
 Minimum thresholds:
 
-- AIS ≥ 95%
-- SES ≥ 90%
-- RIS ≥ 90%
-- SSS ≥ 95%
+- AIS >= 95%
+- SES >= 90%
+- RIS >= 90%
+- SSS >= 95%
 
 ---
 

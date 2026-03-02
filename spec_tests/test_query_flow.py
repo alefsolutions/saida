@@ -2,6 +2,7 @@ from pathlib import Path
 
 from saida import SaidaAgent
 from saida.connectors.filesystem import FileSystemConnector
+from saida.utils.config import SaidaConfig
 
 
 def test_query_returns_structured_response(tmp_path: Path):
@@ -10,7 +11,8 @@ def test_query_returns_structured_response(tmp_path: Path):
     text = data / "notes.txt"
     text.write_text("Revenue dropped in Q3 due to pricing changes.", encoding="utf-8")
 
-    agent = SaidaAgent()
+    db_path = tmp_path / "control.db"
+    agent = SaidaAgent(SaidaConfig(control_plane_dsn=f"sqlite+pysqlite:///{db_path.as_posix()}"))
     agent.add_connector(FileSystemConnector(str(data)))
     agent.ingest_all()
 

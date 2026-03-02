@@ -31,4 +31,5 @@ jobs:
         env:
           SAIDA_LLM_PROVIDER: mock
           SAIDA_EMBEDDING_PROVIDER: mock
+          SAIDA_CONTROL_PLANE_DSN: sqlite+pysqlite:///:memory:
         run: python -m pytest -q
