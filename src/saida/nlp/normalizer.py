@@ -125,6 +125,18 @@ TASK_KEYWORDS = {
     "statistical": {"correlation", "significant", "hypothesis", "anomaly", "distribution"},
     "descriptive": {"show", "summarize", "overview", "trend", "list"},
 }
+RANKING_NUMBER_WORDS = {
+    "one": 1,
+    "two": 2,
+    "three": 3,
+    "four": 4,
+    "five": 5,
+    "six": 6,
+    "seven": 7,
+    "eight": 8,
+    "nine": 9,
+    "ten": 10,
+}
 
 
 class RequestNormalizer:
@@ -162,6 +174,9 @@ class RequestNormalizer:
         filters = self._extract_filters(question, profile, context)
         options = self._build_request_options(dataset.name, intent_name)
         self._apply_statistical_options(question, profile, options)
+        intent_name = self._resolve_ranking_intent(question, intent_name, target, group_by, profile, options)
+        if intent_name in {"row_ranking", "group_ranking"}:
+            aggregation = None
         if options.get("statistical_test"):
             task_type_hint = "statistical"
         if options.get("statistical_test") == "chi_square" and options.get("comparison_columns"):
@@ -257,6 +272,9 @@ class RequestNormalizer:
 
         options = self._build_request_options(dataset.name, rule_intent_name)
         self._apply_statistical_options(question, profile, options)
+        rule_intent_name = self._resolve_ranking_intent(question, rule_intent_name, target or rule_target, group_by or rule_group_by, profile, options)
+        if rule_intent_name in {"row_ranking", "group_ranking"}:
+            aggregation = None
         if options.get("statistical_test"):
             task_type_hint = "statistical"
         if options.get("statistical_test") == "chi_square" and options.get("comparison_columns"):
@@ -370,10 +388,36 @@ class RequestNormalizer:
         for alias, resolved_name in measure_aliases.items():
             if alias in lowered:
                 return resolved_name
+        measure_token_matches = self._resolve_column_by_tokens(lowered, profile.measure_columns, context)
+        if measure_token_matches:
+            return measure_token_matches
         if intent_name in {"distinct_values", "representation_ranking"}:
             for alias, resolved_name in dimension_aliases.items():
                 if alias in lowered:
                     return resolved_name
+            dimension_token_match = self._resolve_column_by_tokens(lowered, profile.dimension_columns, context)
+            if dimension_token_match:
+                return dimension_token_match
+        return None
+
+    def _resolve_column_by_tokens(
+        self,
+        lowered_question: str,
+        column_names: list[str],
+        context: SourceContext | None,
+    ) -> str | None:
+        candidate_names = list(column_names)
+        if context:
+            candidate_names.extend(context.metric_definitions)
+            candidate_names.extend(context.field_descriptions)
+        seen: set[str] = set()
+        for candidate_name in candidate_names:
+            if candidate_name in seen:
+                continue
+            seen.add(candidate_name)
+            tokens = [token for token in re.split(r"[_\s]+", candidate_name.lower()) if len(token) >= 3]
+            if tokens and all(re.search(rf"\b{re.escape(token)}\b", lowered_question) for token in tokens):
+                return candidate_name
         return None
 
     def _extract_aggregation(self, question: str) -> str | None:
@@ -423,6 +467,22 @@ class RequestNormalizer:
 
         matches = list(dict.fromkeys(matches))
         return matches or None
+
+    def _extract_ranking_request(self, question: str) -> tuple[str, int] | None:
+        lowered = question.lower()
+        patterns = [
+            r"\b(top|bottom)\s+(\d+)\b",
+            r"\b(top|bottom)\s+(one|two|three|four|five|six|seven|eight|nine|ten)\b",
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, lowered)
+            if not match:
+                continue
+            direction = "desc" if match.group(1) == "top" else "asc"
+            count_token = match.group(2)
+            limit = int(count_token) if count_token.isdigit() else RANKING_NUMBER_WORDS[count_token]
+            return direction, limit
+        return None
 
     def _extract_statistical_group_by(
         self,
@@ -702,6 +762,27 @@ class RequestNormalizer:
             "dataset": dataset_name,
             "intent_name": intent_name,
         }
+
+    def _resolve_ranking_intent(
+        self,
+        question: str,
+        intent_name: str | None,
+        target: str | None,
+        group_by: list[str] | None,
+        profile: DatasetProfile,
+        options: dict[str, object],
+    ) -> str | None:
+        ranking_request = self._extract_ranking_request(question)
+        if ranking_request is None or target is None:
+            return intent_name
+        direction, limit = ranking_request
+        options["ranking_direction"] = direction
+        options["ranking_limit"] = limit
+        if group_by:
+            return "group_ranking"
+        if target in profile.measure_columns:
+            return "row_ranking"
+        return intent_name
 
     def _resolve_candidate_column(
         self,

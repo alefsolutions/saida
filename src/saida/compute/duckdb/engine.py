@@ -201,6 +201,32 @@ class DuckDBComputeEngine:
             )
         ]
 
+    def ranked_rows(
+        self,
+        dataframe: pd.DataFrame,
+        target: str,
+        filters: dict[str, str] | None = None,
+        ascending: bool = False,
+        limit: int = 5,
+    ) -> TableArtifact:
+        """Return the top or bottom rows by a numeric target."""
+        prepared = self._apply_filters(dataframe, filters).copy()
+        self._require_columns(prepared, [target])
+        numeric_target = pd.to_numeric(prepared[target], errors="coerce")
+        prepared = prepared.assign(_rank_target=numeric_target).dropna(subset=["_rank_target"])
+        if prepared.empty:
+            raise ComputeError(f"Target column '{target}' has no numeric values for row ranking.")
+        ordered = prepared.sort_values(["_rank_target"], ascending=ascending).head(limit).copy()
+        ordered.insert(0, "rank", range(1, len(ordered) + 1))
+        ordered[target] = ordered["_rank_target"].astype(float)
+        ordered = ordered.drop(columns=["_rank_target"])
+        direction_label = "Bottom" if ascending else "Top"
+        return TableArtifact(
+            name="ranked_rows",
+            description=f"{direction_label} {limit} rows ranked by {target}.",
+            dataframe=ordered.reset_index(drop=True),
+        )
+
     def time_trend(
         self,
         dataframe: pd.DataFrame,
@@ -372,15 +398,18 @@ class DuckDBComputeEngine:
         aggregation: str = "sum",
         filters: dict[str, str] | None = None,
         limit: int = 5,
+        ascending: bool = False,
     ) -> TableArtifact:
         """Return the top grouped contributors by target total."""
-        grouped = self.group_breakdown(dataframe, target, group_by, aggregation, filters).dataframe.head(limit).copy()
+        grouped = self.group_breakdown(dataframe, target, group_by, aggregation, filters).dataframe.copy()
+        grouped = grouped.sort_values("target_total", ascending=ascending).head(limit).copy()
         grouped["rank"] = range(1, len(grouped) + 1)
         ordered_columns = ["rank", *group_by, "target_total"]
         ranked = grouped.loc[:, [column for column in ordered_columns if column in grouped.columns]]
+        direction_label = "Bottom" if ascending else "Top"
         return TableArtifact(
             name="ranked_breakdown",
-            description=f"Top {limit} grouped contributors for {target} using {aggregation}.",
+            description=f"{direction_label} {limit} grouped contributors for {target} using {aggregation}.",
             dataframe=ranked,
         )
 

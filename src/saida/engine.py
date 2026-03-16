@@ -160,6 +160,16 @@ class Saida:
                         step.parameters.get("filters"),
                     )
                     metrics.extend(step_metrics)
+                elif step.action == "ranked_rows":
+                    tables.append(
+                        self.duckdb.ranked_rows(
+                            dataset.data,
+                            step.parameters["target"],
+                            step.parameters.get("filters"),
+                            step.parameters.get("ascending", False),
+                            step.parameters.get("limit", 5),
+                        )
+                    )
                 elif step.action == "time_trend":
                     tables.append(
                         self.duckdb.time_trend(
@@ -189,6 +199,7 @@ class Saida:
                             step.parameters.get("aggregation", "sum"),
                             step.parameters.get("filters"),
                             step.parameters.get("limit", 5),
+                            step.parameters.get("ascending", False),
                         )
                     )
                 elif step.action == "grouped_period_comparison":

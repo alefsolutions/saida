@@ -78,7 +78,7 @@ def build_statistical_profile() -> DatasetProfile:
     return DatasetProfile(
         dataset_name="tickets",
         row_count=6,
-        column_count=5,
+        column_count=6,
         columns=[
             ColumnProfile(
                 name="resolution_hours",
@@ -121,6 +121,16 @@ def build_statistical_profile() -> DatasetProfile:
                 is_dimension_candidate=True,
             ),
             ColumnProfile(
+                name="priority",
+                inferred_type="category",
+                nullable=False,
+                null_ratio=0.0,
+                unique_count=3,
+                distinct_ratio=0.5,
+                sample_values=["Low", "Medium"],
+                is_dimension_candidate=True,
+            ),
+            ColumnProfile(
                 name="created_at",
                 inferred_type="datetime",
                 nullable=False,
@@ -132,7 +142,7 @@ def build_statistical_profile() -> DatasetProfile:
             ),
         ],
         measure_columns=["resolution_hours", "csat_score"],
-        dimension_columns=["team", "reopened_flag"],
+        dimension_columns=["team", "reopened_flag", "priority"],
         time_columns=["created_at"],
         identifier_columns=[],
     )
@@ -145,6 +155,7 @@ def build_statistical_dataset() -> Dataset:
             "csat_score": [4.7, 4.0, 3.6, 4.1, 3.5, 3.2],
             "team": ["Support", "Support", "Platform", "Platform", "Support", "Platform"],
             "reopened_flag": ["no", "no", "yes", "yes", "no", "yes"],
+            "priority": ["Low", "Medium", "High", "Low", "High", "Medium"],
             "created_at": [
                 "2026-01-01",
                 "2026-01-02",
@@ -572,6 +583,127 @@ def test_normalizer_does_not_force_statistical_mode_for_open_ended_factor_prompt
     assert request.task_type_hint == "statistical"
     assert request.options.get("statistical_test") is None
     assert any("No explicit metric matched the prompt" in warning for warning in warnings)
+
+
+def test_normalizer_detects_top_n_row_ranking_intent() -> None:
+    normalizer = RequestNormalizer()
+
+    request, warnings = normalizer.normalize(
+        "Show top 5 revenue values",
+        build_dataset(),
+        build_profile(),
+        None,
+    )
+
+    assert warnings == []
+    assert request.intent_name == "row_ranking"
+    assert request.target == "revenue"
+    assert request.options["ranking_direction"] == "desc"
+    assert request.options["ranking_limit"] == 5
+
+
+def test_normalizer_detects_bottom_n_row_ranking_intent() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Show bottom 3 revenue values",
+        build_dataset(),
+        build_profile(),
+        None,
+    )
+
+    assert request.intent_name == "row_ranking"
+    assert request.options["ranking_direction"] == "asc"
+    assert request.options["ranking_limit"] == 3
+
+
+def test_normalizer_detects_top_n_group_ranking_intent() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Show top 4 revenue by region",
+        build_dataset(),
+        build_profile(),
+        None,
+    )
+
+    assert request.intent_name == "group_ranking"
+    assert request.target == "revenue"
+    assert request.group_by == ["region"]
+    assert request.options["ranking_limit"] == 4
+
+
+def test_normalizer_detects_bottom_n_group_ranking_intent() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Show bottom 2 revenue by region",
+        build_dataset(),
+        build_profile(),
+        None,
+    )
+
+    assert request.intent_name == "group_ranking"
+    assert request.options["ranking_direction"] == "asc"
+    assert request.options["ranking_limit"] == 2
+
+
+def test_normalizer_detects_word_number_in_ranking_request() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Show top five revenue values",
+        build_dataset(),
+        build_profile(),
+        None,
+    )
+
+    assert request.intent_name == "row_ranking"
+    assert request.options["ranking_limit"] == 5
+
+
+def test_normalizer_resolves_tokenized_target_for_row_ranking() -> None:
+    normalizer = RequestNormalizer()
+
+    request, warnings = normalizer.normalize(
+        "What is the top 5 longest hours of resolution?",
+        build_statistical_dataset(),
+        build_statistical_profile(),
+        None,
+    )
+
+    assert warnings == []
+    assert request.intent_name == "row_ranking"
+    assert request.target == "resolution_hours"
+    assert request.options["ranking_limit"] == 5
+
+
+def test_normalizer_does_not_override_distinct_values_with_top_keyword_without_limit() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Show top priority categories",
+        build_statistical_dataset(),
+        build_statistical_profile(),
+        None,
+    )
+
+    assert request.intent_name == "distinct_values"
+    assert request.target == "priority" or request.target is not None
+
+
+def test_normalizer_leaves_highest_aggregation_as_scalar_request() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Show highest revenue",
+        build_dataset(),
+        build_profile(),
+        None,
+    )
+
+    assert request.intent_name is None
+    assert request.aggregation == "max"
 
 
 _NORMALIZER_QUESTION_CASES = [

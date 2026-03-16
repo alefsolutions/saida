@@ -627,6 +627,40 @@ def test_analyze_supports_natural_regression_significance_prompt() -> None:
     assert any(table.name == "regression_significance" for table in result.tables)
 
 
+def test_analyze_supports_ranked_row_retrieval_prompt() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "resolution_hours": [22.05, 18.40, 14.20, 10.10, 8.35, 7.10],
+            "team": ["Support", "Platform", "Support", "Payments", "Platform", "Support"],
+            "priority": ["Urgent", "High", "Medium", "Low", "High", "Low"],
+        }
+    )
+    dataset = Dataset(name="support_tickets_500", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "What is the top 5 longest hours of resolution?")
+
+    assert result.response["intent"]["intent_name"] == "row_ranking"
+    assert result.response["intent"]["target"] == "resolution_hours"
+    assert "Top 5 resolution hours values" in result.summary
+    assert any(table.name == "ranked_rows" for table in result.tables)
+
+
+def test_analyze_supports_group_ranking_summary_prompt() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "revenue": [120.0, 80.0, 60.0, 40.0, 300.0],
+            "region": ["West", "East", "West", "East", "West"],
+        }
+    )
+    dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "Show bottom 2 revenue by region")
+
+    assert result.response["intent"]["intent_name"] == "group_ranking"
+    assert "Bottom 2 revenue groups" in result.summary
+    assert any(table.name == "ranked_breakdown" for table in result.tables)
+
+
 def test_analyze_time_coverage_rejects_datasets_without_time_columns() -> None:
     dataframe = pd.DataFrame({"revenue": [90.0, 100.0], "segment": ["Retail", "Online"]})
     dataset = Dataset(name="sales", source_type="pandas", data=dataframe)

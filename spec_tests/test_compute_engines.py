@@ -339,6 +339,96 @@ def test_duckdb_time_trend_respects_filters() -> None:
     assert list(table.dataframe["target_total"]) == [120.0, 60.0, 300.0]
 
 
+def test_duckdb_ranked_rows_returns_top_n_numeric_rows() -> None:
+    engine = DuckDBComputeEngine()
+
+    table = engine.ranked_rows(build_dataframe(), target="revenue", limit=3)
+
+    assert list(table.dataframe["rank"]) == [1, 2, 3]
+    assert list(table.dataframe["revenue"]) == [300.0, 120.0, 80.0]
+
+
+def test_duckdb_ranked_rows_returns_bottom_n_numeric_rows() -> None:
+    engine = DuckDBComputeEngine()
+
+    table = engine.ranked_rows(build_dataframe(), target="revenue", ascending=True, limit=2)
+
+    assert list(table.dataframe["revenue"]) == [40.0, 60.0]
+
+
+def test_duckdb_ranked_rows_keeps_original_columns() -> None:
+    engine = DuckDBComputeEngine()
+
+    table = engine.ranked_rows(build_dataframe(), target="revenue", limit=1)
+
+    assert "region" in table.dataframe.columns
+    assert "posted_at" in table.dataframe.columns
+
+
+def test_duckdb_ranked_rows_respects_filters() -> None:
+    engine = DuckDBComputeEngine()
+
+    table = engine.ranked_rows(build_dataframe(), target="revenue", filters={"region": "West"}, limit=2)
+
+    assert list(table.dataframe["revenue"]) == [300.0, 120.0]
+
+
+def test_duckdb_ranked_rows_handles_limit_larger_than_dataset() -> None:
+    engine = DuckDBComputeEngine()
+
+    table = engine.ranked_rows(build_dataframe(), target="revenue", limit=99)
+
+    assert len(table.dataframe) == 5
+
+
+def test_duckdb_ranked_rows_rejects_non_numeric_target() -> None:
+    engine = DuckDBComputeEngine()
+
+    with pytest.raises(ComputeError, match="has no numeric values for row ranking"):
+        engine.ranked_rows(build_dataframe(), target="region", limit=3)
+
+
+def test_duckdb_ranked_breakdown_supports_bottom_n_ordering() -> None:
+    engine = DuckDBComputeEngine()
+
+    table = engine.ranked_breakdown(build_dataframe(), target="revenue", group_by=["region"], limit=1, ascending=True)
+
+    assert list(table.dataframe["region"]) == ["East"]
+    assert list(table.dataframe["target_total"]) == [120.0]
+
+
+def test_duckdb_ranked_breakdown_handles_limit_larger_than_group_count() -> None:
+    engine = DuckDBComputeEngine()
+
+    table = engine.ranked_breakdown(build_dataframe(), target="revenue", group_by=["region"], limit=10)
+
+    assert len(table.dataframe) == 2
+
+
+def test_duckdb_ranked_rows_preserves_descending_order_on_ties_by_dataframe_order() -> None:
+    engine = DuckDBComputeEngine()
+    dataframe = pd.DataFrame(
+        {
+            "revenue": [100.0, 100.0, 90.0],
+            "region": ["West", "East", "North"],
+        }
+    )
+
+    table = engine.ranked_rows(dataframe, target="revenue", limit=2)
+
+    assert list(table.dataframe["region"]) == ["West", "East"]
+
+
+def test_duckdb_ranked_rows_supports_single_row_dataset() -> None:
+    engine = DuckDBComputeEngine()
+    dataframe = pd.DataFrame({"revenue": [42.0], "region": ["West"]})
+
+    table = engine.ranked_rows(dataframe, target="revenue", limit=5)
+
+    assert list(table.dataframe["rank"]) == [1]
+    assert list(table.dataframe["revenue"]) == [42.0]
+
+
 def test_duckdb_top_movers_returns_empty_when_month_missing() -> None:
     engine = DuckDBComputeEngine()
 

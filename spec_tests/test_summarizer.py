@@ -442,6 +442,250 @@ def test_summarizer_describes_column_inventory() -> None:
     assert "Available columns: revenue, region, posted_at." in summary
 
 
+def test_summarizer_lists_top_ranked_row_values() -> None:
+    summarizer = ResultSummarizer()
+    plan = AnalysisPlan(task_type="descriptive", rationale="Test.")
+    request = AnalysisRequest(
+        question="Show top 3 revenue values",
+        intent_name="row_ranking",
+        task_type_hint="descriptive",
+        target="revenue",
+        options={"ranking_limit": 3, "ranking_direction": "desc"},
+    )
+
+    summary = summarizer.summarize(
+        plan,
+        metrics=[],
+        tables=[
+            TableArtifact(
+                name="ranked_rows",
+                description="Top rows.",
+                dataframe=pd.DataFrame(
+                    {
+                        "rank": [1, 2, 3],
+                        "revenue": [300.0, 120.0, 80.0],
+                        "region": ["West", "East", "North"],
+                    }
+                ),
+            )
+        ],
+        warnings=[],
+        request=request,
+        profile=build_profile(),
+        context=None,
+    )
+
+    assert "Top 3 revenue values: #1 300.00 (region=West); #2 120.00 (region=East); #3 80.00 (region=North)." in summary
+
+
+def test_summarizer_lists_bottom_ranked_row_values() -> None:
+    summarizer = ResultSummarizer()
+    plan = AnalysisPlan(task_type="descriptive", rationale="Test.")
+    request = AnalysisRequest(
+        question="Show bottom 2 revenue values",
+        intent_name="row_ranking",
+        task_type_hint="descriptive",
+        target="revenue",
+        options={"ranking_limit": 2, "ranking_direction": "asc"},
+    )
+
+    summary = summarizer.summarize(
+        plan,
+        metrics=[],
+        tables=[
+            TableArtifact(
+                name="ranked_rows",
+                description="Bottom rows.",
+                dataframe=pd.DataFrame({"rank": [1, 2], "revenue": [40.0, 60.0], "region": ["East", "West"]}),
+            )
+        ],
+        warnings=[],
+        request=request,
+        profile=build_profile(),
+        context=None,
+    )
+
+    assert "Bottom 2 revenue values: #1 40.00 (region=East); #2 60.00 (region=West)." in summary
+
+
+def test_summarizer_lists_top_ranked_groups() -> None:
+    summarizer = ResultSummarizer()
+    plan = AnalysisPlan(task_type="descriptive", rationale="Test.")
+    request = AnalysisRequest(
+        question="Show top 2 revenue by region",
+        intent_name="group_ranking",
+        task_type_hint="descriptive",
+        target="revenue",
+        group_by=["region"],
+        options={"ranking_limit": 2, "ranking_direction": "desc"},
+    )
+
+    summary = summarizer.summarize(
+        plan,
+        metrics=[],
+        tables=[
+            TableArtifact(
+                name="ranked_breakdown",
+                description="Top groups.",
+                dataframe=pd.DataFrame({"rank": [1, 2], "region": ["West", "East"], "target_total": [397.0, 350.0]}),
+            )
+        ],
+        warnings=[],
+        request=request,
+        profile=build_profile(),
+        context=None,
+    )
+
+    assert "Top 2 revenue groups: #1 region=West = 397.00; #2 region=East = 350.00." in summary
+
+
+def test_summarizer_lists_bottom_ranked_groups() -> None:
+    summarizer = ResultSummarizer()
+    plan = AnalysisPlan(task_type="descriptive", rationale="Test.")
+    request = AnalysisRequest(
+        question="Show bottom 1 revenue by region",
+        intent_name="group_ranking",
+        task_type_hint="descriptive",
+        target="revenue",
+        group_by=["region"],
+        options={"ranking_limit": 1, "ranking_direction": "asc"},
+    )
+
+    summary = summarizer.summarize(
+        plan,
+        metrics=[],
+        tables=[
+            TableArtifact(
+                name="ranked_breakdown",
+                description="Bottom groups.",
+                dataframe=pd.DataFrame({"rank": [1], "region": ["East"], "target_total": [350.0]}),
+            )
+        ],
+        warnings=[],
+        request=request,
+        profile=build_profile(),
+        context=None,
+    )
+
+    assert "Bottom 1 revenue groups: #1 region=East = 350.00." in summary
+
+
+def test_summarizer_uses_available_row_count_when_ranking_limit_exceeds_results() -> None:
+    summarizer = ResultSummarizer()
+    plan = AnalysisPlan(task_type="descriptive", rationale="Test.")
+    request = AnalysisRequest(
+        question="Show top 5 revenue values",
+        intent_name="row_ranking",
+        task_type_hint="descriptive",
+        target="revenue",
+        options={"ranking_limit": 5, "ranking_direction": "desc"},
+    )
+
+    summary = summarizer.summarize(
+        plan,
+        metrics=[],
+        tables=[TableArtifact(name="ranked_rows", description="Top rows.", dataframe=pd.DataFrame({"rank": [1], "revenue": [300.0]}))],
+        warnings=[],
+        request=request,
+        profile=build_profile(),
+        context=None,
+    )
+
+    assert "Top 1 revenue values: #1 300.00." in summary
+
+
+def test_summarizer_row_ranking_skips_generic_trend_summary() -> None:
+    summarizer = ResultSummarizer()
+    plan = AnalysisPlan(task_type="descriptive", rationale="Test.")
+    request = AnalysisRequest(
+        question="Show top 3 revenue values",
+        intent_name="row_ranking",
+        task_type_hint="descriptive",
+        target="revenue",
+        options={"ranking_limit": 3, "ranking_direction": "desc"},
+    )
+
+    summary = summarizer.summarize(
+        plan,
+        metrics=[],
+        tables=[
+            TableArtifact(name="ranked_rows", description="Top rows.", dataframe=pd.DataFrame({"rank": [1], "revenue": [300.0]})),
+            TableArtifact(
+                name="time_trend",
+                description="Trend.",
+                dataframe=pd.DataFrame({"period_month": ["2026-04"], "target_total": [300.0], "period_delta": [None]}),
+            ),
+        ],
+        warnings=[],
+        request=request,
+        profile=build_profile(),
+        context=None,
+    )
+
+    assert "The latest period is" not in summary
+
+
+def test_summarizer_group_ranking_skips_generic_top_contributor_summary() -> None:
+    summarizer = ResultSummarizer()
+    plan = AnalysisPlan(task_type="descriptive", rationale="Test.")
+    request = AnalysisRequest(
+        question="Show top 2 revenue by region",
+        intent_name="group_ranking",
+        task_type_hint="descriptive",
+        target="revenue",
+        group_by=["region"],
+        options={"ranking_limit": 2, "ranking_direction": "desc"},
+    )
+
+    summary = summarizer.summarize(
+        plan,
+        metrics=[],
+        tables=[
+            TableArtifact(
+                name="ranked_breakdown",
+                description="Top groups.",
+                dataframe=pd.DataFrame({"rank": [1, 2], "region": ["West", "East"], "target_total": [397.0, 350.0]}),
+            ),
+            TableArtifact(
+                name="group_breakdown",
+                description="Groups.",
+                dataframe=pd.DataFrame({"region": ["West", "East"], "target_total": [397.0, 350.0]}),
+            ),
+        ],
+        warnings=[],
+        request=request,
+        profile=build_profile(),
+        context=None,
+    )
+
+    assert "Top contributor was" not in summary
+
+
+def test_summarizer_includes_context_note_with_ranked_rows() -> None:
+    summarizer = ResultSummarizer()
+    plan = AnalysisPlan(task_type="descriptive", rationale="Test.")
+    request = AnalysisRequest(
+        question="Show top 1 revenue values",
+        intent_name="row_ranking",
+        task_type_hint="descriptive",
+        target="revenue",
+        options={"ranking_limit": 1, "ranking_direction": "desc"},
+    )
+    context = SourceContext(raw_markdown="", caveats=["values are illustrative only"])
+
+    summary = summarizer.summarize(
+        plan,
+        metrics=[],
+        tables=[TableArtifact(name="ranked_rows", description="Top rows.", dataframe=pd.DataFrame({"rank": [1], "revenue": [300.0]}))],
+        warnings=[],
+        request=request,
+        profile=build_profile(),
+        context=context,
+    )
+
+    assert "Context caveat: values are illustrative only." in summary
+
+
 import pytest
 
 

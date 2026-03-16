@@ -392,6 +392,67 @@ def test_planner_rejects_regression_significance_without_features() -> None:
         planner.build_plan(request, build_profile())
 
 
+def test_planner_builds_row_ranking_plan() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="Show top 5 revenue values",
+        intent_name="row_ranking",
+        task_type_hint="descriptive",
+        target="revenue",
+        options={"ranking_limit": 5, "ranking_direction": "desc"},
+    )
+
+    plan = planner.build_plan(request, build_profile())
+
+    assert [step.action for step in plan.steps] == ["ranked_rows"]
+    assert plan.steps[0].parameters["limit"] == 5
+
+
+def test_planner_builds_group_ranking_plan() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="Show bottom 2 revenue by region",
+        intent_name="group_ranking",
+        task_type_hint="descriptive",
+        target="revenue",
+        group_by=["region"],
+        options={"ranking_limit": 2, "ranking_direction": "asc"},
+    )
+
+    plan = planner.build_plan(request, build_profile())
+
+    assert [step.action for step in plan.steps] == ["ranked_breakdown"]
+    assert plan.steps[0].parameters["ascending"] is True
+
+
+def test_planner_rejects_row_ranking_for_dimension_target() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="Show top 5 regions",
+        intent_name="row_ranking",
+        task_type_hint="descriptive",
+        target="region",
+        options={"ranking_limit": 5, "ranking_direction": "desc"},
+    )
+
+    with pytest.raises(PlanningError, match="Row ranking requires a numeric target"):
+        planner.build_plan(request, build_profile())
+
+
+def test_planner_rejects_group_ranking_without_group_by() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="Show top 5 revenue",
+        intent_name="group_ranking",
+        task_type_hint="descriptive",
+        target="revenue",
+        options={"ranking_limit": 5, "ranking_direction": "desc"},
+    )
+
+    with pytest.raises(PlanningError, match="Group ranking requires a numeric target and one grouping column"):
+        planner.build_plan(request, build_profile())
+
+
 def test_planner_rejects_invalid_group_by_columns() -> None:
     planner = AnalysisPlanner()
     request = AnalysisRequest(

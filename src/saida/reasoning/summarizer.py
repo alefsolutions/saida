@@ -64,6 +64,26 @@ class ResultSummarizer:
                 parts.append(f"Warnings: {'; '.join(warnings)}.")
             return " ".join(parts)
 
+        ranked_rows_part = self._describe_ranked_rows(tables, request)
+        if ranked_rows_part:
+            parts.append(ranked_rows_part)
+            context_note = self._describe_context_note(context)
+            if context_note:
+                parts.append(context_note)
+            if warnings:
+                parts.append(f"Warnings: {'; '.join(warnings)}.")
+            return " ".join(parts)
+
+        ranked_groups_part = self._describe_ranked_groups(tables, request)
+        if ranked_groups_part:
+            parts.append(ranked_groups_part)
+            context_note = self._describe_context_note(context)
+            if context_note:
+                parts.append(context_note)
+            if warnings:
+                parts.append(f"Warnings: {'; '.join(warnings)}.")
+            return " ".join(parts)
+
         distinct_values_part = self._describe_distinct_values(tables, request)
         if distinct_values_part:
             parts.append(distinct_values_part)
@@ -210,6 +230,43 @@ class ResultSummarizer:
         if request.options.get("ranking_direction") == "asc":
             return f"The least represented {request.target.replace('_', ' ')} is {row_label} with {row_count} rows."
         return f"The most represented {request.target.replace('_', ' ')} is {row_label} with {row_count} rows."
+
+    def _describe_ranked_rows(self, tables: list[TableArtifact], request: AnalysisRequest) -> str | None:
+        if request.intent_name != "row_ranking" or not request.target:
+            return None
+        ranked_rows = self._table(tables, "ranked_rows")
+        if ranked_rows is None or ranked_rows.dataframe.empty:
+            return None
+        limit = int(request.options.get("ranking_limit", len(ranked_rows.dataframe)))
+        direction = "Bottom" if request.options.get("ranking_direction") == "asc" else "Top"
+        label = request.target.replace("_", " ")
+        entries: list[str] = []
+        for _, row in ranked_rows.dataframe.head(limit).iterrows():
+            rank = int(row.get("rank", len(entries) + 1))
+            value = float(row.get(request.target, 0.0) or 0.0)
+            row_label = self._row_label(row, exclude={"rank", request.target})
+            if row_label and row_label != "the leading group":
+                entries.append(f"#{rank} {value:.2f} ({row_label})")
+            else:
+                entries.append(f"#{rank} {value:.2f}")
+        return f"{direction} {min(limit, len(ranked_rows.dataframe))} {label} values: {'; '.join(entries)}."
+
+    def _describe_ranked_groups(self, tables: list[TableArtifact], request: AnalysisRequest) -> str | None:
+        if request.intent_name != "group_ranking" or not request.target:
+            return None
+        ranked_groups = self._table(tables, "ranked_breakdown")
+        if ranked_groups is None or ranked_groups.dataframe.empty:
+            return None
+        limit = int(request.options.get("ranking_limit", len(ranked_groups.dataframe)))
+        direction = "Bottom" if request.options.get("ranking_direction") == "asc" else "Top"
+        label = request.target.replace("_", " ")
+        entries: list[str] = []
+        for _, row in ranked_groups.dataframe.head(limit).iterrows():
+            rank = int(row.get("rank", len(entries) + 1))
+            value = float(row.get("target_total", 0.0) or 0.0)
+            row_label = self._row_label(row, exclude={"rank", "target_total"})
+            entries.append(f"#{rank} {row_label} = {value:.2f}")
+        return f"{direction} {min(limit, len(ranked_groups.dataframe))} {label} groups: {'; '.join(entries)}."
 
     def _describe_row_count_only(self, metrics: list[Metric], request: AnalysisRequest) -> str | None:
         if request.intent_name != "row_count":

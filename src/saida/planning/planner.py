@@ -112,6 +112,42 @@ class AnalysisPlanner:
                 )
                 rationale = self._build_rationale(task_type, request, context)
                 return AnalysisPlan(task_type=task_type, rationale=rationale, steps=steps, warnings=warnings)
+            if request.intent_name == "row_ranking" and request.target:
+                steps.append(
+                    PlanStep(
+                        step_id="ranked_rows",
+                        tool_family="duckdb",
+                        action="ranked_rows",
+                        parameters={
+                            "target": request.target,
+                            "filters": request.filters,
+                            "ascending": request.options.get("ranking_direction") == "asc",
+                            "limit": int(request.options.get("ranking_limit", 5)),
+                        },
+                        description="Rank individual rows by the requested numeric target.",
+                    )
+                )
+                rationale = self._build_rationale(task_type, request, context)
+                return AnalysisPlan(task_type=task_type, rationale=rationale, steps=steps, warnings=warnings)
+            if request.intent_name == "group_ranking" and request.target and request.group_by:
+                steps.append(
+                    PlanStep(
+                        step_id="ranked_breakdown",
+                        tool_family="duckdb",
+                        action="ranked_breakdown",
+                        parameters={
+                            "target": request.target,
+                            "group_by": request.group_by,
+                            "aggregation": request.aggregation or "sum",
+                            "filters": request.filters,
+                            "limit": int(request.options.get("ranking_limit", 5)),
+                            "ascending": request.options.get("ranking_direction") == "asc",
+                        },
+                        description="Rank grouped results according to the requested top or bottom limit.",
+                    )
+                )
+                rationale = self._build_rationale(task_type, request, context)
+                return AnalysisPlan(task_type=task_type, rationale=rationale, steps=steps, warnings=warnings)
             if request.options.get("distinct_values") and request.target:
                 steps.append(
                     PlanStep(
@@ -441,6 +477,11 @@ class AnalysisPlanner:
             raise PlanningError("Distinct value listing requires a dimension target.")
         if request.intent_name == "representation_ranking" and request.target not in set(profile.dimension_columns):
             raise PlanningError("Representation ranking requires a dimension target.")
+        if request.intent_name == "row_ranking" and request.target not in set(profile.measure_columns):
+            raise PlanningError("Row ranking requires a numeric target.")
+        if request.intent_name == "group_ranking":
+            if request.target not in set(profile.measure_columns) or not request.group_by:
+                raise PlanningError("Group ranking requires a numeric target and one grouping column.")
         if request.intent_name == "time_coverage" and not profile.time_columns:
             raise PlanningError("Time coverage analysis requires a datetime column.")
         if request.options.get("statistical_test") == "chi_square":
@@ -499,6 +540,10 @@ class AnalysisPlanner:
             rationale += f" Filters were detected for: {', '.join(request.filters)}."
         if request.options.get("distinct_values"):
             rationale += " A distinct value listing was requested."
+        if request.intent_name == "row_ranking":
+            rationale += " Ranked row retrieval was requested."
+        if request.intent_name == "group_ranking":
+            rationale += " Group ranking was requested."
         if request.intent_name:
             rationale += f" Intent: {request.intent_name}."
         if request.intent_name == "time_coverage":
