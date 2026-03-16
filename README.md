@@ -7,7 +7,7 @@
 [![Python](https://img.shields.io/badge/python-3.11%2B-3776AB)](pyproject.toml)
 ![V1 Status](https://img.shields.io/badge/v1-experimental-f59e0b)
 
-SAIDA is a **lightweight Python analytical reasoning library**.
+SAIDA is a **Python engine for natural-language data discovery, deterministic analytics, and optional LLM-assisted reasoning.**
 
 Core philosophy:
 
