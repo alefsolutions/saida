@@ -290,6 +290,29 @@ The current implementation is focused on the non-ML deterministic core:
 
 `train(...)`, `predict(...)`, and `forecast(...)` are intentionally reserved for a later ML implementation pass.
 
+Capability maturity at a glance:
+
+- strongest support:
+  - deterministic descriptive analytics
+  - grouped aggregation
+  - distinct value listing
+  - metadata inventory
+  - month-based trend and period comparison
+  - contribution and top-mover analysis
+  - core statistical summaries and formal statistical testing
+- moderate support:
+  - LLM-assisted prompt handling
+  - richer human-readable prompt phrasing
+  - power and sample-size reasoning
+  - regression significance workflows
+  - context-aware statistical interpretation
+- weakest support:
+  - broad natural-language time phrasing
+  - open-ended factor discovery prompts
+  - generalized ranking and comparison phrasing
+  - arbitrary natural-language SQL-style requests
+  - all ML workflows
+
 Important current limits:
 
 - broader time execution beyond month-based requests is still limited

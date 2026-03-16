@@ -8,6 +8,50 @@ The current repo build is centered on the deterministic non-ML analytics core.
 
 ---
 
+## Support Strength
+
+### Strongest Support
+
+These are the current areas where SAIDA is most reliable and most mature:
+
+- deterministic descriptive aggregation
+- grouped aggregation and ranked grouped breakdowns
+- distinct value listing for dimension columns
+- row counts and grouped row-count ranking
+- metadata inventory queries
+- month-based time trends and adjacent period comparison
+- contribution analysis and top movers
+- time coverage inspection
+- statistical summaries
+- core formal statistical testing
+- standardized analytical response packaging
+
+### Moderate Support
+
+These are useful and working, but still benefit from clearer prompting or some maturity work:
+
+- LLM-assisted prompt interpretation
+- LLM-assisted response wording
+- confidence interval workflows
+- regression significance workflows
+- p-value-driven significance workflows
+- observed power analysis
+- sample-size estimation
+- context-aware semantic resolution for analysis planning
+
+### Weakest Support
+
+These are the current areas with the most visible limits:
+
+- broader natural-language time phrasing
+- open-ended ranking phrasing
+- open-ended comparison phrasing
+- open-ended factor-selection prompts
+- arbitrary natural-language SQL-style requests
+- ML training, prediction, and forecasting
+
+---
+
 ## DuckDB Compute
 
 The DuckDB layer currently supports:
