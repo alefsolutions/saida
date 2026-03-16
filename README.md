@@ -1,6 +1,6 @@
 ![SAIDA Banner](assets/github-banner.png)
 
-# SAIDA
+# SAIDA *(Experimental)*
 
 [![Version](https://img.shields.io/badge/version-0.1.0-1f6feb)](pyproject.toml)
 [![License](https://img.shields.io/badge/license-MIT-2ea043)](LICENSE)
