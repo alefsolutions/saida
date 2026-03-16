@@ -1,8 +1,13 @@
-from pathlib import Path
+from __future__ import annotations
+
+from dataclasses import asdict
+import json
 import os
 import sys
 import threading
 import time
+from pathlib import Path
+from typing import Any
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -31,6 +36,59 @@ def _show_loader(stop_event: threading.Event) -> None:
     print("\r" + " " * 20 + "\r", end="", flush=True)
 
 
+def _json_safe(value: Any) -> Any:
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, dict):
+        return {str(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_json_safe(item) for item in value]
+    if hasattr(value, "isoformat"):
+        try:
+            return value.isoformat()
+        except Exception:
+            return str(value)
+    return str(value)
+
+
+def _table_payload(result: Any) -> list[dict[str, Any]]:
+    payload: list[dict[str, Any]] = []
+    for table in result.tables:
+        records = [{key: _json_safe(value) for key, value in row.items()} for row in table.dataframe.to_dict(orient="records")]
+        payload.append(
+            {
+                "name": table.name,
+                "description": table.description,
+                "columns": list(table.dataframe.columns),
+                "row_count": int(len(table.dataframe)),
+                "records": records,
+            }
+        )
+    return payload
+
+
+def _result_payload(result: Any) -> dict[str, Any]:
+    response = result.to_response_dict()
+    return {
+        "schema_version": "saida.playground_query_result.v1",
+        "status": response.get("status", "ok"),
+        "question": response.get("question"),
+        "dataset": response.get("dataset", {}),
+        "intent": response.get("intent", {}),
+        "plan": response.get("plan", {}),
+        "outputs": {
+            "summary": result.summary,
+            "deterministic_summary": result.deterministic_summary,
+            "llm_summary": result.llm_summary,
+            "summary_source": result.summary_source,
+            "warnings": list(result.warnings),
+            "metrics": [_json_safe(asdict(metric)) for metric in result.metrics],
+            "tables": _table_payload(result),
+        },
+        "trace": response.get("outputs", {}).get("trace", []),
+    }
+
+
 def main() -> None:
     load_project_env(PROJECT_ROOT)
 
@@ -53,7 +111,7 @@ def main() -> None:
     )
 
     engine = Saida(config=config)
-    print("SAIDA OpenAI playground")
+    print("SAIDA OpenAI JSON playground")
     print(f"Dataset: {dataset.name}")
     print("Type a question, or type 'exit' to quit.")
 
@@ -82,15 +140,7 @@ def main() -> None:
             stop_event.set()
             loader_thread.join()
 
-        llm_summary = getattr(result, "llm_summary", None)
-        summary = getattr(result, "summary", "")
-        print(llm_summary or summary)
-        print("..........", result.deterministic_summary)
-        print()
-        if result.tables:
-            print("Tables:", ", ".join(table.name for table in result.tables))
-        if result.warnings:
-            print("Warnings:", "; ".join(result.warnings))
+        print(json.dumps(_result_payload(result), indent=2, ensure_ascii=True))
 
         if result.plan.task_type == "clarification":
             pending_prompt = question
