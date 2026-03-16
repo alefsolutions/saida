@@ -164,6 +164,21 @@ All successful computations are packaged into a standardized analytical response
 
 ---
 
+## Validation Status
+
+Latest verified local test run for this repo state:
+
+- total tests: `1201`
+- passed: `1201`
+- failed: `0`
+- warnings: `1 non-failing warning`
+
+Current warning note:
+
+- `statsmodels` emits a `ConvergenceWarning` in one sample-size estimation smoke test, but the suite still passes and the statistical workflow is handled safely.
+
+---
+
 ## Current Limits
 
 The current repo build still has important boundaries:

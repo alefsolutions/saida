@@ -314,7 +314,7 @@ class ResultSummarizer:
             return "Regression significance did not identify any statistically significant predictors beyond the intercept."
         if statistical_table.name == "power_analysis":
             return (
-                f"Observed statistical power for {row['target']} by {row['group_column']} is {float(row['power']):.2f} "
+                f"Observed power for {row['target']} by {row['group_column']} is {float(row['power']):.2f} "
                 f"with effect size {float(row['effect_size']):.2f}."
             )
         if statistical_table.name == "sample_size_estimate":

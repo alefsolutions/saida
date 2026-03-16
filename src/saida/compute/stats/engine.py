@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 import pandas as pd
 import statsmodels.api as sm
 from scipy import stats
@@ -515,6 +517,9 @@ class StatsComputeEngine:
             alpha=alpha,
             ratio=1.0,
         )
+        required_sample_size_value = self._coerce_scalar_float(required_sample_size)
+        if not math.isfinite(required_sample_size_value):
+            raise ComputeError("Sample size estimation did not converge to a finite result.")
         return TableArtifact(
             name="sample_size_estimate",
             description=f"Estimated per-group sample size for {target} by {group_column}.",
@@ -528,7 +533,7 @@ class StatsComputeEngine:
                         "effect_size": float(effect_size),
                         "alpha": float(alpha),
                         "desired_power": float(desired_power),
-                        "required_sample_size_per_group": float(required_sample_size),
+                        "required_sample_size_per_group": required_sample_size_value,
                     }
                 ]
             ),
@@ -546,6 +551,22 @@ class StatsComputeEngine:
         if missing_columns:
             joined = ", ".join(missing_columns)
             raise ComputeError(f"Required columns are missing from the dataset: {joined}")
+
+    def _coerce_scalar_float(self, value: object) -> float:
+        if isinstance(value, (int, float)):
+            return float(value)
+        if hasattr(value, "item"):
+            try:
+                return float(value.item())
+            except Exception:
+                pass
+        if hasattr(value, "__len__") and hasattr(value, "__getitem__"):
+            try:
+                if len(value) == 1:
+                    return float(value[0])
+            except Exception:
+                pass
+        raise ComputeError("Statistical routine returned a non-scalar result.")
 
     def _numeric_series(self, dataframe: pd.DataFrame, target: str) -> pd.Series:
         if target not in dataframe.columns:

@@ -181,7 +181,11 @@ class RequestNormalizer:
             target = None
             aggregation = None
             group_by = None
-        if options.get("statistical_test") in {"chi_square", "regression_significance"}:
+        if options.get("statistical_test") == "chi_square":
+            group_by = self._extract_statistical_group_by(question, profile, target)
+        elif options.get("statistical_test") == "regression_significance":
+            group_by = None
+        elif options.get("statistical_test") in {"t_test", "anova", "mann_whitney", "significance_inference", "power_analysis", "sample_size_estimate"} and not group_by:
             group_by = self._extract_statistical_group_by(question, profile, target)
 
         if intent_name == "representation_ranking" and target is not None:
@@ -272,7 +276,11 @@ class RequestNormalizer:
             target = None
             aggregation = None
             group_by = None
-        if options.get("statistical_test") in {"chi_square", "regression_significance"}:
+        if options.get("statistical_test") == "chi_square":
+            group_by = self._extract_statistical_group_by(question, profile, target)
+        elif options.get("statistical_test") == "regression_significance":
+            group_by = None
+        elif options.get("statistical_test") in {"t_test", "anova", "mann_whitney", "significance_inference", "power_analysis", "sample_size_estimate"} and not group_by:
             group_by = self._extract_statistical_group_by(question, profile, target)
         if rule_intent_name == "representation_ranking" and target is not None:
             group_by = [target]
@@ -583,7 +591,14 @@ class RequestNormalizer:
         lowered = question.lower()
         matches: list[tuple[int, str]] = []
         for column in profile.columns:
-            match = re.search(rf"\b{re.escape(column.name.lower())}\b", lowered)
+            patterns = [rf"\b{re.escape(column.name.lower())}\b"]
+            if "_" not in column.name:
+                patterns.append(rf"\b{re.escape(column.name.lower())}s\b")
+            match = None
+            for pattern in patterns:
+                match = re.search(pattern, lowered)
+                if match:
+                    break
             if match:
                 matches.append((match.start(), column.name))
         matches.sort(key=lambda item: item[0])

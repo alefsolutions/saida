@@ -174,11 +174,16 @@ Current test types include:
 
 Latest verified local test run for this repo state:
 
-- total tests: `1181`
-- passed: `1181`
+- total tests: `1201`
+- passed: `1201`
 - failed: `0`
 - success rate: `100%`
 - failure rate: `0%`
+- warnings: `1 non-failing warning`
+
+Latest warning note:
+
+- `statsmodels` emits a `ConvergenceWarning` in one sample-size estimation smoke test, but the suite still passes end-to-end and the result is handled safely by SAIDA.
 
 Run locally with:
 
