@@ -300,15 +300,15 @@ Capability maturity at a glance:
   - month-based trend and period comparison
   - contribution and top-mover analysis
   - core statistical summaries and formal statistical testing
+  - confidence intervals and p-value-driven significance workflows
+  - power and sample-size reasoning
+  - regression significance with explicit predictors
 - moderate support:
   - LLM-assisted prompt handling
-  - richer human-readable prompt phrasing
-  - power and sample-size reasoning
-  - regression significance workflows
+  - open-ended factor discovery prompts
   - context-aware statistical interpretation
 - weakest support:
   - broad natural-language time phrasing
-  - open-ended factor discovery prompts
   - generalized ranking and comparison phrasing
   - arbitrary natural-language SQL-style requests
   - all ML workflows

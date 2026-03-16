@@ -320,6 +320,78 @@ def test_planner_rejects_invalid_target_column() -> None:
         planner.build_plan(request, build_profile())
 
 
+def test_planner_builds_significance_inference_plan_for_natural_prompt() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="Do regions differ in revenue?",
+        task_type_hint="statistical",
+        target="revenue",
+        group_by=["region"],
+        options={"statistical_test": "significance_inference"},
+    )
+
+    plan = planner.build_plan(request, build_profile())
+
+    assert [step.action for step in plan.steps] == ["significance_inference"]
+
+
+def test_planner_builds_confidence_interval_plan_for_natural_prompt() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="What range are we 95% confident revenue falls in?",
+        task_type_hint="statistical",
+        target="revenue",
+        options={"statistical_test": "confidence_interval", "confidence_level": 0.95},
+    )
+
+    plan = planner.build_plan(request, build_profile())
+
+    assert [step.action for step in plan.steps] == ["confidence_interval"]
+
+
+def test_planner_builds_power_analysis_plan_for_natural_prompt() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="Do we have enough data to detect a difference in revenue by region?",
+        task_type_hint="statistical",
+        target="revenue",
+        group_by=["region"],
+        options={"statistical_test": "power_analysis", "desired_power": 0.8},
+    )
+
+    plan = planner.build_plan(request, build_profile())
+
+    assert [step.action for step in plan.steps] == ["power_analysis"]
+
+
+def test_planner_builds_sample_size_plan_for_natural_prompt() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="How many rows per group do we need for revenue by region?",
+        task_type_hint="statistical",
+        target="revenue",
+        group_by=["region"],
+        options={"statistical_test": "sample_size_estimate", "desired_power": 0.8},
+    )
+
+    plan = planner.build_plan(request, build_profile())
+
+    assert [step.action for step in plan.steps] == ["sample_size_estimate"]
+
+
+def test_planner_rejects_regression_significance_without_features() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="Does resolution_hours significantly affect csat_score?",
+        task_type_hint="statistical",
+        target="revenue",
+        options={"statistical_test": "regression_significance", "feature_columns": []},
+    )
+
+    with pytest.raises(PlanningError, match="Regression significance testing requires a target and at least one feature column"):
+        planner.build_plan(request, build_profile())
+
+
 def test_planner_rejects_invalid_group_by_columns() -> None:
     planner = AnalysisPlanner()
     request = AnalysisRequest(

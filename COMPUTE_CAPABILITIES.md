@@ -24,6 +24,9 @@ These are the current areas where SAIDA is most reliable and most mature:
 - time coverage inspection
 - statistical summaries
 - core formal statistical testing
+- confidence intervals and p-value-driven significance workflows
+- power and sample-size reasoning
+- regression significance with explicit predictors
 - standardized analytical response packaging
 
 ### Moderate Support
@@ -32,11 +35,6 @@ These are useful and working, but still benefit from clearer prompting or some m
 
 - LLM-assisted prompt interpretation
 - LLM-assisted response wording
-- confidence interval workflows
-- regression significance workflows
-- p-value-driven significance workflows
-- observed power analysis
-- sample-size estimation
 - context-aware semantic resolution for analysis planning
 
 ### Weakest Support
@@ -118,13 +116,18 @@ The current repo build also supports:
 ### Typical prompt shapes
 
 - `Run a t-test for revenue by region`
+- `Do regions differ in revenue?`
 - `Run chi-square test for segment and region`
 - `Run ANOVA for revenue by team`
 - `Run Mann-Whitney test for csat_score by reopened_flag`
 - `What is the 95% confidence interval for revenue?`
+- `What range are we 95% confident revenue falls in?`
 - `Is revenue by region statistically significant?`
+- `Do we have enough data to detect a difference in revenue by region?`
 - `Run regression significance test for shipping_cost using parcel_count`
+- `Does parcel_count significantly affect shipping_cost?`
 - `Run power analysis for resolution_hours by reopened_flag`
+- `How many rows per group do we need for revenue by channel?`
 - `Estimate sample size for revenue by channel`
 
 ---

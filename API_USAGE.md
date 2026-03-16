@@ -64,10 +64,14 @@ Statistical workflows are also supported:
 
 ```python
 engine.analyze(dataset=dataset, question="Run a t-test for revenue by region")
+engine.analyze(dataset=dataset, question="Do regions differ in revenue?")
 engine.analyze(dataset=dataset, question="Run chi-square test for segment and region")
 engine.analyze(dataset=dataset, question="Run ANOVA for revenue by team")
 engine.analyze(dataset=dataset, question="What is the 95% confidence interval for revenue?")
+engine.analyze(dataset=dataset, question="What range are we 95% confident revenue falls in?")
 engine.analyze(dataset=dataset, question="Is revenue by region statistically significant?")
+engine.analyze(dataset=dataset, question="Do we have enough data to detect a difference in revenue by region?")
+engine.analyze(dataset=dataset, question="Does parcel_count significantly affect shipping_cost?")
 ```
 
 Current practical limits:

@@ -74,6 +74,90 @@ def build_dataset() -> Dataset:
     return Dataset(name="sales", source_type="pandas", data=dataframe)
 
 
+def build_statistical_profile() -> DatasetProfile:
+    return DatasetProfile(
+        dataset_name="tickets",
+        row_count=6,
+        column_count=5,
+        columns=[
+            ColumnProfile(
+                name="resolution_hours",
+                inferred_type="float",
+                nullable=False,
+                null_ratio=0.0,
+                unique_count=6,
+                distinct_ratio=1.0,
+                sample_values=[2.1, 5.4],
+                is_measure_candidate=True,
+            ),
+            ColumnProfile(
+                name="csat_score",
+                inferred_type="float",
+                nullable=False,
+                null_ratio=0.0,
+                unique_count=6,
+                distinct_ratio=1.0,
+                sample_values=[4.2, 3.8],
+                is_measure_candidate=True,
+            ),
+            ColumnProfile(
+                name="team",
+                inferred_type="category",
+                nullable=False,
+                null_ratio=0.0,
+                unique_count=3,
+                distinct_ratio=0.5,
+                sample_values=["Support", "Platform"],
+                is_dimension_candidate=True,
+            ),
+            ColumnProfile(
+                name="reopened_flag",
+                inferred_type="category",
+                nullable=False,
+                null_ratio=0.0,
+                unique_count=2,
+                distinct_ratio=0.33,
+                sample_values=["yes", "no"],
+                is_dimension_candidate=True,
+            ),
+            ColumnProfile(
+                name="created_at",
+                inferred_type="datetime",
+                nullable=False,
+                null_ratio=0.0,
+                unique_count=6,
+                distinct_ratio=1.0,
+                sample_values=["2026-01-01"],
+                is_time_candidate=True,
+            ),
+        ],
+        measure_columns=["resolution_hours", "csat_score"],
+        dimension_columns=["team", "reopened_flag"],
+        time_columns=["created_at"],
+        identifier_columns=[],
+    )
+
+
+def build_statistical_dataset() -> Dataset:
+    dataframe = pd.DataFrame(
+        {
+            "resolution_hours": [2.1, 5.4, 6.8, 4.2, 7.1, 8.0],
+            "csat_score": [4.7, 4.0, 3.6, 4.1, 3.5, 3.2],
+            "team": ["Support", "Support", "Platform", "Platform", "Support", "Platform"],
+            "reopened_flag": ["no", "no", "yes", "yes", "no", "yes"],
+            "created_at": [
+                "2026-01-01",
+                "2026-01-02",
+                "2026-01-03",
+                "2026-01-04",
+                "2026-01-05",
+                "2026-01-06",
+            ],
+        }
+    )
+    return Dataset(name="tickets", source_type="pandas", data=dataframe)
+
+
 def test_normalizer_extracts_group_by_filters_and_time_reference() -> None:
     normalizer = RequestNormalizer()
     context = SourceContext(raw_markdown="", metric_definitions={"revenue": "total revenue"})
@@ -333,6 +417,161 @@ def test_normalizer_detects_time_coverage_date_range_intent() -> None:
 
     assert request.intent_name == "time_coverage"
     assert request.options["time_coverage_mode"] == "date_range"
+
+
+def test_normalizer_detects_natural_significance_prompt() -> None:
+    normalizer = RequestNormalizer()
+
+    request, warnings = normalizer.normalize(
+        "Do regions differ in revenue?",
+        build_dataset(),
+        build_profile(),
+        None,
+    )
+
+    assert warnings == []
+    assert request.task_type_hint == "statistical"
+    assert request.target == "revenue"
+    assert request.group_by == ["region"]
+    assert request.options["statistical_test"] == "significance_inference"
+
+
+def test_normalizer_detects_significant_difference_prompt() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Is there a significant difference in revenue by region?",
+        build_dataset(),
+        build_profile(),
+        None,
+    )
+
+    assert request.target == "revenue"
+    assert request.group_by == ["region"]
+    assert request.options["statistical_test"] == "significance_inference"
+
+
+def test_normalizer_detects_natural_confidence_range_prompt() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "What range are we 95% confident revenue falls in?",
+        build_dataset(),
+        build_profile(),
+        None,
+    )
+
+    assert request.task_type_hint == "statistical"
+    assert request.target == "revenue"
+    assert request.options["statistical_test"] == "confidence_interval"
+    assert request.options["confidence_level"] == 0.95
+
+
+def test_normalizer_defaults_confidence_interval_level_when_missing() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "What confidence range do we have for revenue?",
+        build_dataset(),
+        build_profile(),
+        None,
+    )
+
+    assert request.options["statistical_test"] == "confidence_interval"
+    assert request.options["confidence_level"] == 0.95
+
+
+def test_normalizer_detects_natural_power_analysis_prompt() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Do we have enough data to detect a difference in revenue by region?",
+        build_dataset(),
+        build_profile(),
+        None,
+    )
+
+    assert request.task_type_hint == "statistical"
+    assert request.target == "revenue"
+    assert request.group_by == ["region"]
+    assert request.options["statistical_test"] == "power_analysis"
+
+
+def test_normalizer_extracts_desired_power_from_natural_prompt() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Do we have enough data to detect a difference in revenue by region at 90% power?",
+        build_dataset(),
+        build_profile(),
+        None,
+    )
+
+    assert request.options["statistical_test"] == "power_analysis"
+    assert request.options["desired_power"] == 0.90
+
+
+def test_normalizer_detects_natural_sample_size_prompt() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "How many rows per group do we need for revenue by region?",
+        build_dataset(),
+        build_profile(),
+        None,
+    )
+
+    assert request.task_type_hint == "statistical"
+    assert request.target == "revenue"
+    assert request.group_by == ["region"]
+    assert request.options["statistical_test"] == "sample_size_estimate"
+
+
+def test_normalizer_extracts_regression_columns_from_natural_prompt() -> None:
+    normalizer = RequestNormalizer()
+
+    request, warnings = normalizer.normalize(
+        "Does resolution_hours significantly affect csat_score?",
+        build_statistical_dataset(),
+        build_statistical_profile(),
+        None,
+    )
+
+    assert warnings == []
+    assert request.task_type_hint == "statistical"
+    assert request.target == "csat_score"
+    assert request.group_by is None
+    assert request.options["statistical_test"] == "regression_significance"
+    assert request.options["feature_columns"] == ["resolution_hours"]
+
+
+def test_normalizer_extracts_regression_columns_in_prompt_order() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Does csat_score significantly affect resolution_hours?",
+        build_statistical_dataset(),
+        build_statistical_profile(),
+        None,
+    )
+
+    assert request.target == "resolution_hours"
+    assert request.options["feature_columns"] == ["csat_score"]
+
+
+def test_normalizer_does_not_force_statistical_mode_for_open_ended_factor_prompt() -> None:
+    normalizer = RequestNormalizer()
+
+    request, warnings = normalizer.normalize(
+        "Which factors significantly affect customer satisfaction?",
+        build_statistical_dataset(),
+        build_statistical_profile(),
+        None,
+    )
+
+    assert request.task_type_hint == "statistical"
+    assert request.options.get("statistical_test") is None
+    assert any("No explicit metric matched the prompt" in warning for warning in warnings)
 
 
 _NORMALIZER_QUESTION_CASES = [

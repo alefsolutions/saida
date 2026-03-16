@@ -61,6 +61,56 @@ STATISTICAL_TEST_KEYWORDS = {
     "power_analysis": {"statistical power", "power analysis"},
     "sample_size_estimate": {"sample size", "required sample size"},
 }
+SIGNIFICANCE_COMPARISON_KEYWORDS = {
+    "statistically significant",
+    "significant difference",
+    "significant differences",
+    "differ significantly",
+    "different enough",
+}
+NATURAL_SIGNIFICANCE_COMPARISON_KEYWORDS = {
+    "differ in",
+    "difference in",
+    "different by",
+    "higher than",
+    "lower than",
+    "longer than",
+    "shorter than",
+    "more than",
+    "less than",
+}
+NATURAL_CONFIDENCE_INTERVAL_KEYWORDS = {
+    "confidence range",
+    "confident range",
+    "uncertainty range",
+    "range are we",
+    "range can we be",
+}
+NATURAL_POWER_ANALYSIS_KEYWORDS = {
+    "enough data to detect",
+    "enough data for",
+    "enough power",
+    "sufficient power",
+    "powered to detect",
+    "detect a real difference",
+}
+NATURAL_SAMPLE_SIZE_KEYWORDS = {
+    "how many samples",
+    "how many observations",
+    "how many rows per group",
+    "how many records per group",
+    "sample size do we need",
+    "sample size is needed",
+    "sample size needed",
+}
+NATURAL_REGRESSION_SIGNIFICANCE_KEYWORDS = {
+    "significantly affect",
+    "significantly affects",
+    "significantly influence",
+    "significantly influences",
+    "significantly predict",
+    "significantly predicts",
+}
 AGGREGATION_KEYWORDS = {
     "mean": {"average", "mean", "avg"},
     "max": {"highest", "maximum", "max", "top", "largest", "best"},
@@ -119,9 +169,13 @@ class RequestNormalizer:
             target = comparison_columns[0]
             group_by = comparison_columns[1:2]
         if options.get("statistical_test") == "regression_significance" and options.get("feature_columns"):
-            named_columns = self._extract_named_columns(question, profile)
-            if named_columns:
-                target = named_columns[0]
+            regression_target = options.get("regression_target")
+            if isinstance(regression_target, str):
+                target = regression_target
+            else:
+                named_columns = self._extract_named_columns(question, profile)
+                if named_columns:
+                    target = named_columns[0]
         if intent_name == "time_coverage":
             options["time_coverage_mode"] = self._time_coverage_mode(question)
             target = None
@@ -206,9 +260,13 @@ class RequestNormalizer:
             target = comparison_columns[0]
             group_by = comparison_columns[1:2]
         if options.get("statistical_test") == "regression_significance" and options.get("feature_columns"):
-            named_columns = self._extract_named_columns(question, profile)
-            if named_columns:
-                target = named_columns[0]
+            regression_target = options.get("regression_target")
+            if isinstance(regression_target, str):
+                target = regression_target
+            else:
+                named_columns = self._extract_named_columns(question, profile)
+                if named_columns:
+                    target = named_columns[0]
         if rule_intent_name == "time_coverage":
             options["time_coverage_mode"] = self._time_coverage_mode(question)
             target = None
@@ -431,8 +489,8 @@ class RequestNormalizer:
         options: dict[str, object],
     ) -> None:
         statistical_test = self._extract_statistical_test(question)
-        if statistical_test is None and "statistically significant" in question.lower():
-            statistical_test = "significance_inference"
+        if statistical_test is None:
+            statistical_test = self._infer_statistical_test(question, profile)
         if statistical_test is None:
             return
 
@@ -444,8 +502,13 @@ class RequestNormalizer:
         named_columns = self._extract_named_columns(question, profile)
         if statistical_test == "chi_square" and len(named_columns) >= 2:
             options["comparison_columns"] = named_columns[:2]
-        if statistical_test == "regression_significance" and len(named_columns) >= 2:
-            options["feature_columns"] = named_columns[1:]
+        if statistical_test == "regression_significance":
+            regression_target, feature_columns = self._extract_regression_columns(question, profile)
+            if regression_target and feature_columns:
+                options["regression_target"] = regression_target
+                options["feature_columns"] = feature_columns
+            elif len(named_columns) >= 2:
+                options["feature_columns"] = named_columns[1:]
 
     def _extract_statistical_test(self, question: str) -> str | None:
         lowered = question.lower()
@@ -454,13 +517,78 @@ class RequestNormalizer:
                 return test_name
         return None
 
+    def _infer_statistical_test(self, question: str, profile: DatasetProfile) -> str | None:
+        lowered = question.lower()
+        named_columns = self._extract_named_columns(question, profile)
+        named_measures = [column for column in named_columns if column in profile.measure_columns]
+        named_dimensions = [column for column in named_columns if column in profile.dimension_columns]
+
+        if self._looks_like_sample_size_request(lowered) and named_measures and named_dimensions:
+            return "sample_size_estimate"
+        if self._looks_like_power_analysis_request(lowered) and named_measures and named_dimensions:
+            return "power_analysis"
+        if self._looks_like_confidence_interval_request(lowered) and named_measures:
+            return "confidence_interval"
+        regression_target, feature_columns = self._extract_regression_columns(question, profile)
+        if regression_target and feature_columns:
+            return "regression_significance"
+        if self._looks_like_significance_inference_request(lowered, named_measures, named_dimensions):
+            return "significance_inference"
+        return None
+
+    def _looks_like_significance_inference_request(
+        self,
+        lowered: str,
+        named_measures: list[str],
+        named_dimensions: list[str],
+    ) -> bool:
+        if named_measures and named_dimensions and any(keyword in lowered for keyword in SIGNIFICANCE_COMPARISON_KEYWORDS):
+            return True
+        return bool(
+            named_measures
+            and named_dimensions
+            and any(keyword in lowered for keyword in NATURAL_SIGNIFICANCE_COMPARISON_KEYWORDS)
+        )
+
+    def _looks_like_confidence_interval_request(self, lowered: str) -> bool:
+        if any(keyword in lowered for keyword in NATURAL_CONFIDENCE_INTERVAL_KEYWORDS):
+            return True
+        return "confidence" in lowered and any(keyword in lowered for keyword in {"interval", "range", "bounds"})
+
+    def _looks_like_power_analysis_request(self, lowered: str) -> bool:
+        return any(keyword in lowered for keyword in NATURAL_POWER_ANALYSIS_KEYWORDS)
+
+    def _looks_like_sample_size_request(self, lowered: str) -> bool:
+        return any(keyword in lowered for keyword in NATURAL_SAMPLE_SIZE_KEYWORDS)
+
+    def _extract_regression_columns(
+        self,
+        question: str,
+        profile: DatasetProfile,
+    ) -> tuple[str | None, list[str]]:
+        lowered = question.lower()
+        for keyword in NATURAL_REGRESSION_SIGNIFICANCE_KEYWORDS:
+            if keyword not in lowered:
+                continue
+            before, after = lowered.split(keyword, 1)
+            feature_candidates = self._extract_named_columns(before, profile)
+            target_candidates = self._extract_named_columns(after, profile)
+            feature_columns = [column for column in feature_candidates if column in profile.measure_columns]
+            target_columns = [column for column in target_candidates if column in profile.measure_columns]
+            if feature_columns and target_columns:
+                return target_columns[0], feature_columns
+        return None, []
+
     def _extract_named_columns(self, question: str, profile: DatasetProfile) -> list[str]:
         lowered = question.lower()
-        matches: list[str] = []
+        matches: list[tuple[int, str]] = []
         for column in profile.columns:
-            if re.search(rf"\b{re.escape(column.name.lower())}\b", lowered):
-                matches.append(column.name)
-        return list(dict.fromkeys(matches))
+            match = re.search(rf"\b{re.escape(column.name.lower())}\b", lowered)
+            if match:
+                matches.append((match.start(), column.name))
+        matches.sort(key=lambda item: item[0])
+        ordered_names = [column_name for _, column_name in matches]
+        return list(dict.fromkeys(ordered_names))
 
     def _extract_alpha(self, question: str) -> float:
         lowered = question.lower()

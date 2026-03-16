@@ -545,6 +545,88 @@ def test_analyze_supports_p_value_driven_inference_workflow() -> None:
     assert any(table.name == "significance_test" for table in result.tables)
 
 
+def test_analyze_supports_natural_significance_prompt() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "region": ["North"] * 6 + ["South"] * 6,
+            "revenue": [100, 104, 98, 102, 101, 99, 135, 138, 132, 140, 136, 134],
+        }
+    )
+    dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "Do regions differ in revenue?")
+
+    assert "Welch t-test for revenue by region" in result.summary
+    assert result.response["intent"]["options"]["statistical_test"] == "significance_inference"
+    assert any(table.name == "significance_test" for table in result.tables)
+
+
+def test_analyze_supports_natural_confidence_interval_prompt() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "revenue": [100.0, 103.0, 98.0, 110.0, 105.0, 107.0],
+            "region": ["West", "West", "East", "East", "West", "East"],
+        }
+    )
+    dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "What range are we 95% confident revenue falls in?")
+
+    assert "confidence interval for revenue" in result.summary
+    assert result.response["intent"]["options"]["statistical_test"] == "confidence_interval"
+    assert any(table.name == "confidence_interval" for table in result.tables)
+
+
+def test_analyze_supports_natural_power_analysis_prompt() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "region": ["North"] * 8 + ["South"] * 8,
+            "revenue": [100, 101, 99, 102, 98, 100, 101, 99, 120, 121, 119, 123, 118, 122, 120, 121],
+        }
+    )
+    dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "Do we have enough data to detect a difference in revenue by region?")
+
+    assert "Observed power" in result.summary
+    assert result.response["intent"]["options"]["statistical_test"] == "power_analysis"
+    assert any(table.name == "power_analysis" for table in result.tables)
+
+
+def test_analyze_supports_natural_sample_size_prompt() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "region": ["North"] * 8 + ["South"] * 8,
+            "revenue": [100, 101, 99, 102, 98, 100, 101, 99, 120, 121, 119, 123, 118, 122, 120, 121],
+        }
+    )
+    dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "How many rows per group do we need for revenue by region?")
+
+    assert "Estimated sample size per group" in result.summary
+    assert result.response["intent"]["options"]["statistical_test"] == "sample_size_estimate"
+    assert any(table.name == "sample_size_estimate" for table in result.tables)
+
+
+def test_analyze_supports_natural_regression_significance_prompt() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "resolution_hours": [2.1, 5.4, 6.8, 4.2, 7.1, 8.0, 2.5, 3.0],
+            "csat_score": [4.7, 4.0, 3.6, 4.1, 3.5, 3.2, 4.5, 4.3],
+            "team": ["Support", "Support", "Platform", "Platform", "Support", "Platform", "Support", "Platform"],
+        }
+    )
+    dataset = Dataset(name="tickets", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "Does resolution_hours significantly affect csat_score?")
+
+    assert "Regression significance" in result.summary
+    assert result.response["intent"]["target"] == "csat_score"
+    assert result.response["intent"]["options"]["feature_columns"] == ["resolution_hours"]
+    assert any(table.name == "regression_significance" for table in result.tables)
+
+
 def test_analyze_time_coverage_rejects_datasets_without_time_columns() -> None:
     dataframe = pd.DataFrame({"revenue": [90.0, 100.0], "segment": ["Retail", "Online"]})
     dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
