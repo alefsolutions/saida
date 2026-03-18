@@ -440,7 +440,7 @@ def test_analyze_lists_distinct_dimension_values_for_category_prompt() -> None:
     result = Saida().analyze(dataset, "What are the different priority categories in the data?")
 
     assert "Available priority values: High, Low, Medium, Urgent." in result.summary
-    assert result.response["intent"]["intent_name"] == "distinct_values"
+    assert result.response["interpretation"]["intent_name"] == "distinct_values"
     assert any(table.name == "distinct_values" for table in result.tables)
     assert all(table.name != "time_trend" for table in result.tables)
 
@@ -458,7 +458,7 @@ def test_analyze_counts_rows_for_row_count_prompt() -> None:
     result = Saida().analyze(dataset, "How many data rows do we have?")
 
     assert result.summary.endswith("The dataset contains 3 rows.")
-    assert result.response["intent"]["intent_name"] == "row_count"
+    assert result.response["interpretation"]["intent_name"] == "row_count"
     assert any(metric.name == "row_count" for metric in result.metrics)
 
 
@@ -475,7 +475,7 @@ def test_analyze_identifies_least_represented_group() -> None:
     result = Saida().analyze(dataset, "Which segment is the least represented in sales data?")
 
     assert "The least represented segment is segment=Online with 1 rows." in result.summary
-    assert result.response["intent"]["intent_name"] == "representation_ranking"
+    assert result.response["interpretation"]["intent_name"] == "representation_ranking"
     assert any(table.name == "group_row_counts" for table in result.tables)
 
 
@@ -492,7 +492,7 @@ def test_analyze_returns_column_inventory() -> None:
     result = Saida().analyze(dataset, "What are the columns in the sales data?")
 
     assert "Available columns: posted_at, revenue, segment." in result.summary
-    assert result.response["intent"]["intent_name"] == "column_inventory"
+    assert result.response["interpretation"]["intent_name"] == "column_inventory"
     assert any(table.name == "column_inventory" for table in result.tables)
 
 
@@ -509,8 +509,8 @@ def test_analyze_returns_time_coverage_years() -> None:
     result = Saida().analyze(dataset, "The data shows revenue for which years?")
 
     assert "The data contains records for these years: 2024, 2025, 2026." in result.summary
-    assert result.response["intent"]["intent_name"] == "time_coverage"
-    assert result.response["intent"]["options"]["time_coverage_mode"] == "years_present"
+    assert result.response["interpretation"]["intent_name"] == "time_coverage"
+    assert result.response["interpretation"]["options"]["time_coverage_mode"] == "years_present"
     assert any(table.name == "time_coverage" for table in result.tables)
 
 
@@ -557,7 +557,7 @@ def test_analyze_supports_natural_significance_prompt() -> None:
     result = Saida().analyze(dataset, "Do regions differ in revenue?")
 
     assert "Welch t-test for revenue by region" in result.summary
-    assert result.response["intent"]["options"]["statistical_test"] == "significance_inference"
+    assert result.response["interpretation"]["options"]["statistical_test"] == "significance_inference"
     assert any(table.name == "significance_test" for table in result.tables)
 
 
@@ -573,7 +573,7 @@ def test_analyze_supports_natural_confidence_interval_prompt() -> None:
     result = Saida().analyze(dataset, "What range are we 95% confident revenue falls in?")
 
     assert "confidence interval for revenue" in result.summary
-    assert result.response["intent"]["options"]["statistical_test"] == "confidence_interval"
+    assert result.response["interpretation"]["options"]["statistical_test"] == "confidence_interval"
     assert any(table.name == "confidence_interval" for table in result.tables)
 
 
@@ -589,7 +589,7 @@ def test_analyze_supports_natural_power_analysis_prompt() -> None:
     result = Saida().analyze(dataset, "Do we have enough data to detect a difference in revenue by region?")
 
     assert "Observed power" in result.summary
-    assert result.response["intent"]["options"]["statistical_test"] == "power_analysis"
+    assert result.response["interpretation"]["options"]["statistical_test"] == "power_analysis"
     assert any(table.name == "power_analysis" for table in result.tables)
 
 
@@ -605,7 +605,7 @@ def test_analyze_supports_natural_sample_size_prompt() -> None:
     result = Saida().analyze(dataset, "How many rows per group do we need for revenue by region?")
 
     assert "Estimated sample size per group" in result.summary
-    assert result.response["intent"]["options"]["statistical_test"] == "sample_size_estimate"
+    assert result.response["interpretation"]["options"]["statistical_test"] == "sample_size_estimate"
     assert any(table.name == "sample_size_estimate" for table in result.tables)
 
 
@@ -622,8 +622,8 @@ def test_analyze_supports_natural_regression_significance_prompt() -> None:
     result = Saida().analyze(dataset, "Does resolution_hours significantly affect csat_score?")
 
     assert "Regression significance" in result.summary
-    assert result.response["intent"]["target"] == "csat_score"
-    assert result.response["intent"]["options"]["feature_columns"] == ["resolution_hours"]
+    assert result.response["interpretation"]["target"] == "csat_score"
+    assert result.response["interpretation"]["options"]["feature_columns"] == ["resolution_hours"]
     assert any(table.name == "regression_significance" for table in result.tables)
 
 
@@ -639,8 +639,8 @@ def test_analyze_supports_ranked_row_retrieval_prompt() -> None:
 
     result = Saida().analyze(dataset, "What is the top 5 longest hours of resolution?")
 
-    assert result.response["intent"]["intent_name"] == "row_ranking"
-    assert result.response["intent"]["target"] == "resolution_hours"
+    assert result.response["interpretation"]["intent_name"] == "row_ranking"
+    assert result.response["interpretation"]["target"] == "resolution_hours"
     assert "Top 5 resolution hours values" in result.summary
     assert any(table.name == "ranked_rows" for table in result.tables)
 
@@ -656,7 +656,7 @@ def test_analyze_supports_group_ranking_summary_prompt() -> None:
 
     result = Saida().analyze(dataset, "Show bottom 2 revenue by region")
 
-    assert result.response["intent"]["intent_name"] == "group_ranking"
+    assert result.response["interpretation"]["intent_name"] == "group_ranking"
     assert "Bottom 2 revenue groups" in result.summary
     assert any(table.name == "ranked_breakdown" for table in result.tables)
 

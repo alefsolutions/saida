@@ -218,7 +218,8 @@ def test_engine_returns_clarification_when_llm_requests_it() -> None:
     assert result.plan.task_type == "clarification"
     assert result.tables == []
     assert result.response["status"] == "clarify"
-    assert result.response["outputs"]["summary"] == "Please clarify the target metric."
+    assert result.response["reasoning"]["summary"] == "Please clarify the target metric."
+    assert result.response["errors"] == []
 
 
 def test_engine_returns_refusal_when_llm_declines_request() -> None:
@@ -239,7 +240,7 @@ def test_engine_returns_refusal_when_llm_declines_request() -> None:
     assert result.plan.task_type == "unavailable"
     assert result.metrics == []
     assert result.response["status"] == "refuse"
-    assert result.response["outputs"]["summary"] == "We are not able to provide this information at this time."
+    assert result.response["reasoning"]["summary"] == "We are not able to provide this information at this time."
 
 
 def test_engine_overrides_llm_clarification_when_deterministic_intent_is_clear() -> None:
@@ -261,7 +262,7 @@ def test_engine_overrides_llm_clarification_when_deterministic_intent_is_clear()
 
     assert result.plan.task_type == "descriptive"
     assert result.response["status"] == "ok"
-    assert result.response["intent"]["intent_name"] == "representation_ranking"
+    assert result.response["interpretation"]["intent_name"] == "representation_ranking"
 
 
 def test_engine_analysis_response_contract_records_intent_and_operations() -> None:
@@ -280,15 +281,15 @@ def test_engine_analysis_response_contract_records_intent_and_operations() -> No
 
     result = engine.analyze(dataset, "What is the average revenue?")
 
-    assert result.response["schema_version"] == "saida.analysis_response.v1"
+    assert result.response["schema_version"] == "saida.response.v2"
     assert result.response["status"] == "ok"
-    assert result.response["intent"]["aggregation"] == "mean"
-    assert result.response["intent"]["target"] == "revenue"
-    assert result.response["plan"]["step_count"] >= 1
-    assert any(operation["action"] == "aggregate_value" for operation in result.response["operations"])
-    assert "revenue_mean" in result.response["outputs"]["metric_lookup"]
+    assert result.response["interpretation"]["aggregation"] == "mean"
+    assert result.response["interpretation"]["target"] == "revenue"
+    assert result.response["execution"]["step_count"] >= 1
+    assert any(operation["action"] == "aggregate_value" for operation in result.response["execution"]["steps"])
+    assert "revenue_mean" in result.response["meta"]["metric_lookup"]
     assert result.deterministic_summary is not None
-    assert result.response["outputs"]["deterministic_summary"] == result.deterministic_summary
+    assert result.response["reasoning"]["deterministic_summary"] == result.deterministic_summary
 
 
 def test_engine_passes_context_summary_into_llm_response_stage() -> None:

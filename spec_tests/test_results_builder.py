@@ -116,17 +116,20 @@ def test_build_analysis_result_populates_artifacts() -> None:
     assert result.artifacts["warning_count"] == 1
     assert result.artifacts["trace_stages"] == ["adapter", "results"]
     assert result.artifacts["plan_step_ids"] == ["summary_metrics"]
-    assert result.response["schema_version"] == "saida.analysis_response.v1"
+    assert result.response["schema_version"] == "saida.response.v2"
     assert result.response["status"] == "ok"
-    assert result.response["intent"]["target"] == "revenue"
-    assert result.response["plan"]["step_count"] == 1
-    assert result.response["operations"][0]["action"] == "dataset_summary"
-    assert result.response["outputs"]["metric_lookup"]["revenue_sum"] == 270.0
-    assert result.response["outputs"]["tables"][0]["name"] == "dataset_preview"
-    assert result.to_response_dict()["outputs"]["summary"] == "Test summary."
-    assert result.response["outputs"]["deterministic_summary"] == "Deterministic summary."
-    assert result.response["outputs"]["llm_summary"] == "LLM summary."
-    assert result.response["outputs"]["summary_source"] == "llm"
+    assert result.response["request"]["question"] == "Why did revenue drop?"
+    assert result.response["request"]["dataset"]["name"] == "sales"
+    assert result.response["interpretation"]["target"] == "revenue"
+    assert result.response["execution"]["step_count"] == 1
+    assert result.response["execution"]["steps"][0]["action"] == "dataset_summary"
+    assert result.response["meta"]["metric_lookup"]["revenue_sum"] == 270.0
+    assert result.response["tables"][0]["name"] == "dataset_preview"
+    assert result.response["result"]["name"] == "dataset_preview"
+    assert result.to_response_dict()["reasoning"]["summary"] == "Test summary."
+    assert result.response["reasoning"]["deterministic_summary"] == "Deterministic summary."
+    assert result.response["reasoning"]["llm_summary"] == "LLM summary."
+    assert result.response["reasoning"]["summary_source"] == "llm"
 
 
 def test_build_train_and_forecast_results_keep_payloads() -> None:
@@ -168,9 +171,10 @@ def test_build_analysis_result_handles_empty_metrics_and_tables() -> None:
     assert result.artifacts["metric_lookup"] == {}
     assert result.artifacts["table_index"] == {}
     assert result.artifacts["trace_stages"] == []
-    assert result.response["outputs"]["metrics"] == []
-    assert result.response["outputs"]["tables"] == []
-    assert result.response["outputs"]["summary_source"] == "deterministic"
+    assert result.response["meta"]["metrics"] == []
+    assert result.response["tables"] == []
+    assert result.response["reasoning"]["summary_source"] == "deterministic"
+    assert result.response["result"]["logical_shape"] == "empty"
 
 
 def test_build_analysis_result_uses_last_metric_value_for_lookup() -> None:
@@ -191,7 +195,9 @@ def test_build_analysis_result_uses_last_metric_value_for_lookup() -> None:
     )
 
     assert result.artifacts["metric_lookup"]["row_count"] == 2
-    assert result.response["outputs"]["metric_lookup"]["row_count"] == 2
+    assert result.response["meta"]["metric_lookup"]["row_count"] == 2
+    assert result.response["result"]["name"] == "row_count"
+    assert result.response["result"]["value"] == 2
 
 
 def test_build_analysis_result_indexes_multiple_tables() -> None:
@@ -218,8 +224,8 @@ def test_build_analysis_result_indexes_multiple_tables() -> None:
     assert result.artifacts["table_index"]["first"]["rows"] == 1
     assert result.artifacts["table_index"]["second"]["rows"] == 2
     assert result.artifacts["warning_count"] == 2
-    assert result.response["outputs"]["warning_count"] == 2
-    assert len(result.response["outputs"]["tables"]) == 2
+    assert result.response["meta"]["warning_count"] == 2
+    assert len(result.response["tables"]) == 2
 
 
 import pytest
@@ -265,6 +271,6 @@ def test_result_builder_handles_many_metric_and_table_shapes(
     assert result.summary == f"Summary {case_id}"
     assert result.artifacts["metric_lookup"]["row_count"] == case_id
     assert list(result.artifacts["table_index"].keys()) == [f"table_{case_id}"]
-    assert result.response["dataset"]["name"] == "sales"
-    assert result.response["question"] == f"Question {case_id}"
-    assert result.response["outputs"]["metric_lookup"]["row_count"] == case_id
+    assert result.response["request"]["dataset"]["name"] == "sales"
+    assert result.response["request"]["question"] == f"Question {case_id}"
+    assert result.response["meta"]["metric_lookup"]["row_count"] == case_id

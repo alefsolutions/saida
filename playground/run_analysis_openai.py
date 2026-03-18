@@ -84,8 +84,10 @@ def main() -> None:
 
         llm_summary = getattr(result, "llm_summary", None)
         summary = getattr(result, "summary", "")
+        deterministic_summary = getattr(result, "deterministic_summary", None)
         print(llm_summary or summary)
-        print("..........", result.deterministic_summary)
+        if deterministic_summary:
+            print("..........", deterministic_summary)
         print()
         if result.tables:
             print("Tables:", ", ".join(table.name for table in result.tables))

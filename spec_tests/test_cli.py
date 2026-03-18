@@ -71,11 +71,11 @@ def test_cli_analyze_supports_json_plan_and_trace_output(monkeypatch: object, tm
     payload = json.loads(output)
 
     assert exit_code == 0
-    assert payload["schema_version"] == "saida.analysis_response.v1"
+    assert payload["schema_version"] == "saida.response.v2"
     assert payload["status"] == "ok"
-    assert payload["intent"]["task_type"] == "diagnostic"
-    assert payload["outputs"]["trace"][0]["stage"] == "adapter"
-    assert any(table["name"] == "period_comparison" for table in payload["outputs"]["tables"])
+    assert payload["interpretation"]["task_type"] == "diagnostic"
+    assert payload["history"][0]["stage"] == "adapter"
+    assert any(table["name"] == "period_comparison" for table in payload["tables"])
 
 
 def test_cli_version_command(monkeypatch: object, capsys: object) -> None:
