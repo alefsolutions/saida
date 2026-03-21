@@ -76,12 +76,31 @@ The architecture names these output shapes as first-class:
 - distribution
 - spatial
 
-The current prototype also uses:
+The live 0.2.0 prototype currently emits these physical shapes in `AnalysisResult`:
 
-- recordset
-- object
-- verification
-- statistical_test
+- `scalar`
+- `vector`
+- `object`
+- `recordset`
+
+The live 0.2.0 prototype currently emits these logical shapes in `AnalysisResult`:
+
+- `empty`
+- `scalar`
+- `count`
+- `aggregate`
+- `table`
+- `recordset`
+- `timeseries`
+- `verification`
+- `distribution`
+- `correlation_matrix`
+- `statistical_test`
+
+Important:
+
+- the architecture may name broader future shapes
+- the live code currently emits only the physical and logical shapes listed above
 
 ## Result Normalization
 
@@ -105,6 +124,73 @@ The current primary `result` object is normalized with:
 - `pagination`
 - `metadata`
 - `value`
+
+## Current Live Dtypes
+
+The live 0.2.0 prototype currently emits these top-level result dtypes:
+
+- `null`
+- `boolean`
+- `integer`
+- `float`
+- `datetime`
+- `string`
+- `object`
+- `record`
+
+For structured table schemas, the live code currently emits these column dtypes:
+
+- `boolean`
+- `integer`
+- `float`
+- `datetime`
+- `string`
+
+Notes:
+
+- `scalar` results may use `null`, `boolean`, `integer`, `float`, or `string`
+- `vector` results use the dtype of the single series
+- `object` results use dtype `object`
+- `recordset` results use dtype `record`
+- non-finite numeric values such as `NaN`, `Infinity`, and `-Infinity` are normalized to `null` in the response contract
+
+## Current Live Shape Semantics
+
+The live 0.2.0 prototype uses these physical shapes with these meanings:
+
+- `scalar`
+  - one single value
+- `vector`
+  - one-dimensional list of values from a single column
+- `object`
+  - one structured object, usually a single-row result
+- `recordset`
+  - list of row objects, typically used for tables, timeseries rows, ranked rows, and paginated record retrieval
+
+The live 0.2.0 prototype uses these logical shapes with these meanings:
+
+- `empty`
+  - no primary result was produced
+- `scalar`
+  - generic single-value result
+- `count`
+  - row count or count-like scalar result
+- `aggregate`
+  - sum, mean, min, max, or similar scalar aggregate
+- `table`
+  - generic structured table result
+- `recordset`
+  - natural-language tabular retrieval output
+- `timeseries`
+  - period-based rows such as month, quarter, or year results
+- `verification`
+  - boolean or evidence-backed yes/no analytical result
+- `distribution`
+  - descriptive distribution object for a numeric target
+- `correlation_matrix`
+  - correlation-oriented result family
+- `statistical_test`
+  - inferential or test-oriented result family
 
 ## Current Prototype Result Families
 
