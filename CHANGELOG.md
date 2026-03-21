@@ -4,24 +4,25 @@
 
 All notable changes to this project will be documented in this file.
 
-The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
-
-Quick links: [Main README](./README.md) | [Architecture Contract](./ARCHITECTURE.md) | [License](./LICENSE)
+Quick links: [Main README](./README.md) | [Architecture](./ARCHITECTURE.md) | [License](./LICENSE)
 
 ## [Unreleased]
-### Added
-- Release hygiene tooling with pre-commit, Ruff linting, MyPy type checks, and pinned lock files.
-- CI benchmark threshold gates, DB integration tests, and observability/audit persistence.
-
-## [0.1.0] - 2026-03-02
-### Added
-- Initial SAIDA core architecture: agent, connectors, ingestion, storage, analytics, semantic, orchestration, benchmarking.
-- PostgreSQL control-plane + semantic persistence with Alembic migrations and pgvector-ready schema.
-- Document parsing support for TXT/CSV/JSON/PDF/DOCX/XLSX.
-- LangChain runnable orchestration graph and analytics safety guards.
 
 ### Changed
-- Migrated from legacy `saida_core` scaffold to spec-aligned `saida` package structure.
 
----
+- SAIDA documentation has been realigned around the 0.2.0 architecture reset.
+- `ARCHITECTURE.md` is now treated as the primary source of truth for the framework direction.
+- Repo docs now describe SAIDA as a canonical analytics framework built around `AnalysisPlan` and `AnalyticalResult`.
 
+### Planned
+
+- Source-agnostic source adapters
+- Backend routing and adapter translation layers
+- Result canonicalization around stable analytical result contracts
+- Multi-source and multi-backend execution
+
+## [0.1.0] - 2026-03-02
+
+### Added
+
+- Initial SAIDA package foundation and deterministic analytics implementation.

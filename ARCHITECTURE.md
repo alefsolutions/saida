@@ -146,7 +146,7 @@ Generate clean, simple, modular code.
 - no over-engineering
 
 ### Structure
-- cida/
+- saida/
   - core/
   - adapters/
   - sources/

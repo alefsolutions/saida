@@ -1,67 +1,110 @@
 ![SAIDA Banner](assets/github-banner.png)
 
-# SAIDA *(Experimental)*
+# SAIDA *(0.2.0 Architecture Shift)*
 
-[![Version](https://img.shields.io/badge/version-0.1.0-1f6feb)](pyproject.toml)
+[![Version](https://img.shields.io/badge/version-0.2.0--preview-1f6feb)](ARCHITECTURE.md)
 [![License](https://img.shields.io/badge/license-MIT-2ea043)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%2B-3776AB)](pyproject.toml)
-![V1 Status](https://img.shields.io/badge/v1-experimental-f59e0b)
+![Status](https://img.shields.io/badge/status-architecture%20reset-f59e0b)
 
-SAIDA is a **Python engine for natural-language data discovery, deterministic analytics, and optional LLM-assisted reasoning.**
+SAIDA is a **canonical analytics framework** for turning prompts, API payloads, or direct plans into standardized analysis plans and standardized analytical results.
 
-Core philosophy:
+`ARCHITECTURE.md` is the current source of truth for SAIDA 0.2.0.
 
-- **Data analysis first**
-- **Reasoning second**
-- **Deterministic computation before AI**
-- **Structured data first**
-- **Modular architecture**
-- **Library-first (not SaaS, not API)**
-- **Readable, boring code over clever code**
+## What Changed In 0.2.0
 
-SAIDA helps developers:
+SAIDA is no longer being framed primarily as a single deterministic analytics engine with built-in workflows.
 
-- Convert natural-language questions into structured analysis requests using strict NLP validation with an optional model-agnostic LLM interpretation layer
-- Run deterministic analytics
-- Perform statistical analysis
-- Attach semantic context to datasets
-- Optionally use deterministic or LLM-backed reasoning for interpretation and responses.
+The new direction is:
 
-SAIDA is designed to be:
+- input -> canonical `AnalysisPlan`
+- execution -> routed to external compute backends
+- output -> canonical `AnalyticalResult`
 
-- lightweight
-- modular
-- extensible
-- transparent
-- deterministic
-- readable
+Core principle:
 
-The library focuses on **structured analytics first**, with optional semantic reasoning layers.
+- SAIDA defines meaning
+- backends perform computation
 
-Prompt handling follows a three-stage design:
+## Architecture At A Glance
 
-- optional LLM interpretation proposes intent from the user question
-- strict NLP validation converts accepted intent into a structured `AnalysisRequest`
-- deterministic compute produces facts, metrics, and model outputs
-- optional LLM reasoning explains computed outputs without changing them
+SAIDA 0.2.0 is organized into these layers:
 
-The final analysis result also includes a standardized JSON-safe response contract so callers can inspect what SAIDA understood, planned, executed, and returned.
+1. Input Layer
+2. Canonicalization Layer
+3. Validation Layer
+4. Routing Layer
+5. Adapter Layer
+6. Execution Layer
+7. Result Canonicalization Layer
+8. Output Layer
 
----
+This means SAIDA is being designed to be:
 
-# Documentation Map
+- source-agnostic
+- backend-agnostic
+- contract-first
+- reproducible
+- plugin-friendly
+
+## Core Contracts
+
+The two most important contracts are:
+
+- `AnalysisPlan`
+- `AnalyticalResult`
+
+SAIDA should accept:
+
+- prompt input
+- API input
+- direct JSON plans
+
+SAIDA should return:
+
+- canonical structured results with stable shape, schema, and metadata
+
+## Sources And Backends
+
+The architecture defines SAIDA as multi-source and multi-backend.
+
+Planned source support includes:
+
+- CSV
+- Excel
+- PostgreSQL
+- MySQL
+- Microsoft Access
+- GIS sources such as GeoJSON and shapefiles
+
+Planned execution backends include:
+
+- DuckDB
+- pandas / Polars
+- statsmodels
+- GeoPandas
+- scikit-learn / TensorFlow
+
+## LLM Position
+
+LLMs remain optional.
+
+Rules:
+
+- LLM never executes
+- LLM only helps produce structured plans
+
+The compute truth stays outside the LLM layer.
+
+## Documentation Map
 
 Core project docs:
 
 - [Architecture](ARCHITECTURE.md)
-- [Engine Workflow](ENGINE_WORKFLOW.md)
-- [Compute Capabilities](COMPUTE_CAPABILITIES.md)
 - [Schema Spec](SCHEMA_SPEC.md)
 - [API Usage](API_USAGE.md)
 - [File Structure](FILE_STRUCTURE.md)
 - [Coding Guidelines](CODING_GUIDELINES.md)
-- [Context](CONTEXT.md)
-- [ML Pipeline](ML_PIPELINE.md)
 - [Changelog](CHANGELOG.md)
 
 Example context docs:
@@ -71,265 +114,8 @@ Example context docs:
 - [Support Tickets Context](examples/contexts/support_tickets_500.md)
 - [Shipping Operations Context](examples/contexts/shipping_operations_1000.md)
 
-Example datasets:
+## Current Documentation Rule
 
-- `examples/datasets/retail_sales_100.csv`
-- `examples/datasets/support_tickets_500.csv`
-- `examples/datasets/shipping_operations_1000.csv`
+For SAIDA 0.2.0, treat [ARCHITECTURE.md](ARCHITECTURE.md) as authoritative.
 
----
-
-# Installation
-
-```bash
-pip install -e .
-```
-
----
-
-# Quick Example
-
-```python
-from saida import Saida
-from saida.adapters import CSVAdapter
-
-engine = Saida()
-
-dataset = CSVAdapter("sales.csv").load()
-
-result = engine.analyze(
-    dataset=dataset,
-    question="Why did revenue drop in March?"
-)
-
-print(result.summary)
-print(result.to_response_dict())
-```
-
-For local development in this repo, use:
-
-```bash
-python -m pytest -q
-```
-
-or try the CLI with the bundled sample files:
-
-```bash
-$env:PYTHONPATH="src"
-python -m saida.cli.main analyze --csv examples/sales.csv --context examples/sales_context.md --question "Why did revenue drop in March by region?"
-```
-
-For richer local inspection, the CLI also supports JSON output and optional plan/trace printing:
-
-```bash
-$env:PYTHONPATH="src"
-python -m saida.cli.main analyze --csv examples/sales.csv --context examples/sales_context.md --question "Why did revenue drop in March?" --show-plan --show-trace
-python -m saida.cli.main profile --csv examples/sales.csv --json
-```
-
-The `analyze --json` path emits the standardized analytical response contract directly.
-
-You can also enable an optional local or hosted LLM provider for prompt interpretation and response wording:
-
-```bash
-$env:PYTHONPATH="src"
-python -m saida.cli.main analyze --csv examples/sales.csv --question "Why did revenue drop in March?" --llm-provider ollama --llm-model llama3.1
-```
-
-The repo also includes runnable examples:
-
-```bash
-$env:PYTHONPATH="src"
-python examples/run_profile.py
-python examples/run_analysis.py
-```
-
----
-
-# Testing
-
-The current repo includes a broad deterministic test suite covering:
-
-- adapters
-- context parsing
-- profiling
-- NLP normalization and validation
-- planning
-- DuckDB compute
-- stats compute
-- result packaging
-- summarization
-- engine orchestration
-- CLI behavior
-- playground behavior
-- end-to-end smoke workflows
-
-Current test types include:
-
-- unit tests
-- integration tests
-- regression tests
-- edge-case tests
-- extreme-case tests
-
-Latest verified local test run for this repo state:
-
-- total tests: `1201`
-- passed: `1201`
-- failed: `0`
-- success rate: `100%`
-- failure rate: `0%`
-- warnings: `1 non-failing warning`
-
-Latest warning note:
-
-- `statsmodels` emits a `ConvergenceWarning` in one sample-size estimation smoke test, but the suite still passes end-to-end and the result is handled safely by SAIDA.
-
-Run locally with:
-
-```bash
-python -m pytest -q
-```
-
----
-
-# Key Capabilities
-
-### Prompt Understanding
-
-- strict rule-based validation against discovered schema and semantic context
-- optional model-agnostic LLM interpretation before validation
-- intent classification
-- metric and target extraction
-- aggregation intent extraction for requests like average, highest, lowest, total, and count
-- direct dimension-value listing for prompts like "list all segments"
-- row-count questions like "how many rows do we have"
-- representation ranking questions like "which segment is least represented"
-- metadata inventory questions like "what columns are available"
-- date and period extraction
-- filter and grouping hint extraction
-- structured `AnalysisRequest` generation
-- clarification or refusal when no valid mapping can be established safely
-
-### Data Analytics
-
-- descriptive analytics
-- deterministic aggregation queries such as sum, average, maximum, minimum, and count
-- direct listing of distinct dimension values
-- row counts and grouped row-count ranking
-- dataset metadata inventory such as columns, measures, dimensions, and time columns
-- segmentation
-- anomaly detection
-- correlation analysis
-- statistical testing:
-  - t-tests
-  - chi-square tests
-  - ANOVA
-  - Mann-Whitney tests
-  - confidence intervals
-  - regression significance testing
-  - p-value-driven inference workflows
-  - statistical power and sample-size reasoning
-- time-series analysis
-- grouped period comparison
-- top-mover diagnostics
-
-Aggregation responses are intent-aware:
-- scalar aggregate prompts lead with the scalar answer
-- grouped aggregate prompts lead with grouped totals or grouped averages
-- diagnostic prompts still prioritize explanatory narrative
-
-### Machine Learning
-
-Not implemented yet in the current repo build.
-
-- `train(...)`
-- `predict(...)`
-- `forecast(...)`
-
-You can inspect the current public surface directly:
-
-```python
-engine.capabilities()
-# {
-#   'analyze': True,
-#   'profile': True,
-#   'load_context': True,
-#   'train': False,
-#   'predict': False,
-#   'forecast': False,
-#   'llm_prompting': False,
-#   'llm_reasoning': False,
-# }
-```
-
-### Semantic Context
-
-Attach Markdown documentation to data sources to provide business meaning. This significantly improves responses especially if optional LLM is used for reasoning.
-
-### Reasoning
-
-SAIDA keeps reasoning model-agnostic.
-
-- Any compatible LLM provider may be used
-- LLM use is optional and falls back to deterministic behavior when unavailable
-- **LLMs interpret computed results, not generate facts**
-- **LLM prompt proposals must pass strict validation before SAIDA creates an `AnalysisRequest`**
-- Core analytics workflows remain usable without an LLM
-
----
-
-# Current Status
-
-The current implementation is focused on the non-ML deterministic core:
-
-- CSV, Excel, JSON, Pandas, and SQLite-backed SQL adapters
-- semantic markdown context parsing
-- dataset profiling and readiness hints
-- request normalization with strict rules and an optional model-agnostic LLM interpretation layer
-- deterministic planning
-- DuckDB analytics for summaries, trends, grouped comparisons, contribution analysis, and top movers
-- deterministic statistical summaries, correlations, anomaly checks, time-series diagnostics, and formal statistical testing
-- working CLI commands for `version`, `profile`, and `analyze` against CSV input
-- optional model-agnostic LLM support for prompt interpretation and response wording, including an Ollama provider
-
-`train(...)`, `predict(...)`, and `forecast(...)` are intentionally reserved for a later ML implementation pass.
-
-Capability maturity at a glance:
-
-- strongest support:
-  - deterministic descriptive analytics
-  - grouped aggregation
-  - distinct value listing
-  - metadata inventory
-  - month-based trend and period comparison
-  - contribution and top-mover analysis
-  - core statistical summaries and formal statistical testing
-  - confidence intervals and p-value-driven significance workflows
-  - power and sample-size reasoning
-  - regression significance with explicit predictors
-- moderate support:
-  - LLM-assisted prompt handling
-  - open-ended factor discovery prompts
-  - context-aware statistical interpretation
-- weakest support:
-  - broad natural-language time phrasing
-  - generalized ranking and comparison phrasing
-  - arbitrary natural-language SQL-style requests
-  - all ML workflows
-
-Important current limits:
-
-- broader time execution beyond month-based requests is still limited
-- some natural-language ranking and comparison phrasing still needs expansion
-- automatic predictor selection for open-ended factor prompts is still limited
-- SAIDA is not an arbitrary natural-language SQL engine
-
-See [Compute Capabilities](COMPUTE_CAPABILITIES.md) for the current supported compute surface.
-
----
-
-# Project Goals
-
-SAIDA aims to become a **data-agnostic deterministic analytics engine** capable of reasoning across structured and unstructured data.
-
+The remaining root docs are intentionally limited to usage, structure, schemas, coding rules, and change history so the new direction stays clear.

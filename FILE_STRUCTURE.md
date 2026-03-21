@@ -2,158 +2,91 @@
 
 # SAIDA File Structure
 
+This document reflects the target structure described in `ARCHITECTURE.md`.
+
+## Target 0.2.0 Layout
+
 ```text
 saida/
-|-- __init__.py
-|-- engine.py
-|-- config.py
-|-- exceptions.py
-|-- schemas/
+|-- core/
 |-- adapters/
-|-- context/
+|-- sources/
+|-- outputs/
 |-- llm/
-|-- nlp/
-|-- profiling/
-|-- planning/
-|-- compute/
-|   |-- duckdb/
-|   |-- stats/
-|   `-- ml/
-|-- reasoning/
-`-- results/
+`-- tests/
 ```
 
----
+## Directory Intent
 
-## engine.py
+### `core/`
 
-Main orchestration engine.
+Owns canonical meaning and orchestration.
 
-Coordinates:
+Expected responsibilities:
 
-- adapters
-- context
-- llm
-- nlp
-- profiling
-- planning
-- compute
-- reasoning
-- results
+- canonical plan construction
+- validation
+- routing
+- result canonicalization
 
----
+### `adapters/`
 
-## schemas/
-
-Defines core data models.
+Owns translation between canonical plans and execution backends.
 
 Examples:
 
-- Dataset
-- Profile
-- AnalysisRequest
-- AnalysisPlan
-- Result
-- ModelMetadata
+- DuckDB adapter
+- pandas adapter
+- statsmodels adapter
+- GeoPandas adapter
 
----
+### `sources/`
 
-## adapters/
-
-Responsible for loading datasets.
-
-Adapters normalize data sources.
+Owns source access and schema discovery.
 
 Examples:
 
-- CSVAdapter
-- ExcelAdapter
-- SQLAdapter
-- PandasAdapter
+- CSV
+- Excel
+- PostgreSQL
+- MySQL
+- MS Access
+- GIS sources
 
----
+### `outputs/`
 
-## context/
+Owns presentation and delivery transforms for canonical results.
 
-Handles Markdown semantic context.
+Examples:
 
-Allows developers to attach documentation to datasets.
+- JSON
+- CSV
+- Excel
+- XML
+- SQL
 
----
+### `llm/`
 
-## llm/
+Owns optional LLM integrations.
 
-Optional model-agnostic provider layer.
+Rule:
 
-Typical responsibilities:
+- LLM helps with structured plans or output wording
+- LLM does not execute
 
-- interpret natural prompts before validation
-- generate optional response wording after deterministic compute
-- expose provider adapters such as Ollama without changing core contracts
+### `tests/`
 
-This layer must not bypass validation, planning, or deterministic compute.
+Owns per-layer verification.
 
----
+Examples:
 
-## nlp/
+- input tests
+- validation tests
+- adapter execution tests
+- result normalization tests
 
-Handles prompt validation and request normalization before planning.
+## Important Note
 
-Typical responsibilities:
+The current repository may still be in transition.
 
-- strict validation of optional LLM proposals
-- deterministic request understanding fallbacks
-- intent classification
-- metric extraction
-- target extraction
-- date and period extraction
-- filter and grouping hint extraction
-- request normalization
-
-This layer should return structured request objects, not analytical conclusions.
-
----
-
-## profiling/
-
-Dataset inspection.
-
-Produces dataset intelligence.
-
----
-
-## planning/
-
-Creates analysis plans.
-
-Determines workflow from a normalized request plus dataset/profile context.
-
----
-
-## compute/
-
-Deterministic computation layer.
-
-Contains:
-
-DuckDB analytics
-
-Statistical routines
-
-Machine learning pipelines
-
----
-
-## reasoning/
-
-Optional LLM integration.
-
-Used for interpretation and explanation after compute.
-This layer should remain LLM-provider agnostic.
-
----
-
-## results/
-
-Defines standardized result objects.
-
+This file describes the target 0.2.0 architecture layout, not necessarily every current folder exactly as it exists today.
