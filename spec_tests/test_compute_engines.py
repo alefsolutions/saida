@@ -50,6 +50,19 @@ def build_time_bucket_dataframe() -> pd.DataFrame:
     )
 
 
+def build_tabular_dataframe() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "ticket_id": ["T1", "T2", "T3", "T4", "T5"],
+            "created_at": ["2026-01-01", "2026-01-02", "2026-01-03", "2026-01-04", "2026-01-05"],
+            "resolution_hours": [4.2, 6.1, 3.4, 8.0, 2.0],
+            "priority": ["Low", "Medium", "High", "Medium", "Low"],
+            "team": ["Support", "Support", "Platform", "Support", "Platform"],
+            "reopened_flag": ["yes", "no", "yes", "no", "yes"],
+        }
+    )
+
+
 def test_duckdb_period_and_contribution_breakdown() -> None:
     engine = DuckDBComputeEngine()
     dataframe = build_dataframe()
@@ -819,6 +832,109 @@ def test_stats_power_analysis_rejects_zero_effect_size() -> None:
 
     with pytest.raises(ComputeError, match="non-zero observed effect size"):
         engine.power_analysis(dataframe, target="revenue", group_column="region")
+
+
+def test_duckdb_tabular_query_returns_filtered_rows() -> None:
+    engine = DuckDBComputeEngine()
+
+    table = engine.tabular_query(build_tabular_dataframe(), filters={"reopened_flag": "yes"})
+
+    assert table.name == "tabular_query"
+    assert len(table.dataframe) == 3
+    assert set(table.dataframe["reopened_flag"]) == {"yes"}
+    assert table.metadata["pagination"]["total_rows"] == 3
+
+
+def test_duckdb_tabular_query_selects_requested_columns() -> None:
+    engine = DuckDBComputeEngine()
+
+    table = engine.tabular_query(
+        build_tabular_dataframe(),
+        selected_columns=["ticket_id", "priority"],
+        filters={"reopened_flag": "yes"},
+    )
+
+    assert list(table.dataframe.columns) == ["ticket_id", "priority"]
+
+
+def test_duckdb_tabular_query_sorts_descending() -> None:
+    engine = DuckDBComputeEngine()
+
+    table = engine.tabular_query(build_tabular_dataframe(), sort_by="created_at", sort_direction="desc")
+
+    assert list(table.dataframe["ticket_id"]) == ["T5", "T4", "T3", "T2", "T1"]
+
+
+def test_duckdb_tabular_query_paginates_rows() -> None:
+    engine = DuckDBComputeEngine()
+
+    table = engine.tabular_query(build_tabular_dataframe(), sort_by="created_at", page=2, page_size=2)
+
+    assert list(table.dataframe["ticket_id"]) == ["T3", "T4"]
+    assert table.metadata["pagination"]["page"] == 2
+    assert table.metadata["pagination"]["has_next_page"] is True
+
+
+def test_duckdb_tabular_query_applies_limit_before_pagination() -> None:
+    engine = DuckDBComputeEngine()
+
+    table = engine.tabular_query(build_tabular_dataframe(), sort_by="created_at", limit=3, page=2, page_size=2)
+
+    assert list(table.dataframe["ticket_id"]) == ["T3"]
+    assert table.metadata["pagination"]["total_rows"] == 3
+
+
+def test_duckdb_tabular_query_returns_empty_page_safely() -> None:
+    engine = DuckDBComputeEngine()
+
+    table = engine.tabular_query(build_tabular_dataframe(), filters={"team": "Finance"}, page=1, page_size=10)
+
+    assert table.dataframe.empty is True
+    assert table.metadata["pagination"]["total_rows"] == 0
+
+
+def test_duckdb_grouped_tabular_query_returns_grouped_sum() -> None:
+    engine = DuckDBComputeEngine()
+
+    table = engine.grouped_tabular_query(build_dataframe(), group_by=["region"], target="revenue", aggregation="sum")
+
+    assert table.name == "grouped_tabular_query"
+    assert "target_total" in table.dataframe.columns
+    assert set(table.dataframe["region"]) == {"West", "East"}
+
+
+def test_duckdb_grouped_tabular_query_returns_grouped_count() -> None:
+    engine = DuckDBComputeEngine()
+
+    table = engine.grouped_tabular_query(build_tabular_dataframe(), group_by=["team"], aggregation="count")
+
+    assert "row_count" in table.dataframe.columns
+    assert set(table.dataframe["team"]) == {"Support", "Platform"}
+
+
+def test_duckdb_grouped_tabular_query_supports_pagination() -> None:
+    engine = DuckDBComputeEngine()
+
+    table = engine.grouped_tabular_query(
+        build_tabular_dataframe(),
+        group_by=["priority"],
+        aggregation="count",
+        sort_by="priority",
+        sort_direction="asc",
+        page=2,
+        page_size=1,
+    )
+
+    assert len(table.dataframe) == 1
+    assert table.metadata["pagination"]["page"] == 2
+    assert table.metadata["pagination"]["has_previous_page"] is True
+
+
+def test_duckdb_grouped_tabular_query_rejects_invalid_sort_column() -> None:
+    engine = DuckDBComputeEngine()
+
+    with pytest.raises(ComputeError, match="sort column"):
+        engine.grouped_tabular_query(build_tabular_dataframe(), group_by=["team"], aggregation="count", sort_by="created_at")
 
 
 _DUCKDB_SUMMARY_CASES = [

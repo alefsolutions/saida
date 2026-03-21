@@ -127,6 +127,15 @@ The current 0.2.0 prototype also supports stronger natural-language filter extra
 
 These prompts now support multi-clause inclusion filters, exclusion filters, implied flag filters, and simple year/month time filters through the canonical filter contract.
 
+The current 0.2.0 prototype also supports first-class natural-language tabular querying for prompts such as:
+
+- `Give me the list of all rows in dataset that have their tickets marked as reopened.`
+- `Show ticket_id and priority rows sorted by created_at`
+- `Return first 5 rows page 2 page size 2 sorted by created_at`
+- `Show revenue by region as table`
+
+These prompts now route into canonical tabular query workflows with deterministic filtering, selected columns, sorting, limits, grouped table output, and pagination metadata.
+
 The current 0.2.0 prototype also applies stronger typed routing guards so that:
 
 - explicit non-numeric aggregation targets do not silently fall back to the first measure
@@ -148,6 +157,8 @@ The primary `result` object is self-describing and includes:
 - `dimensions`
 - `row_count`
 - `labels`
+- `pagination`
+- `metadata`
 - `value`
 
 This is the current portable contract for APIs, UIs, playgrounds, and downstream plugins.

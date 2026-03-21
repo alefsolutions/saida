@@ -38,6 +38,8 @@ class PlanBuilder:
             "time_bucket_breakdown",
             "time_period_comparison",
             "existence_check",
+            "tabular_query",
+            "grouped_tabular_query",
         }:
             request.target = profile.measure_columns[0]
             warnings.append("No target was provided; using the first measure column.")
@@ -232,6 +234,48 @@ class PlanBuilder:
                             description="Verify whether any rows match the requested filters.",
                         )
                     )
+                rationale = self._build_rationale(task_type, request, context)
+                return AnalysisPlan(task_type=task_type, rationale=rationale, steps=steps, warnings=warnings)
+            if request.intent_name == "tabular_query":
+                steps.append(
+                    PlanStep(
+                        step_id="tabular_query",
+                        tool_family="duckdb",
+                        action="tabular_query",
+                        parameters={
+                            "selected_columns": request.options.get("selected_columns") or None,
+                            "filters": request.filters,
+                            "sort_by": request.options.get("sort_by"),
+                            "sort_direction": request.options.get("sort_direction", "asc"),
+                            "limit": request.options.get("limit"),
+                            "page": request.options.get("page", 1),
+                            "page_size": request.options.get("page_size", 50),
+                        },
+                        description="Return a filtered, sorted, and paginated recordset for natural-language data discovery.",
+                    )
+                )
+                rationale = self._build_rationale(task_type, request, context)
+                return AnalysisPlan(task_type=task_type, rationale=rationale, steps=steps, warnings=warnings)
+            if request.intent_name == "grouped_tabular_query":
+                steps.append(
+                    PlanStep(
+                        step_id="grouped_tabular_query",
+                        tool_family="duckdb",
+                        action="grouped_tabular_query",
+                        parameters={
+                            "target": request.target,
+                            "group_by": request.group_by,
+                            "aggregation": request.aggregation or ("count" if request.target is None else "sum"),
+                            "filters": request.filters,
+                            "sort_by": request.options.get("sort_by"),
+                            "sort_direction": request.options.get("sort_direction", "desc"),
+                            "limit": request.options.get("limit"),
+                            "page": request.options.get("page", 1),
+                            "page_size": request.options.get("page_size", 50),
+                        },
+                        description="Return a grouped, tabular dataset slice for discovery-style analysis.",
+                    )
+                )
                 rationale = self._build_rationale(task_type, request, context)
                 return AnalysisPlan(task_type=task_type, rationale=rationale, steps=steps, warnings=warnings)
             if request.intent_name == "row_count":
@@ -633,16 +677,39 @@ class PlanBuilder:
         if request.intent_name == "group_ranking":
             if request.target not in set(profile.measure_columns) or not request.group_by:
                 raise PlanningError("Group ranking requires a numeric target and one grouping column.")
+        if request.intent_name == "tabular_query":
+            selected_columns = request.options.get("selected_columns", [])
+            invalid_selected = [column for column in selected_columns if column not in profile_columns]
+            if invalid_selected:
+                joined = ", ".join(invalid_selected)
+                raise PlanningError(f"Selected columns do not exist in the dataset profile: {joined}")
+            sort_by = request.options.get("sort_by")
+            if sort_by is not None and sort_by not in profile_columns:
+                raise PlanningError(f"Sort column '{sort_by}' does not exist in the dataset profile.")
+        if request.intent_name == "grouped_tabular_query":
+            if not request.group_by:
+                raise PlanningError("Grouped tabular querying requires at least one grouping column.")
+            if request.target is not None and request.target not in set(profile.measure_columns):
+                raise PlanningError("Grouped tabular querying requires a numeric target when a target is provided.")
+            grouped_sort_by = request.options.get("sort_by")
+            if grouped_sort_by is not None and grouped_sort_by not in {
+                *(request.group_by or []),
+                request.target,
+                "row_count",
+                "target_total",
+            }:
+                raise PlanningError("Grouped tabular query sort column must be a grouping column or aggregate output.")
         if request.aggregation and request.aggregation != "count" and request.intent_name not in {
             "time_bucket_breakdown",
             "time_period_comparison",
             "group_ranking",
+            "grouped_tabular_query",
         }:
             if request.target not in set(profile.measure_columns):
                 raise PlanningError(f"Aggregation '{request.aggregation}' requires a numeric target.")
         if (
             request.group_by
-            and request.intent_name not in {"representation_ranking", "group_ranking", "time_bucket_breakdown", "time_period_comparison"}
+            and request.intent_name not in {"representation_ranking", "group_ranking", "time_bucket_breakdown", "time_period_comparison", "grouped_tabular_query"}
             and request.target is not None
             and request.target not in set(profile.measure_columns)
         ):
@@ -694,6 +761,13 @@ class PlanBuilder:
                     raise PlanningError("Column property verification requires a supported expected property.")
             elif not request.filters:
                 raise PlanningError("Existence verification requires filters or a time-value check.")
+        if request.intent_name in {"tabular_query", "grouped_tabular_query"}:
+            page = int(request.options.get("page", 1))
+            page_size = int(request.options.get("page_size", 50))
+            if page <= 0:
+                raise PlanningError("Tabular pagination requires page to be 1 or greater.")
+            if page_size <= 0:
+                raise PlanningError("Tabular pagination requires page_size to be 1 or greater.")
         if request.options.get("statistical_test") == "chi_square":
             comparison_columns = request.options.get("comparison_columns", [])
             if len(comparison_columns) < 2:
@@ -754,6 +828,10 @@ class PlanBuilder:
             rationale += " Ranked row retrieval was requested."
         if request.intent_name == "group_ranking":
             rationale += " Group ranking was requested."
+        if request.intent_name == "tabular_query":
+            rationale += " Tabular record retrieval was requested."
+        if request.intent_name == "grouped_tabular_query":
+            rationale += " Grouped tabular querying was requested."
         if request.intent_name:
             rationale += f" Intent: {request.intent_name}."
         if request.intent_name == "time_coverage":
@@ -766,6 +844,15 @@ class PlanBuilder:
             rationale += f" Time period comparison bucket: {request.options.get('time_bucket', 'month')}."
         if request.intent_name == "existence_check":
             rationale += f" Existence mode: {request.options.get('existence_mode', 'filtered_rows')}."
+        if request.intent_name in {"tabular_query", "grouped_tabular_query"}:
+            if request.options.get("selected_columns"):
+                rationale += f" Selected columns: {', '.join(request.options['selected_columns'])}."
+            if request.options.get("sort_by"):
+                rationale += f" Sort: {request.options['sort_by']} {request.options.get('sort_direction', 'asc')}."
+            rationale += (
+                f" Pagination: page {request.options.get('page', 1)} "
+                f"with page size {request.options.get('page_size', 50)}."
+            )
         if request.options.get("statistical_test"):
             rationale += f" Statistical test: {request.options['statistical_test']}."
         return rationale

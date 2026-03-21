@@ -125,6 +125,11 @@ TIME_BUCKET_BREAKDOWN_YEAR_KEYWORDS = {"by year", "per year", "each year", "year
 TIME_BUCKET_BREAKDOWN_MONTH_KEYWORDS = {"by month", "per month", "each month", "monthly"}
 TIME_BUCKET_BREAKDOWN_QUARTER_KEYWORDS = {"by quarter", "per quarter", "each quarter", "quarterly"}
 TIME_COMPARISON_KEYWORDS = {"compare", "comparison", "versus", "vs", "against"}
+TABULAR_ROW_KEYWORDS = {"row", "rows", "record", "records", "entry", "entries"}
+TABULAR_SURFACE_KEYWORDS = {"table", "tabular", "recordset"}
+TABULAR_VERBS = {"show", "list", "return", "give me", "display"}
+TABULAR_LIMIT_KEYWORDS = {"first", "last", "return", "show", "list"}
+TABULAR_SORT_KEYWORDS = {"sort by", "sorted by", "order by", "ordered by", "ascending", "descending", "latest", "earliest"}
 EXISTENCE_REQUEST_KEYWORDS = {
     "is there",
     "are there",
@@ -282,10 +287,26 @@ class InputCanonicalizer:
         group_by = self._extract_group_by(question, profile)
         filters = self._extract_filters(question, profile, context)
         options = self._build_request_options(dataset.name, intent_name)
+        selected_columns = self._extract_selected_columns(question, profile, filters)
+        sort_by, sort_direction = self._extract_sort_request(question, profile, target, group_by)
+        limit = self._extract_tabular_limit(question)
+        page = self._extract_page_number(question)
+        page_size = self._extract_page_size(question)
         self._apply_statistical_options(question, profile, options)
         intent_name = self._resolve_ranking_intent(question, intent_name, target, group_by, profile, options)
         if intent_name in {"row_ranking", "group_ranking"}:
             aggregation = None
+        intent_name = self._resolve_tabular_intent(
+            question,
+            intent_name,
+            target,
+            group_by,
+            selected_columns,
+            filters,
+            aggregation,
+        )
+        if intent_name == "grouped_tabular_query" and target in set(group_by or []) and target not in set(profile.measure_columns):
+            target = None
         if intent_name == "existence_check":
             target, aggregation, group_by = self._configure_existence_request(
                 question,
@@ -329,6 +350,15 @@ class InputCanonicalizer:
             group_by = [target]
             aggregation = "count"
             options["ranking_direction"] = self._representation_direction(question)
+        if intent_name in {"tabular_query", "grouped_tabular_query"}:
+            options["selected_columns"] = selected_columns or []
+            options["sort_by"] = sort_by
+            options["sort_direction"] = sort_direction
+            options["limit"] = limit
+            options["page"] = page
+            options["page_size"] = page_size or limit or 50
+            if intent_name == "grouped_tabular_query" and aggregation is None:
+                aggregation = "count" if target is None else "sum"
 
         if target is None and profile.measure_columns and intent_name not in {
             "row_count",
@@ -347,6 +377,8 @@ class InputCanonicalizer:
             "time_bucket_breakdown",
             "time_period_comparison",
             "existence_check",
+            "tabular_query",
+            "grouped_tabular_query",
         }:
             warnings.append("No explicit metric matched the prompt; using the first measure candidate.")
             target = profile.measure_columns[0]
@@ -367,6 +399,8 @@ class InputCanonicalizer:
             "time_bucket_breakdown",
             "time_period_comparison",
             "existence_check",
+            "tabular_query",
+            "grouped_tabular_query",
         }:
             raise ValidationError("No target metric could be resolved from the question or dataset profile.")
         distinct_values = self._should_list_distinct_values(question, target, profile)
@@ -657,6 +691,24 @@ class InputCanonicalizer:
             )
             if any_column_token_match:
                 return any_column_token_match
+        if intent_name == "tabular_query":
+            for alias, resolved_name in all_column_aliases.items():
+                if alias in lowered:
+                    return resolved_name
+            any_column_token_match = self._resolve_column_by_tokens(
+                lowered,
+                [column.name for column in profile.columns],
+                context,
+            )
+            if any_column_token_match:
+                return any_column_token_match
+        if intent_name == "grouped_tabular_query":
+            for alias, resolved_name in measure_aliases.items():
+                if alias in lowered:
+                    return resolved_name
+            measure_token_match = self._resolve_column_by_tokens(lowered, profile.measure_columns, context)
+            if measure_token_match:
+                return measure_token_match
         if intent_name in {"distinct_values", "representation_ranking"}:
             for alias, resolved_name in dimension_aliases.items():
                 if alias in lowered:
@@ -745,6 +797,99 @@ class InputCanonicalizer:
 
         matches = list(dict.fromkeys(matches))
         return matches or None
+
+    def _extract_selected_columns(
+        self,
+        question: str,
+        profile: DatasetProfile,
+        filters: dict[str, object] | None,
+    ) -> list[str] | None:
+        lowered = question.lower()
+        named_columns = self._extract_named_columns(question, profile)
+        if not named_columns:
+            return None
+        if any(phrase in lowered for phrase in {"all rows", "all records", "all entries", "full rows", "entire rows"}):
+            return None
+        filter_columns = set(filters or {})
+        if any(keyword in lowered for keyword in TABULAR_ROW_KEYWORDS):
+            if len(named_columns) == 1 and any(keyword in lowered for keyword in TABULAR_SORT_KEYWORDS):
+                return None
+            non_filter_columns = [column for column in named_columns if column not in filter_columns]
+            if non_filter_columns:
+                return non_filter_columns
+            return None
+        return named_columns
+
+    def _extract_sort_request(
+        self,
+        question: str,
+        profile: DatasetProfile,
+        target: str | None,
+        group_by: list[str] | None,
+    ) -> tuple[str | None, str]:
+        lowered = question.lower()
+        explicit_sort_match = re.search(r"\b(?:sort(?:ed)?|order(?:ed)?)\s+by\s+([a-z0-9_ ]+)", lowered)
+        if explicit_sort_match:
+            candidate_name = explicit_sort_match.group(1).strip()
+            candidate_name = re.split(r"\b(?:ascending|descending|asc|desc)\b", candidate_name, maxsplit=1)[0].strip()
+            resolved_column = self._resolve_candidate_column(candidate_name, profile, None)
+            if resolved_column:
+                direction = "desc" if re.search(r"\b(desc|descending)\b", lowered) else "asc"
+                return resolved_column, direction
+
+        if "latest" in lowered and profile.time_columns:
+            return profile.time_columns[0], "desc"
+        if "earliest" in lowered and profile.time_columns:
+            return profile.time_columns[0], "asc"
+        if re.search(r"\b(desc|descending)\b", lowered):
+            if group_by and target:
+                return target, "desc"
+            if target:
+                return target, "desc"
+        if re.search(r"\b(asc|ascending)\b", lowered):
+            if group_by and target:
+                return target, "asc"
+            if target:
+                return target, "asc"
+        return None, "asc"
+
+    def _extract_tabular_limit(self, question: str) -> int | None:
+        lowered = question.lower()
+        patterns = [
+            r"\b(?:first|last|return|show|list)\s+(\d+)\s+rows?\b",
+            r"\b(?:return|show|list)\s+(\d+)\s+records?\b",
+            r"\b(?:first|last)\s+(\d+)\b",
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, lowered)
+            if match:
+                value = int(match.group(1))
+                return value if value > 0 else None
+        ranking_request = self._extract_ranking_request(question)
+        if ranking_request is None:
+            return None
+        _, limit = ranking_request
+        return limit
+
+    def _extract_page_number(self, question: str) -> int:
+        match = re.search(r"\bpage\s+(\d+)\b", question.lower())
+        if not match:
+            return 1
+        value = int(match.group(1))
+        return value if value > 0 else 1
+
+    def _extract_page_size(self, question: str) -> int | None:
+        lowered = question.lower()
+        patterns = [
+            r"\bpage size\s+(\d+)\b",
+            r"\b(\d+)\s+per page\b",
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, lowered)
+            if match:
+                value = int(match.group(1))
+                return value if value > 0 else None
+        return None
 
     def _extract_ranking_request(self, question: str) -> tuple[str, int] | None:
         lowered = question.lower()
@@ -1069,6 +1214,10 @@ class InputCanonicalizer:
             return "identifier_inventory"
         if any(keyword in lowered for keyword in HIGH_CARDINALITY_INVENTORY_KEYWORDS):
             return "high_cardinality_inventory"
+        if any(keyword in lowered for keyword in ROW_COUNT_KEYWORDS):
+            return "row_count"
+        if self._looks_like_tabular_query_request(question, profile):
+            return "tabular_query"
         if self._looks_like_existence_request(question, profile):
             return "existence_check"
         if "columns" in lowered and any(keyword in lowered for keyword in {"available", "what are", "which", "show"}):
@@ -1087,8 +1236,6 @@ class InputCanonicalizer:
             return "time_bucket_breakdown"
         if self._looks_like_time_coverage_request(question):
             return "time_coverage"
-        if any(keyword in lowered for keyword in ROW_COUNT_KEYWORDS):
-            return "row_count"
         if self._looks_like_distinct_values_request(question) or self._looks_like_dimension_category_request(question, profile):
             return "distinct_values"
         if self._looks_like_representation_request(question, profile):
@@ -1120,6 +1267,24 @@ class InputCanonicalizer:
         return any(keyword in lowered for keyword in {"time", "date", "dates", "datetime"}) and any(
             keyword in lowered for keyword in {"column", "columns", "field", "fields"}
         )
+
+    def _looks_like_tabular_query_request(self, question: str, profile: DatasetProfile) -> bool:
+        lowered = question.lower()
+        has_group_by = bool(self._extract_group_by(question, profile))
+        named_columns = self._extract_named_columns(question, profile)
+        has_tabular_surface = any(keyword in lowered for keyword in TABULAR_ROW_KEYWORDS | TABULAR_SURFACE_KEYWORDS)
+        has_sort_or_limit = any(keyword in lowered for keyword in TABULAR_SORT_KEYWORDS) or self._extract_tabular_limit(question) is not None
+        has_tabular_verb = any(re.search(rf"\b{re.escape(keyword)}\b", lowered) for keyword in TABULAR_VERBS)
+
+        if has_tabular_surface:
+            return True
+        if has_sort_or_limit and (has_tabular_verb or bool(named_columns)):
+            return True
+        if has_group_by and "table" in lowered:
+            return True
+        if not has_group_by and has_tabular_verb and len(named_columns) >= 2:
+            return True
+        return False
 
     def _looks_like_representation_request(self, question: str, profile: DatasetProfile) -> bool:
         lowered = question.lower()
@@ -1345,6 +1510,29 @@ class InputCanonicalizer:
             return "group_ranking"
         if target in profile.measure_columns:
             return "row_ranking"
+        return intent_name
+
+    def _resolve_tabular_intent(
+        self,
+        question: str,
+        intent_name: str | None,
+        target: str | None,
+        group_by: list[str] | None,
+        selected_columns: list[str] | None,
+        filters: dict[str, object] | None,
+        aggregation: str | None,
+    ) -> str | None:
+        if intent_name in {"row_ranking", "group_ranking", "time_bucket_counts", "time_bucket_breakdown", "time_period_comparison"}:
+            return intent_name
+        if intent_name != "tabular_query":
+            return intent_name
+        lowered = question.lower()
+        if group_by and ("table" in lowered or "tabular" in lowered or aggregation or target):
+            return "grouped_tabular_query"
+        if group_by and not any(keyword in lowered for keyword in TABULAR_ROW_KEYWORDS | TABULAR_SURFACE_KEYWORDS):
+            return intent_name
+        if selected_columns or filters or any(keyword in lowered for keyword in TABULAR_ROW_KEYWORDS | TABULAR_SURFACE_KEYWORDS):
+            return "tabular_query"
         return intent_name
 
     def _resolve_candidate_column(

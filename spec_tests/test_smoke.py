@@ -1228,6 +1228,97 @@ def test_profiler_detects_time_column_when_most_values_are_valid_dates() -> None
     assert "posted_at" in profile.time_columns
 
 
+def test_analyze_returns_filtered_row_table_for_reopened_prompt() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "ticket_id": ["T1", "T2", "T3", "T4"],
+            "created_at": ["2026-01-01", "2026-01-02", "2026-01-03", "2026-01-04"],
+            "priority": ["Low", "Medium", "High", "Medium"],
+            "team": ["Support", "Support", "Platform", "Platform"],
+            "reopened_flag": ["yes", "no", "yes", "no"],
+        }
+    )
+    dataset = Dataset(name="tickets", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "Give me the list of all rows in dataset that have their tickets marked as reopened.")
+
+    table = next(table for table in result.tables if table.name == "tabular_query")
+    assert result.response["interpretation"]["intent_name"] == "tabular_query"
+    assert result.response["result"]["logical_shape"] == "recordset"
+    assert result.response["result"]["pagination"]["total_rows"] == 2
+    assert len(table.dataframe) == 2
+    assert set(table.dataframe["reopened_flag"]) == {"yes"}
+
+
+def test_analyze_returns_selected_columns_for_tabular_prompt() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "ticket_id": ["T1", "T2", "T3"],
+            "created_at": ["2026-01-01", "2026-01-02", "2026-01-03"],
+            "priority": ["Low", "Medium", "High"],
+            "reopened_flag": ["yes", "no", "yes"],
+        }
+    )
+    dataset = Dataset(name="tickets", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "Show ticket_id and priority rows sorted by created_at")
+
+    table = next(table for table in result.tables if table.name == "tabular_query")
+    assert list(table.dataframe.columns) == ["ticket_id", "priority", "created_at"]
+    assert result.response["tables"][0]["result"]["pagination"]["total_rows"] == 3
+
+
+def test_analyze_returns_grouped_tabular_query_for_table_prompt() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "posted_at": ["2026-01-01", "2026-01-02", "2026-01-03"],
+            "revenue": [100.0, 80.0, 60.0],
+            "region": ["West", "East", "West"],
+        }
+    )
+    dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "Show revenue by region as table")
+
+    table = next(table for table in result.tables if table.name == "grouped_tabular_query")
+    assert result.response["interpretation"]["intent_name"] == "grouped_tabular_query"
+    assert result.response["result"]["logical_shape"] == "table"
+    assert "target_total" in table.dataframe.columns
+
+
+def test_analyze_returns_paginated_tabular_query() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "ticket_id": ["T1", "T2", "T3", "T4"],
+            "created_at": ["2026-01-01", "2026-01-02", "2026-01-03", "2026-01-04"],
+            "priority": ["Low", "Medium", "High", "Medium"],
+        }
+    )
+    dataset = Dataset(name="tickets", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "Return first 3 rows page 2 page size 2 sorted by created_at")
+
+    table = next(table for table in result.tables if table.name == "tabular_query")
+    assert list(table.dataframe["ticket_id"]) == ["T3"]
+    assert result.response["result"]["pagination"]["page"] == 2
+    assert result.response["result"]["pagination"]["total_rows"] == 3
+
+
+def test_analyze_keeps_distinct_values_for_dimension_listing_prompt() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "priority": ["Low", "Medium", "High", "Medium"],
+            "reopened_flag": ["yes", "no", "yes", "no"],
+        }
+    )
+    dataset = Dataset(name="tickets", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "Give me a list of all priority values")
+
+    assert result.response["interpretation"]["intent_name"] == "distinct_values"
+    assert any(table.name == "distinct_values" for table in result.tables)
+
+
 _SMOKE_ANALYZE_CASES = [
     (
         index,

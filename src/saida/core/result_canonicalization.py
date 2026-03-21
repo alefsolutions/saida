@@ -113,6 +113,7 @@ class ResultCanonicalizer:
                 "rows": int(len(table.dataframe)),
                 "columns": list(table.dataframe.columns),
                 "description": table.description,
+                "metadata": dict(table.metadata),
             }
             for table in tables
         }
@@ -257,6 +258,8 @@ class ResultCanonicalizer:
                 return self._metric_result_payload(aggregate_metric, logical_shape=logical_shape)
 
         table_priority = [
+            "grouped_tabular_query",
+            "tabular_query",
             "column_type_inventory",
             "numeric_column_inventory",
             "categorical_column_inventory",
@@ -338,6 +341,7 @@ class ResultCanonicalizer:
         return {
             "name": table.name,
             "description": table.description,
+            "metadata": dict(table.metadata),
             "result": self._table_result_payload(table),
         }
 
@@ -354,6 +358,8 @@ class ResultCanonicalizer:
             "dimensions": dimensions,
             "row_count": int(len(dataframe)),
             "labels": labels,
+            "pagination": self._json_safe(table.metadata.get("pagination")) if table.metadata.get("pagination") else None,
+            "metadata": self._json_safe(dict(table.metadata)) if table.metadata else {},
             "value": value,
         }
 
@@ -379,6 +385,8 @@ class ResultCanonicalizer:
         mapping = {
             "dataset_preview": "table",
             "distinct_values": "table",
+            "tabular_query": "recordset",
+            "grouped_tabular_query": "table",
             "time_value_exists": "verification",
             "row_existence": "verification",
             "null_check": "verification",
@@ -469,6 +477,10 @@ class ResultCanonicalizer:
     def _json_safe(self, value: Any) -> Any:
         if value is None or isinstance(value, (str, int, float, bool)):
             return value
+        if isinstance(value, dict):
+            return {str(key): self._json_safe(item) for key, item in value.items()}
+        if isinstance(value, (list, tuple)):
+            return [self._json_safe(item) for item in value]
         if hasattr(value, "item"):
             try:
                 return self._json_safe(value.item())

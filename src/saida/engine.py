@@ -165,6 +165,34 @@ class Saida:
                             step.parameters.get("filters"),
                         )
                     )
+                elif step.action == "tabular_query":
+                    tables.append(
+                        adapter.tabular_query(
+                            dataset.data,
+                            step.parameters.get("selected_columns"),
+                            step.parameters.get("filters"),
+                            step.parameters.get("sort_by"),
+                            step.parameters.get("sort_direction", "asc"),
+                            step.parameters.get("limit"),
+                            step.parameters.get("page", 1),
+                            step.parameters.get("page_size", 50),
+                        )
+                    )
+                elif step.action == "grouped_tabular_query":
+                    tables.append(
+                        adapter.grouped_tabular_query(
+                            dataset.data,
+                            step.parameters["group_by"],
+                            step.parameters.get("target"),
+                            step.parameters.get("aggregation", "count"),
+                            step.parameters.get("filters"),
+                            step.parameters.get("sort_by"),
+                            step.parameters.get("sort_direction", "desc"),
+                            step.parameters.get("limit"),
+                            step.parameters.get("page", 1),
+                            step.parameters.get("page_size", 50),
+                        )
+                    )
                 elif step.action == "time_coverage":
                     tables.append(
                         adapter.time_coverage(

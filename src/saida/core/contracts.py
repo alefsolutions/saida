@@ -118,6 +118,7 @@ class TableArtifact:
     name: str
     description: str | None
     dataframe: pd.DataFrame
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(slots=True)

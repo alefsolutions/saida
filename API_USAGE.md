@@ -105,6 +105,8 @@ The current primary `result` object includes:
 - `dimensions`
 - `row_count`
 - `labels`
+- `pagination`
+- `metadata`
 - `value`
 
 ## Output Formats
@@ -181,6 +183,15 @@ The current prototype also already applies stronger typed routing guards so prom
 - `What is the highest posted_at?`
 
 do not silently fall back to a numeric measure when the requested target type is incompatible with the requested computation.
+
+The current prototype also already supports tabular discovery prompts such as:
+
+- `Give me the list of all rows in dataset that have their tickets marked as reopened.`
+- `Show ticket_id and priority rows sorted by created_at`
+- `Return first 5 rows page 2 page size 2 sorted by created_at`
+- `Show revenue by region as table`
+
+These prompts now return canonical recordset or grouped-table results with deterministic filters, selected columns, sorting, limits, and pagination metadata that can be consumed directly by APIs and BI-style frontends.
 
 ## Design Rule
 

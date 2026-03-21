@@ -247,6 +247,81 @@ def build_schema_dataset() -> Dataset:
     return Dataset(name="support", source_type="pandas", data=dataframe)
 
 
+def build_tabular_profile() -> DatasetProfile:
+    return DatasetProfile(
+        dataset_name="tickets",
+        row_count=6,
+        column_count=6,
+        columns=[
+            ColumnProfile(
+                name="ticket_id",
+                inferred_type="string",
+                nullable=False,
+                null_ratio=0.0,
+                unique_count=6,
+                distinct_ratio=1.0,
+                sample_values=["T1", "T2"],
+                is_identifier_candidate=True,
+                is_dimension_candidate=True,
+            ),
+            ColumnProfile(
+                name="created_at",
+                inferred_type="datetime",
+                nullable=False,
+                null_ratio=0.0,
+                unique_count=6,
+                distinct_ratio=1.0,
+                sample_values=["2026-01-01"],
+                is_time_candidate=True,
+            ),
+            ColumnProfile(
+                name="resolution_hours",
+                inferred_type="float",
+                nullable=False,
+                null_ratio=0.0,
+                unique_count=6,
+                distinct_ratio=1.0,
+                sample_values=[2.1, 5.4],
+                is_measure_candidate=True,
+            ),
+            ColumnProfile(
+                name="priority",
+                inferred_type="category",
+                nullable=False,
+                null_ratio=0.0,
+                unique_count=3,
+                distinct_ratio=0.5,
+                sample_values=["Low", "Medium"],
+                is_dimension_candidate=True,
+            ),
+            ColumnProfile(
+                name="team",
+                inferred_type="category",
+                nullable=False,
+                null_ratio=0.0,
+                unique_count=2,
+                distinct_ratio=0.33,
+                sample_values=["Support", "Platform"],
+                is_dimension_candidate=True,
+            ),
+            ColumnProfile(
+                name="reopened_flag",
+                inferred_type="category",
+                nullable=False,
+                null_ratio=0.0,
+                unique_count=2,
+                distinct_ratio=0.33,
+                sample_values=["yes", "no"],
+                is_dimension_candidate=True,
+            ),
+        ],
+        measure_columns=["resolution_hours"],
+        dimension_columns=["ticket_id", "priority", "team", "reopened_flag"],
+        time_columns=["created_at"],
+        identifier_columns=["ticket_id"],
+    )
+
+
 def test_normalizer_extracts_group_by_filters_and_time_reference() -> None:
     normalizer = RequestNormalizer()
     context = SourceContext(raw_markdown="", metric_definitions={"revenue": "total revenue"})
@@ -1359,3 +1434,153 @@ def test_normalizer_handles_many_supported_question_shapes(
     assert request.task_type_hint == task_type
     assert request.target == expected_target
     assert request.group_by == expected_group_by
+
+
+def test_normalizer_detects_filtered_row_tabular_query() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Give me the list of all rows in dataset that have their tickets marked as reopened.",
+        build_statistical_dataset(),
+        build_statistical_profile(),
+        None,
+    )
+
+    assert request.intent_name == "tabular_query"
+    assert request.filters == {"reopened_flag": "yes"}
+    assert request.options["selected_columns"] == []
+
+
+def test_normalizer_detects_tabular_query_with_selected_columns() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Show ticket_id and priority sorted by created_at descending",
+        build_schema_dataset(),
+        build_tabular_profile(),
+        None,
+    )
+
+    assert request.intent_name == "tabular_query"
+    assert request.options["selected_columns"] == ["ticket_id", "priority", "created_at"]
+    assert request.options["sort_by"] == "created_at"
+    assert request.options["sort_direction"] == "desc"
+
+
+def test_normalizer_detects_tabular_limit_and_pagination() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Return first 5 rows page 2 page size 2 sorted by created_at",
+        build_schema_dataset(),
+        build_tabular_profile(),
+        None,
+    )
+
+    assert request.intent_name == "tabular_query"
+    assert request.options["limit"] == 5
+    assert request.options["page"] == 2
+    assert request.options["page_size"] == 2
+    assert request.options["sort_by"] == "created_at"
+
+
+def test_normalizer_detects_grouped_tabular_query() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Show revenue by region as table",
+        build_dataset(),
+        build_profile(),
+        None,
+    )
+
+    assert request.intent_name == "grouped_tabular_query"
+    assert request.target == "revenue"
+    assert request.group_by == ["region"]
+    assert request.aggregation == "sum"
+
+
+def test_normalizer_detects_grouped_count_table_query_without_target() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Show a table of tickets by team",
+        build_statistical_dataset(),
+        build_statistical_profile(),
+        None,
+    )
+
+    assert request.intent_name == "grouped_tabular_query"
+    assert request.group_by == ["team"]
+    assert request.target is None
+    assert request.aggregation == "count"
+
+
+def test_normalizer_keeps_distinct_values_prompt_out_of_tabular_query() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Give me a list of all priorities",
+        build_statistical_dataset(),
+        build_statistical_profile(),
+        None,
+    )
+
+    assert request.intent_name == "distinct_values"
+
+
+def test_normalizer_keeps_non_table_group_prompt_out_of_grouped_tabular_query() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Show revenue by region",
+        build_dataset(),
+        build_profile(),
+        None,
+    )
+
+    assert request.intent_name is None
+
+
+def test_normalizer_detects_latest_rows_sorting() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "List the latest rows for reopened tickets",
+        build_statistical_dataset(),
+        build_statistical_profile(),
+        None,
+    )
+
+    assert request.intent_name == "tabular_query"
+    assert request.options["sort_by"] == "created_at"
+    assert request.options["sort_direction"] == "desc"
+
+
+def test_normalizer_defaults_tabular_page_size_from_limit() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Show first 3 rows sorted by created_at",
+        build_schema_dataset(),
+        build_tabular_profile(),
+        None,
+    )
+
+    assert request.intent_name == "tabular_query"
+    assert request.options["limit"] == 3
+    assert request.options["page_size"] == 3
+
+
+def test_normalizer_uses_empty_selected_columns_for_all_rows_prompt() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Show all rows sorted by created_at",
+        build_schema_dataset(),
+        build_tabular_profile(),
+        None,
+    )
+
+    assert request.intent_name == "tabular_query"
+    assert request.options["selected_columns"] == []

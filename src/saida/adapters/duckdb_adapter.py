@@ -88,6 +88,112 @@ class DuckDBAdapter:
             dataframe=values,
         )
 
+    def tabular_query(
+        self,
+        dataframe: pd.DataFrame,
+        selected_columns: list[str] | None = None,
+        filters: dict[str, object] | None = None,
+        sort_by: str | None = None,
+        sort_direction: str = "asc",
+        limit: int | None = None,
+        page: int = 1,
+        page_size: int = 50,
+    ) -> TableArtifact:
+        """Return a filtered, sorted, and paginated table result."""
+        prepared = self._filter_dataframe(dataframe, filters, allow_empty=True).copy()
+        selected_columns = selected_columns or list(prepared.columns)
+        self._require_columns(prepared, selected_columns)
+        if sort_by is not None:
+            self._require_columns(prepared, [sort_by])
+            prepared = self._sort_dataframe(prepared, sort_by, sort_direction)
+        limited = prepared.head(limit).copy() if limit is not None else prepared.copy()
+        page_frame, pagination = self._paginate_frame(limited, page, page_size)
+        result = page_frame.loc[:, selected_columns].reset_index(drop=True)
+        return TableArtifact(
+            name="tabular_query",
+            description="Filtered rows returned for a natural-language table query.",
+            dataframe=result,
+            metadata={
+                "pagination": pagination,
+                "query": {
+                    "selected_columns": list(selected_columns),
+                    "sort_by": sort_by,
+                    "sort_direction": sort_direction,
+                    "limit": limit,
+                    "filters": filters or {},
+                },
+            },
+        )
+
+    def grouped_tabular_query(
+        self,
+        dataframe: pd.DataFrame,
+        group_by: list[str],
+        target: str | None = None,
+        aggregation: str = "count",
+        filters: dict[str, object] | None = None,
+        sort_by: str | None = None,
+        sort_direction: str = "desc",
+        limit: int | None = None,
+        page: int = 1,
+        page_size: int = 50,
+    ) -> TableArtifact:
+        """Return a grouped and paginated table result for discovery workflows."""
+        prepared = self._filter_dataframe(dataframe, filters, allow_empty=True).copy()
+        required_columns = list(group_by)
+        if target is not None:
+            required_columns.append(target)
+        self._require_columns(prepared, required_columns)
+
+        if target is None or aggregation == "count":
+            grouped = (
+                prepared.groupby(group_by, as_index=False)
+                .size()
+                .rename(columns={"size": "row_count"})
+            )
+            aggregate_column = "row_count"
+        else:
+            prepared["_group_target"] = pd.to_numeric(prepared[target], errors="coerce")
+            prepared = prepared.dropna(subset=["_group_target"])
+            if prepared.empty:
+                grouped = pd.DataFrame(columns=[*group_by, "target_total"])
+            else:
+                grouped = (
+                    prepared.groupby(group_by, as_index=False)["_group_target"]
+                    .agg(self._aggregation_function(aggregation))
+                    .rename(columns={"_group_target": "target_total"})
+                )
+            aggregate_column = "target_total"
+
+        resolved_sort_by = sort_by
+        if resolved_sort_by in {None, target, "count"}:
+            resolved_sort_by = aggregate_column
+        if resolved_sort_by not in grouped.columns and resolved_sort_by is not None:
+            raise ComputeError(f"Grouped tabular sort column '{resolved_sort_by}' is not available.")
+        if resolved_sort_by is not None and not grouped.empty:
+            grouped = self._sort_dataframe(grouped, resolved_sort_by, sort_direction)
+
+        limited = grouped.head(limit).copy() if limit is not None else grouped.copy()
+        page_frame, pagination = self._paginate_frame(limited, page, page_size)
+        result = page_frame.reset_index(drop=True)
+        return TableArtifact(
+            name="grouped_tabular_query",
+            description="Grouped table returned for a natural-language discovery query.",
+            dataframe=result,
+            metadata={
+                "pagination": pagination,
+                "query": {
+                    "group_by": list(group_by),
+                    "target": target,
+                    "aggregation": aggregation,
+                    "sort_by": resolved_sort_by,
+                    "sort_direction": sort_direction,
+                    "limit": limit,
+                    "filters": filters or {},
+                },
+            },
+        )
+
     def time_coverage(
         self,
         dataframe: pd.DataFrame,
@@ -847,6 +953,34 @@ class DuckDBAdapter:
         if pd.api.types.is_string_dtype(series):
             return dataframe.loc[series.astype(str).str.lower() == str(expected_value).lower()]
         return dataframe.loc[series.astype(str) == str(expected_value)]
+
+    def _sort_dataframe(self, dataframe: pd.DataFrame, sort_by: str, sort_direction: str) -> pd.DataFrame:
+        ascending = sort_direction != "desc"
+        return dataframe.sort_values(sort_by, ascending=ascending, kind="stable")
+
+    def _paginate_frame(
+        self,
+        dataframe: pd.DataFrame,
+        page: int,
+        page_size: int,
+    ) -> tuple[pd.DataFrame, dict[str, int | bool | None]]:
+        total_rows = int(len(dataframe))
+        safe_page = page if page > 0 else 1
+        safe_page_size = page_size if page_size > 0 else 50
+        offset = (safe_page - 1) * safe_page_size
+        page_frame = dataframe.iloc[offset : offset + safe_page_size].copy()
+        returned_rows = int(len(page_frame))
+        pagination = {
+            "page": safe_page,
+            "page_size": safe_page_size,
+            "total_rows": total_rows,
+            "returned_rows": returned_rows,
+            "has_next_page": bool(offset + safe_page_size < total_rows),
+            "has_previous_page": bool(safe_page > 1 and total_rows > 0),
+            "offset": offset,
+            "next_page_token": None,
+        }
+        return page_frame, pagination
 
     def _require_columns(self, dataframe: pd.DataFrame, column_names: list[str]) -> None:
         missing_columns = [column_name for column_name in column_names if column_name not in dataframe.columns]

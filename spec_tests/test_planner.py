@@ -116,6 +116,81 @@ def build_schema_profile() -> DatasetProfile:
     )
 
 
+def build_tabular_profile() -> DatasetProfile:
+    return DatasetProfile(
+        dataset_name="tickets",
+        row_count=6,
+        column_count=6,
+        columns=[
+            ColumnProfile(
+                name="ticket_id",
+                inferred_type="string",
+                nullable=False,
+                null_ratio=0.0,
+                unique_count=6,
+                distinct_ratio=1.0,
+                sample_values=["T1"],
+                is_identifier_candidate=True,
+                is_dimension_candidate=True,
+            ),
+            ColumnProfile(
+                name="created_at",
+                inferred_type="datetime",
+                nullable=False,
+                null_ratio=0.0,
+                unique_count=6,
+                distinct_ratio=1.0,
+                sample_values=["2026-01-01"],
+                is_time_candidate=True,
+            ),
+            ColumnProfile(
+                name="resolution_hours",
+                inferred_type="float",
+                nullable=False,
+                null_ratio=0.0,
+                unique_count=6,
+                distinct_ratio=1.0,
+                sample_values=[4.2],
+                is_measure_candidate=True,
+            ),
+            ColumnProfile(
+                name="priority",
+                inferred_type="category",
+                nullable=False,
+                null_ratio=0.0,
+                unique_count=3,
+                distinct_ratio=0.5,
+                sample_values=["Low"],
+                is_dimension_candidate=True,
+            ),
+            ColumnProfile(
+                name="team",
+                inferred_type="category",
+                nullable=False,
+                null_ratio=0.0,
+                unique_count=2,
+                distinct_ratio=0.33,
+                sample_values=["Support"],
+                is_dimension_candidate=True,
+            ),
+            ColumnProfile(
+                name="reopened_flag",
+                inferred_type="category",
+                nullable=False,
+                null_ratio=0.0,
+                unique_count=2,
+                distinct_ratio=0.33,
+                sample_values=["yes"],
+                is_dimension_candidate=True,
+            ),
+        ],
+        measure_columns=["resolution_hours"],
+        dimension_columns=["ticket_id", "priority", "team", "reopened_flag"],
+        time_columns=["created_at"],
+        identifier_columns=["ticket_id"],
+    )
+
+
 def test_planner_builds_diagnostic_plan_with_contribution_steps() -> None:
     planner = AnalysisPlanner()
     request = AnalysisRequest(
@@ -963,3 +1038,108 @@ def test_planner_builds_many_valid_non_ml_plans(analysis_request: AnalysisReques
     assert plan.task_type in {"diagnostic", "descriptive", "statistical", "predictive", "forecasting"} or True
     assert len(plan.steps) >= 4
     assert any(step.action == "dataset_summary" for step in plan.steps)
+
+
+def test_planner_builds_tabular_query_plan() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="Give me all reopened rows",
+        intent_name="tabular_query",
+        task_type_hint="descriptive",
+        filters={"reopened_flag": "yes"},
+        options={"selected_columns": [], "sort_by": "created_at", "sort_direction": "desc", "limit": 5, "page": 1, "page_size": 5},
+    )
+
+    plan = planner.build_plan(request, build_tabular_profile())
+
+    assert [step.action for step in plan.steps] == ["tabular_query"]
+    assert plan.steps[0].parameters["filters"] == {"reopened_flag": "yes"}
+    assert plan.steps[0].parameters["sort_by"] == "created_at"
+
+
+def test_planner_builds_grouped_tabular_query_plan() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="Show revenue by region as table",
+        intent_name="grouped_tabular_query",
+        task_type_hint="descriptive",
+        target="revenue",
+        aggregation="sum",
+        group_by=["region"],
+        options={"page": 1, "page_size": 25},
+    )
+
+    plan = planner.build_plan(request, build_profile())
+
+    assert [step.action for step in plan.steps] == ["grouped_tabular_query"]
+    assert plan.steps[0].parameters["aggregation"] == "sum"
+
+
+def test_planner_rejects_tabular_query_with_invalid_selected_columns() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="Show bad column",
+        intent_name="tabular_query",
+        task_type_hint="descriptive",
+        options={"selected_columns": ["unknown"], "page": 1, "page_size": 10},
+    )
+
+    with pytest.raises(PlanningError, match="Selected columns do not exist"):
+        planner.build_plan(request, build_tabular_profile())
+
+
+def test_planner_rejects_tabular_query_with_invalid_sort_column() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="Show rows sorted by unknown",
+        intent_name="tabular_query",
+        task_type_hint="descriptive",
+        options={"selected_columns": [], "sort_by": "unknown", "page": 1, "page_size": 10},
+    )
+
+    with pytest.raises(PlanningError, match="Sort column 'unknown' does not exist"):
+        planner.build_plan(request, build_tabular_profile())
+
+
+def test_planner_rejects_grouped_tabular_query_without_group_by() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="Show grouped table",
+        intent_name="grouped_tabular_query",
+        task_type_hint="descriptive",
+        target="revenue",
+        aggregation="sum",
+        options={"page": 1, "page_size": 10},
+    )
+
+    with pytest.raises(PlanningError, match="Grouped tabular querying requires at least one grouping column"):
+        planner.build_plan(request, build_profile())
+
+
+def test_planner_rejects_grouped_tabular_query_with_dimension_target() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="Show priority by team as table",
+        intent_name="grouped_tabular_query",
+        task_type_hint="descriptive",
+        target="priority",
+        aggregation="sum",
+        group_by=["team"],
+        options={"page": 1, "page_size": 10},
+    )
+
+    with pytest.raises(PlanningError, match="Grouped tabular querying requires a numeric target"):
+        planner.build_plan(request, build_tabular_profile())
+
+
+def test_planner_rejects_invalid_tabular_pagination() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="Show rows",
+        intent_name="tabular_query",
+        task_type_hint="descriptive",
+        options={"selected_columns": [], "page": 0, "page_size": 10},
+    )
+
+    with pytest.raises(PlanningError, match="page to be 1 or greater"):
+        planner.build_plan(request, build_tabular_profile())

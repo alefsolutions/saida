@@ -64,6 +64,20 @@ class SummaryFormatter:
                 parts.append(f"Warnings: {'; '.join(warnings)}.")
             return " ".join(parts)
 
+        tabular_query_part = self._describe_tabular_query(tables, request)
+        if tabular_query_part:
+            parts.append(tabular_query_part)
+            if warnings:
+                parts.append(f"Warnings: {'; '.join(warnings)}.")
+            return " ".join(parts)
+
+        grouped_tabular_query_part = self._describe_grouped_tabular_query(tables, request)
+        if grouped_tabular_query_part:
+            parts.append(grouped_tabular_query_part)
+            if warnings:
+                parts.append(f"Warnings: {'; '.join(warnings)}.")
+            return " ".join(parts)
+
         existence_part = self._describe_existence_check(tables, request)
         if existence_part:
             parts.append(existence_part)
@@ -487,6 +501,48 @@ class SummaryFormatter:
         if bool(row.get("exists")):
             return f"Yes, the dataset contains rows matching {filter_text} ({matching_row_count} rows)."
         return f"No, the dataset does not contain rows matching {filter_text}."
+
+    def _describe_tabular_query(self, tables: list[TableArtifact], request: AnalysisRequest) -> str | None:
+        if request.intent_name != "tabular_query":
+            return None
+        table = self._table(tables, "tabular_query")
+        if table is None:
+            return None
+        pagination = dict(table.metadata.get("pagination") or {})
+        returned_rows = int(pagination.get("returned_rows", len(table.dataframe)))
+        total_rows = int(pagination.get("total_rows", len(table.dataframe)))
+        page = int(pagination.get("page", 1))
+        page_size = int(pagination.get("page_size", returned_rows or 0))
+        if total_rows == 0:
+            return "No rows matched the requested table query."
+        query_metadata = dict(table.metadata.get("query") or {})
+        selected_columns = list(query_metadata.get("selected_columns", []))
+        selected_text = f" using columns {', '.join(selected_columns)}" if selected_columns else ""
+        return (
+            f"Returned {returned_rows} row{'s' if returned_rows != 1 else ''} out of {total_rows} matching row"
+            f"{'s' if total_rows != 1 else ''} on page {page} (page size {page_size}){selected_text}."
+        )
+
+    def _describe_grouped_tabular_query(self, tables: list[TableArtifact], request: AnalysisRequest) -> str | None:
+        if request.intent_name != "grouped_tabular_query":
+            return None
+        table = self._table(tables, "grouped_tabular_query")
+        if table is None:
+            return None
+        pagination = dict(table.metadata.get("pagination") or {})
+        returned_rows = int(pagination.get("returned_rows", len(table.dataframe)))
+        total_rows = int(pagination.get("total_rows", len(table.dataframe)))
+        page = int(pagination.get("page", 1))
+        page_size = int(pagination.get("page_size", returned_rows or 0))
+        if total_rows == 0:
+            return "No grouped rows matched the requested table query."
+        query_metadata = dict(table.metadata.get("query") or {})
+        group_by = query_metadata.get("group_by") or request.group_by or []
+        grouping_text = f" grouped by {', '.join(group_by)}" if group_by else ""
+        return (
+            f"Returned {returned_rows} grouped row{'s' if returned_rows != 1 else ''} out of {total_rows} total grouped row"
+            f"{'s' if total_rows != 1 else ''} on page {page} (page size {page_size}){grouping_text}."
+        )
 
     def _threshold_condition_text(self, row: pd.Series) -> str:
         operator = str(row.get("threshold_operator", ""))

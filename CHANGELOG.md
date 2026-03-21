@@ -25,6 +25,8 @@ Quick links: [Main README](./README.md) | [Architecture](./ARCHITECTURE.md) | [L
 - Added stronger typed routing guards so unsupported categorical and datetime aggregations fail clearly instead of silently falling back to a numeric measure.
 - Added stricter grouped descriptive validation to keep request routing aligned with the actual compute contract.
 - Tightened the 0.2.0 docs around the live `saida.response.v2` envelope and the self-describing primary `result` contract.
+- Added first-class natural-language tabular querying for filtered row retrieval, selected columns, grouped table outputs, sorting, limits, and pagination.
+- Added canonical tabular result handling in `saida.response.v2`, including structured pagination metadata for recordset-style outputs.
 
 ### Planned
 

@@ -102,6 +102,8 @@ The current primary `result` object is normalized with:
 - `dimensions`
 - `row_count`
 - `labels`
+- `pagination`
+- `metadata`
 - `value`
 
 ## Current Prototype Result Families
@@ -135,6 +137,24 @@ The current prototype also returns canonical verification result families for:
 - column-property checks such as numeric, datetime, categorical, and identifier validation
 
 These results are normalized as verification-style outputs in the same response contract.
+
+The current prototype also returns canonical tabular result families for:
+
+- filtered row retrieval
+- selected-column row retrieval
+- grouped tabular outputs
+- paginated recordset responses
+
+These results are normalized as `recordset` or `table` outputs and carry structured pagination metadata:
+
+- `page`
+- `page_size`
+- `total_rows`
+- `returned_rows`
+- `has_next_page`
+- `has_previous_page`
+- `offset`
+- optional `next_page_token`
 
 The current prototype also accepts richer canonical filter payloads for:
 
