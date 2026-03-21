@@ -633,13 +633,20 @@ class InputCanonicalizer:
         measure_token_matches = self._resolve_column_by_tokens(lowered, profile.measure_columns, context)
         if measure_token_matches:
             return measure_token_matches
-        if intent_name == "existence_check":
+        if self._extract_aggregation(question):
             for alias, resolved_name in time_aliases.items():
                 if alias in lowered:
                     return resolved_name
             time_token_match = self._resolve_column_by_tokens(lowered, profile.time_columns, context)
             if time_token_match:
                 return time_token_match
+            for alias, resolved_name in dimension_aliases.items():
+                if alias in lowered:
+                    return resolved_name
+            dimension_token_match = self._resolve_column_by_tokens(lowered, profile.dimension_columns, context)
+            if dimension_token_match:
+                return dimension_token_match
+        if intent_name == "existence_check":
             for alias, resolved_name in all_column_aliases.items():
                 if alias in lowered:
                     return resolved_name

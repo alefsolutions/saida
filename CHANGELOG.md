@@ -22,6 +22,8 @@ Quick links: [Main README](./README.md) | [Architecture](./ARCHITECTURE.md) | [L
 - Added canonical verification result tables and summaries for the expanded Phase 3 prompt family in the 0.2.0 prototype.
 - Added stronger natural-language filter extraction for multi-clause inclusion, exclusion, implied flag filters, and simple year/month time filters.
 - Added canonical filter handling for richer prompt-driven slicing in the 0.2.0 prototype.
+- Added stronger typed routing guards so unsupported categorical and datetime aggregations fail clearly instead of silently falling back to a numeric measure.
+- Added stricter grouped descriptive validation to keep request routing aligned with the actual compute contract.
 
 ### Planned
 

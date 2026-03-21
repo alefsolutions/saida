@@ -156,6 +156,13 @@ The current prototype also already supports stronger filter-oriented prompts suc
 - `What is the total revenue for West in 2026?`
 - `What is the total revenue for West in March?`
 
+The current prototype also already applies stronger typed routing guards so prompts like:
+
+- `What is the average region?`
+- `What is the highest posted_at?`
+
+do not silently fall back to a numeric measure when the requested target type is incompatible with the requested computation.
+
 ## Design Rule
 
 The API surface should stay thin.

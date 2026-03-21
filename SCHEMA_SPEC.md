@@ -111,6 +111,12 @@ The current prototype also accepts richer canonical filter payloads for:
 
 These filters are normalized before execution and reused across the same analytical response contract.
 
+The current prototype also applies stronger typed routing rules before execution so that:
+
+- numeric aggregations require numeric targets
+- unsupported time and categorical aggregations fail at the contract boundary
+- grouped descriptive requests do not silently reuse measure-only workflows when the target type is incompatible
+
 ## Guiding Principle
 
 Schemas in SAIDA 0.2.0 are not just internal containers.

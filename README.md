@@ -112,6 +112,14 @@ The current 0.2.0 prototype also supports stronger natural-language filter extra
 
 These prompts now support multi-clause inclusion filters, exclusion filters, implied flag filters, and simple year/month time filters through the canonical filter contract.
 
+The current 0.2.0 prototype also applies stronger typed routing guards so that:
+
+- explicit non-numeric aggregation targets do not silently fall back to the first measure
+- unsupported datetime and categorical aggregations fail clearly
+- grouped descriptive requests require a numeric target unless they map to a dedicated dimension workflow
+
+This keeps prompt routing closer to the actual compute contract and reduces weak generic analysis paths.
+
 ## Sources And Backends
 
 The architecture defines SAIDA as multi-source and multi-backend.

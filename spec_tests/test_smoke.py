@@ -1137,6 +1137,34 @@ def test_analyze_supports_group_ranking_summary_prompt() -> None:
     assert any(table.name == "ranked_breakdown" for table in result.tables)
 
 
+def test_analyze_rejects_dimension_mean_prompt_instead_of_falling_back() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "revenue": [120.0, 80.0],
+            "region": ["West", "East"],
+            "posted_at": ["2026-02-01", "2026-03-01"],
+        }
+    )
+    dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
+
+    with pytest.raises(Exception):
+        Saida().analyze(dataset, "What is the average region?")
+
+
+def test_analyze_rejects_time_max_prompt_instead_of_falling_back() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "revenue": [120.0, 80.0],
+            "region": ["West", "East"],
+            "posted_at": ["2026-02-01", "2026-03-01"],
+        }
+    )
+    dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
+
+    with pytest.raises(Exception):
+        Saida().analyze(dataset, "What is the highest posted_at?")
+
+
 def test_analyze_time_coverage_rejects_datasets_without_time_columns() -> None:
     dataframe = pd.DataFrame({"revenue": [90.0, 100.0], "segment": ["Retail", "Online"]})
     dataset = Dataset(name="sales", source_type="pandas", data=dataframe)

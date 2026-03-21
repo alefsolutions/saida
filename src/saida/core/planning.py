@@ -633,6 +633,20 @@ class PlanBuilder:
         if request.intent_name == "group_ranking":
             if request.target not in set(profile.measure_columns) or not request.group_by:
                 raise PlanningError("Group ranking requires a numeric target and one grouping column.")
+        if request.aggregation and request.aggregation != "count" and request.intent_name not in {
+            "time_bucket_breakdown",
+            "time_period_comparison",
+            "group_ranking",
+        }:
+            if request.target not in set(profile.measure_columns):
+                raise PlanningError(f"Aggregation '{request.aggregation}' requires a numeric target.")
+        if (
+            request.group_by
+            and request.intent_name not in {"representation_ranking", "group_ranking", "time_bucket_breakdown", "time_period_comparison"}
+            and request.target is not None
+            and request.target not in set(profile.measure_columns)
+        ):
+            raise PlanningError("Grouped descriptive analysis requires a numeric target or a dedicated dimension intent.")
         if request.intent_name == "time_coverage" and not profile.time_columns:
             raise PlanningError("Time coverage analysis requires a datetime column.")
         if request.intent_name == "time_bucket_counts" and not profile.time_columns:

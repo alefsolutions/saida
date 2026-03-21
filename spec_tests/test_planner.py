@@ -741,6 +741,45 @@ def test_planner_rejects_invalid_target_column() -> None:
         planner.build_plan(request, build_profile())
 
 
+def test_planner_rejects_mean_aggregation_for_dimension_target() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="What is the average region?",
+        task_type_hint="descriptive",
+        target="region",
+        aggregation="mean",
+    )
+
+    with pytest.raises(PlanningError, match="Aggregation 'mean' requires a numeric target"):
+        planner.build_plan(request, build_profile())
+
+
+def test_planner_rejects_max_aggregation_for_time_target() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="What is the highest posted_at?",
+        task_type_hint="descriptive",
+        target="posted_at",
+        aggregation="max",
+    )
+
+    with pytest.raises(PlanningError, match="Aggregation 'max' requires a numeric target"):
+        planner.build_plan(request, build_profile())
+
+
+def test_planner_rejects_grouped_descriptive_request_for_dimension_target() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="Show region by segment",
+        task_type_hint="descriptive",
+        target="region",
+        group_by=["segment"],
+    )
+
+    with pytest.raises(PlanningError, match="Grouped descriptive analysis requires a numeric target"):
+        planner.build_plan(request, build_profile())
+
+
 def test_planner_builds_significance_inference_plan_for_natural_prompt() -> None:
     planner = AnalysisPlanner()
     request = AnalysisRequest(

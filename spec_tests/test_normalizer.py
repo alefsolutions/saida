@@ -350,6 +350,26 @@ def test_normalizer_extracts_lowest_aggregation() -> None:
     assert request.aggregation == "min"
 
 
+def test_normalizer_preserves_explicit_dimension_target_for_unsupported_aggregation() -> None:
+    normalizer = RequestNormalizer()
+
+    request, warnings = normalizer.normalize("What is the average region?", build_dataset(), build_profile(), None)
+
+    assert request.target == "region"
+    assert request.aggregation == "mean"
+    assert warnings == []
+
+
+def test_normalizer_preserves_explicit_time_target_for_unsupported_aggregation() -> None:
+    normalizer = RequestNormalizer()
+
+    request, warnings = normalizer.normalize("What is the highest posted_at?", build_dataset(), build_profile(), None)
+
+    assert request.target == "posted_at"
+    assert request.aggregation == "max"
+    assert warnings == []
+
+
 def test_normalizer_uses_context_metric_aliases() -> None:
     normalizer = RequestNormalizer()
     context = SourceContext(raw_markdown="", metric_definitions={"profit": "net profit"})
