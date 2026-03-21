@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "saida"
-version = "0.1.0"
-description = "SAIDA lightweight deterministic analytics library"
+version = "0.2.0"
+description = "SAIDA canonical analytics framework for standardized plans and analytical results"
 readme = "README.md"
 requires-python = ">=3.11"
-keywords = ["analytics", "duckdb", "python", "deterministic", "data-analysis"]
+keywords = ["analytics", "canonical", "framework", "planning", "data-analysis", "python"]
 classifiers = [
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.11",
@@ -28,6 +28,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+api = [
+  "fastapi>=0.115.0",
+  "uvicorn>=0.30.0",
+]
 dev = [
   "pytest>=8.0.0",
   "pytest-cov>=5.0.0",
