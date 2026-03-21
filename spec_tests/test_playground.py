@@ -11,6 +11,7 @@ if str(PLAYGROUND_PATH) not in sys.path:
     sys.path.insert(0, str(PLAYGROUND_PATH))
 
 import run_analysis_openai as openai_playground
+import run_analysis_openai_json_yellow as openai_playground_json_yellow
 
 
 class _FakeEngine:
@@ -76,6 +77,33 @@ def test_openai_playground_json_mode_prints_structured_contract(
     monkeypatch.setattr("builtins.input", lambda prompt="": next(answers))
 
     openai_playground.main()
+    output = capsys.readouterr().out
+
+    assert '"schema_version": "saida.response.v2"' in output
+    assert "\033[33m" in output
+    assert '"ticket_id": "T1"' in output
+
+
+def test_openai_yellow_json_playground_prints_yellow_structured_contract(
+    monkeypatch: object,
+    capsys: object,
+) -> None:
+    fake_engine = _FakeEngine()
+    dataset = SimpleNamespace(name="sales", data=pd.DataFrame({"revenue": [1.0]}))
+
+    monkeypatch.setattr(openai_playground_json_yellow, "load_project_env", lambda project_root: None)
+    monkeypatch.setattr(
+        openai_playground_json_yellow.os,
+        "getenv",
+        lambda key, default=None: "test-key" if key == "OPENAI_API_KEY" else default,
+    )
+    monkeypatch.setattr(openai_playground_json_yellow.CSVSource, "load", lambda self: dataset)
+    monkeypatch.setattr(openai_playground_json_yellow, "Saida", lambda config=None: fake_engine)
+
+    answers = iter(["Hi there", "exit"])
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(answers))
+
+    openai_playground_json_yellow.main()
     output = capsys.readouterr().out
 
     assert '"schema_version": "saida.response.v2"' in output
