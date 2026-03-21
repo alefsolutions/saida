@@ -83,6 +83,14 @@ The current 0.2.0 prototype already returns canonical table results for schema m
 
 These results are exposed through the same standardized response envelope as analytical tables.
 
+The current prototype also returns canonical time-series result families for:
+
+- time bucket counts by year, month, and quarter
+- time bucket breakdowns for numeric targets by year, month, and quarter
+- adjacent period comparisons across month, quarter, and year buckets
+
+These results are normalized as canonical timeseries-style tables in the same response contract.
+
 ## Guiding Principle
 
 Schemas in SAIDA 0.2.0 are not just internal containers.

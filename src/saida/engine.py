@@ -179,6 +179,18 @@ class Saida:
                             step.parameters.get("filters"),
                         )
                     )
+                elif step.action == "time_bucket_breakdown":
+                    tables.append(
+                        adapter.time_bucket_breakdown(
+                            dataset.data,
+                            step.parameters["target"],
+                            step.parameters["time_column"],
+                            step.parameters.get("bucket", "month"),
+                            step.parameters.get("aggregation", "sum"),
+                            step.parameters.get("group_by"),
+                            step.parameters.get("filters"),
+                        )
+                    )
                 elif step.action == "row_existence":
                     tables.append(
                         adapter.row_existence(
@@ -254,6 +266,7 @@ class Saida:
                             step.parameters["group_by"],
                             step.parameters["time_column"],
                             step.parameters["time_reference"],
+                            step.parameters.get("bucket"),
                             step.parameters.get("aggregation", "sum"),
                             step.parameters.get("filters"),
                         )
@@ -290,6 +303,7 @@ class Saida:
                             step.parameters["target"],
                             step.parameters["time_column"],
                             step.parameters["time_reference"],
+                            step.parameters.get("bucket"),
                             step.parameters.get("aggregation", "sum"),
                             step.parameters.get("filters"),
                         )

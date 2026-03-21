@@ -114,6 +114,17 @@ TIME_BUCKET_COUNT_MONTH_KEYWORDS = {
     "those months",
     "months and how many",
 }
+TIME_BUCKET_COUNT_QUARTER_KEYWORDS = {
+    "by quarter",
+    "per quarter",
+    "each quarter",
+    "those quarters",
+    "quarters and how many",
+}
+TIME_BUCKET_BREAKDOWN_YEAR_KEYWORDS = {"by year", "per year", "each year", "yearly"}
+TIME_BUCKET_BREAKDOWN_MONTH_KEYWORDS = {"by month", "per month", "each month", "monthly"}
+TIME_BUCKET_BREAKDOWN_QUARTER_KEYWORDS = {"by quarter", "per quarter", "each quarter", "quarterly"}
+TIME_COMPARISON_KEYWORDS = {"compare", "comparison", "versus", "vs", "against"}
 EXISTENCE_REQUEST_KEYWORDS = {
     "is there",
     "are there",
@@ -278,13 +289,14 @@ class InputCanonicalizer:
                 named_columns = self._extract_named_columns(question, profile)
                 if named_columns:
                     target = named_columns[0]
-        if intent_name in {"time_coverage", "time_bucket_counts"}:
+        if intent_name in {"time_coverage", "time_bucket_counts", "time_bucket_breakdown", "time_period_comparison"}:
             options["time_coverage_mode"] = self._time_coverage_mode(question)
-            if intent_name == "time_bucket_counts":
+            if intent_name in {"time_bucket_counts", "time_bucket_breakdown", "time_period_comparison"}:
                 options["time_bucket"] = self._time_bucket_mode(question)
-            target = None
-            aggregation = None
-            group_by = None
+            if intent_name in {"time_coverage", "time_bucket_counts"}:
+                target = None
+                aggregation = None
+                group_by = None
         if options.get("statistical_test") == "chi_square":
             group_by = self._extract_statistical_group_by(question, profile, target)
         elif options.get("statistical_test") == "regression_significance":
@@ -311,6 +323,8 @@ class InputCanonicalizer:
             "high_cardinality_inventory",
             "time_coverage",
             "time_bucket_counts",
+            "time_bucket_breakdown",
+            "time_period_comparison",
             "existence_check",
         }:
             warnings.append("No explicit metric matched the prompt; using the first measure candidate.")
@@ -329,6 +343,8 @@ class InputCanonicalizer:
             "high_cardinality_inventory",
             "time_coverage",
             "time_bucket_counts",
+            "time_bucket_breakdown",
+            "time_period_comparison",
             "existence_check",
         }:
             raise ValidationError("No target metric could be resolved from the question or dataset profile.")
@@ -420,13 +436,14 @@ class InputCanonicalizer:
                 named_columns = self._extract_named_columns(question, profile)
                 if named_columns:
                     target = named_columns[0]
-        if rule_intent_name in {"time_coverage", "time_bucket_counts"}:
+        if rule_intent_name in {"time_coverage", "time_bucket_counts", "time_bucket_breakdown", "time_period_comparison"}:
             options["time_coverage_mode"] = self._time_coverage_mode(question)
-            if rule_intent_name == "time_bucket_counts":
+            if rule_intent_name in {"time_bucket_counts", "time_bucket_breakdown", "time_period_comparison"}:
                 options["time_bucket"] = self._time_bucket_mode(question)
-            target = None
-            aggregation = None
-            group_by = None
+            if rule_intent_name in {"time_coverage", "time_bucket_counts"}:
+                target = None
+                aggregation = None
+                group_by = None
         if options.get("statistical_test") == "chi_square":
             group_by = self._extract_statistical_group_by(question, profile, target)
         elif options.get("statistical_test") == "regression_significance":
@@ -452,6 +469,8 @@ class InputCanonicalizer:
             "high_cardinality_inventory",
             "time_coverage",
             "time_bucket_counts",
+            "time_bucket_breakdown",
+            "time_period_comparison",
             "existence_check",
         }:
             warnings.append("No explicit metric matched the prompt; using the first measure candidate.")
@@ -470,6 +489,8 @@ class InputCanonicalizer:
             "high_cardinality_inventory",
             "time_coverage",
             "time_bucket_counts",
+            "time_bucket_breakdown",
+            "time_period_comparison",
             "existence_check",
         }:
             raise ValidationError("No target metric could be resolved from the question or dataset profile.")
@@ -607,8 +628,20 @@ class InputCanonicalizer:
         quarter_match = re.search(r"\bq([1-4])\b", lowered)
         if quarter_match:
             return {"type": "quarter", "value": quarter_match.group(0), "quarter": quarter_match.group(1)}
+        if "this year" in lowered and "last year" in lowered:
+            return {"type": "relative_period", "value": "this_year"}
+        if "this year" in lowered:
+            return {"type": "relative_period", "value": "this_year"}
+        if "last year" in lowered:
+            return {"type": "relative_period", "value": "last_year"}
+        if "this quarter" in lowered and "last quarter" in lowered:
+            return {"type": "relative_period", "value": "this_quarter"}
         if "last quarter" in lowered:
             return {"type": "relative_period", "value": "last_quarter"}
+        if "this quarter" in lowered:
+            return {"type": "relative_period", "value": "this_quarter"}
+        if "this month" in lowered and "last month" in lowered:
+            return {"type": "relative_period", "value": "this_month"}
         if "last month" in lowered:
             return {"type": "relative_period", "value": "last_month"}
         if "this month" in lowered:
@@ -896,6 +929,10 @@ class InputCanonicalizer:
             return "time_column_inventory"
         if self._looks_like_time_bucket_count_request(question):
             return "time_bucket_counts"
+        if self._looks_like_time_period_comparison_request(question, profile):
+            return "time_period_comparison"
+        if self._looks_like_time_bucket_breakdown_request(question, profile):
+            return "time_bucket_breakdown"
         if self._looks_like_time_coverage_request(question):
             return "time_coverage"
         if any(keyword in lowered for keyword in ROW_COUNT_KEYWORDS):
@@ -967,7 +1004,37 @@ class InputCanonicalizer:
             return False
         year_request = any(keyword in lowered for keyword in TIME_BUCKET_COUNT_YEAR_KEYWORDS)
         month_request = any(keyword in lowered for keyword in TIME_BUCKET_COUNT_MONTH_KEYWORDS)
-        return year_request or month_request
+        quarter_request = any(keyword in lowered for keyword in TIME_BUCKET_COUNT_QUARTER_KEYWORDS)
+        return year_request or month_request or quarter_request
+
+    def _looks_like_time_bucket_breakdown_request(self, question: str, profile: DatasetProfile) -> bool:
+        lowered = question.lower()
+        if any(keyword in lowered for keyword in TIME_COMPARISON_KEYWORDS):
+            return False
+        has_measure_language = any(column.lower() in lowered for column in profile.measure_columns) or bool(
+            self._extract_aggregation(question)
+        )
+        if not has_measure_language:
+            return False
+        return any(keyword in lowered for keyword in (
+            TIME_BUCKET_BREAKDOWN_YEAR_KEYWORDS
+            | TIME_BUCKET_BREAKDOWN_MONTH_KEYWORDS
+            | TIME_BUCKET_BREAKDOWN_QUARTER_KEYWORDS
+        ))
+
+    def _looks_like_time_period_comparison_request(self, question: str, profile: DatasetProfile) -> bool:
+        lowered = question.lower()
+        if not any(keyword in lowered for keyword in TIME_COMPARISON_KEYWORDS):
+            return False
+        has_measure_language = any(column.lower() in lowered for column in profile.measure_columns) or bool(
+            self._extract_aggregation(question)
+        )
+        if not has_measure_language:
+            return False
+        time_reference = self._extract_time_reference(question)
+        if time_reference is not None:
+            return True
+        return any(keyword in lowered for keyword in {"month", "quarter", "year"})
 
     def _looks_like_existence_request(self, question: str, profile: DatasetProfile) -> bool:
         lowered = question.lower()
@@ -991,8 +1058,18 @@ class InputCanonicalizer:
 
     def _time_bucket_mode(self, question: str) -> str:
         lowered = question.lower()
+        if any(keyword in lowered for keyword in TIME_BUCKET_COUNT_QUARTER_KEYWORDS | TIME_BUCKET_BREAKDOWN_QUARTER_KEYWORDS):
+            return "quarter"
         if any(keyword in lowered for keyword in TIME_BUCKET_COUNT_MONTH_KEYWORDS):
             return "month"
+        if any(keyword in lowered for keyword in TIME_BUCKET_BREAKDOWN_MONTH_KEYWORDS):
+            return "month"
+        if any(keyword in lowered for keyword in {"this month", "last month"}):
+            return "month"
+        if any(keyword in lowered for keyword in {"this quarter", "last quarter"}):
+            return "quarter"
+        if any(keyword in lowered for keyword in {"this year", "last year"}):
+            return "year"
         return "year"
 
     def _resolve_existence_mode(

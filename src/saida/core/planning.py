@@ -35,6 +35,8 @@ class PlanBuilder:
             "high_cardinality_inventory",
             "time_coverage",
             "time_bucket_counts",
+            "time_bucket_breakdown",
+            "time_period_comparison",
             "existence_check",
         }:
             request.target = profile.measure_columns[0]
@@ -115,6 +117,46 @@ class PlanBuilder:
                             "bucket": request.options.get("time_bucket", "year"),
                         },
                         description="Count rows across derived time buckets such as years or months.",
+                    )
+                )
+                rationale = self._build_rationale(task_type, request, context)
+                return AnalysisPlan(task_type=task_type, rationale=rationale, steps=steps, warnings=warnings)
+            if request.intent_name == "time_bucket_breakdown":
+                steps.append(
+                    PlanStep(
+                        step_id="time_bucket_breakdown",
+                        tool_family="duckdb",
+                        action="time_bucket_breakdown",
+                        parameters={
+                            "target": request.target,
+                            "time_column": profile.time_columns[0],
+                            "bucket": request.options.get("time_bucket", "month"),
+                            "aggregation": request.aggregation or "sum",
+                            "group_by": request.group_by,
+                            "filters": request.filters,
+                        },
+                        description="Aggregate a numeric target across derived time buckets such as month, quarter, or year.",
+                    )
+                )
+                rationale = self._build_rationale(task_type, request, context)
+                return AnalysisPlan(task_type=task_type, rationale=rationale, steps=steps, warnings=warnings)
+            if request.intent_name == "time_period_comparison":
+                comparison_action = "grouped_period_comparison" if request.group_by else "period_comparison"
+                steps.append(
+                    PlanStep(
+                        step_id=comparison_action,
+                        tool_family="duckdb",
+                        action=comparison_action,
+                        parameters={
+                            "target": request.target,
+                            "group_by": request.group_by,
+                            "time_column": profile.time_columns[0],
+                            "time_reference": request.time_reference,
+                            "bucket": request.options.get("time_bucket", "month"),
+                            "aggregation": request.aggregation or "sum",
+                            "filters": request.filters,
+                        },
+                        description="Compare adjacent derived time periods such as month, quarter, or year.",
                     )
                 )
                 rationale = self._build_rationale(task_type, request, context)
@@ -551,8 +593,19 @@ class PlanBuilder:
             raise PlanningError("Time coverage analysis requires a datetime column.")
         if request.intent_name == "time_bucket_counts" and not profile.time_columns:
             raise PlanningError("Time bucket count analysis requires a datetime column.")
+        if request.intent_name == "time_bucket_breakdown" and not profile.time_columns:
+            raise PlanningError("Time bucket breakdown analysis requires a datetime column.")
+        if request.intent_name == "time_period_comparison" and not profile.time_columns:
+            raise PlanningError("Time period comparison requires a datetime column.")
         if request.intent_name == "time_column_inventory" and not profile.time_columns:
             raise PlanningError("Time column inventory requires at least one datetime column.")
+        if request.intent_name == "time_bucket_breakdown" and request.target not in set(profile.measure_columns):
+            raise PlanningError("Time bucket breakdown requires a numeric target.")
+        if request.intent_name == "time_period_comparison":
+            if request.target not in set(profile.measure_columns):
+                raise PlanningError("Time period comparison requires a numeric target.")
+            if not request.time_reference:
+                raise PlanningError("Time period comparison requires an explicit time reference.")
         if request.intent_name == "existence_check":
             existence_mode = request.options.get("existence_mode", "filtered_rows")
             if existence_mode == "time_value":
@@ -597,7 +650,7 @@ class PlanBuilder:
         if request.time_reference and request.time_reference.get("type") not in supported_time_reference_types:
             raise PlanningError("Unsupported time reference in analysis request.")
 
-        if request.time_reference and request.time_reference.get("type") != "month_name":
+        if request.time_reference and request.time_reference.get("type") != "month_name" and request.intent_name != "time_period_comparison":
             raise PlanningError("Only month-based time references are supported for non-ML analysis right now.")
 
         if request.aggregation and request.aggregation not in supported_aggregations:
@@ -630,6 +683,10 @@ class PlanBuilder:
             rationale += f" Time coverage mode: {request.options.get('time_coverage_mode', 'years_present')}."
         if request.intent_name == "time_bucket_counts":
             rationale += f" Time bucket counts: {request.options.get('time_bucket', 'year')}."
+        if request.intent_name == "time_bucket_breakdown":
+            rationale += f" Time bucket breakdown: {request.options.get('time_bucket', 'month')}."
+        if request.intent_name == "time_period_comparison":
+            rationale += f" Time period comparison bucket: {request.options.get('time_bucket', 'month')}."
         if request.intent_name == "existence_check":
             rationale += f" Existence mode: {request.options.get('existence_mode', 'filtered_rows')}."
         if request.options.get("statistical_test"):

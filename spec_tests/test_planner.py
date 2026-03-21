@@ -386,6 +386,74 @@ def test_planner_builds_time_bucket_count_plan() -> None:
     assert plan.steps[0].parameters["bucket"] == "year"
 
 
+def test_planner_builds_time_bucket_breakdown_plan() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="Show revenue by month",
+        intent_name="time_bucket_breakdown",
+        task_type_hint="descriptive",
+        target="revenue",
+        options={"time_bucket": "month"},
+    )
+
+    plan = planner.build_plan(request, build_profile())
+
+    assert [step.action for step in plan.steps] == ["time_bucket_breakdown"]
+    assert plan.steps[0].parameters["bucket"] == "month"
+
+
+def test_planner_builds_time_bucket_breakdown_plan_with_grouping() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="Show revenue by quarter for each region",
+        intent_name="time_bucket_breakdown",
+        task_type_hint="descriptive",
+        target="revenue",
+        group_by=["region"],
+        options={"time_bucket": "quarter"},
+    )
+
+    plan = planner.build_plan(request, build_profile())
+
+    assert [step.action for step in plan.steps] == ["time_bucket_breakdown"]
+    assert plan.steps[0].parameters["group_by"] == ["region"]
+
+
+def test_planner_builds_time_period_comparison_plan() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="Compare revenue this quarter to last quarter",
+        intent_name="time_period_comparison",
+        task_type_hint="descriptive",
+        target="revenue",
+        time_reference={"type": "relative_period", "value": "this_quarter"},
+        options={"time_bucket": "quarter"},
+    )
+
+    plan = planner.build_plan(request, build_profile())
+
+    assert [step.action for step in plan.steps] == ["period_comparison"]
+    assert plan.steps[0].parameters["bucket"] == "quarter"
+
+
+def test_planner_builds_grouped_time_period_comparison_plan() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="Compare revenue by region this year to last year",
+        intent_name="time_period_comparison",
+        task_type_hint="descriptive",
+        target="revenue",
+        group_by=["region"],
+        time_reference={"type": "relative_period", "value": "this_year"},
+        options={"time_bucket": "year"},
+    )
+
+    plan = planner.build_plan(request, build_profile())
+
+    assert [step.action for step in plan.steps] == ["grouped_period_comparison"]
+    assert plan.steps[0].parameters["bucket"] == "year"
+
+
 def test_planner_builds_time_value_existence_plan() -> None:
     planner = AnalysisPlanner()
     request = AnalysisRequest(
@@ -475,6 +543,22 @@ def test_planner_rejects_time_bucket_counts_without_time_column() -> None:
         planner.build_plan(request, profile)
 
 
+def test_planner_rejects_time_bucket_breakdown_without_time_column() -> None:
+    planner = AnalysisPlanner()
+    profile = build_profile()
+    profile.time_columns = []
+    request = AnalysisRequest(
+        question="Show revenue by month",
+        intent_name="time_bucket_breakdown",
+        task_type_hint="descriptive",
+        target="revenue",
+        options={"time_bucket": "month"},
+    )
+
+    with pytest.raises(PlanningError, match="Time bucket breakdown analysis requires a datetime column"):
+        planner.build_plan(request, profile)
+
+
 def test_planner_rejects_time_value_existence_without_expected_value() -> None:
     planner = AnalysisPlanner()
     request = AnalysisRequest(
@@ -500,6 +584,22 @@ def test_planner_rejects_non_month_time_references_for_non_ml_analysis() -> None
 
     with pytest.raises(PlanningError, match="Only month-based time references"):
         planner.build_plan(request, build_profile())
+
+
+def test_planner_allows_quarter_time_reference_for_time_period_comparison() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="Compare revenue this quarter to last quarter",
+        intent_name="time_period_comparison",
+        task_type_hint="descriptive",
+        target="revenue",
+        time_reference={"type": "relative_period", "value": "this_quarter"},
+        options={"time_bucket": "quarter"},
+    )
+
+    plan = planner.build_plan(request, build_profile())
+
+    assert plan.steps[0].action == "period_comparison"
 
 
 def test_planner_rejects_unsupported_aggregation() -> None:

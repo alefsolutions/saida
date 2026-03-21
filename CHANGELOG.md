@@ -16,6 +16,8 @@ Quick links: [Main README](./README.md) | [Architecture](./ARCHITECTURE.md) | [L
 - Repo docs now describe SAIDA as a canonical analytics framework built around `AnalysisPlan` and `AnalyticalResult`.
 - Added first-class schema metadata question support for column types, numeric columns, categorical columns, missing values, identifiers, and high-cardinality columns.
 - Added metadata result tables and summaries for typed schema questions in the 0.2.0 prototype.
+- Added richer time-derived grouping and comparison support across year, month, and quarter buckets.
+- Added deterministic adjacent-period comparison support for month, quarter, and year prompts in the 0.2.0 prototype.
 
 ### Planned
 

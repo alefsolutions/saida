@@ -78,6 +78,18 @@ The current 0.2.0 prototype already supports a first-class schema metadata quest
 
 These prompts currently route into canonical metadata tables rather than the generic descriptive analysis path.
 
+The current 0.2.0 prototype also supports richer time-derived analysis prompts such as:
+
+- `How many tickets were created by quarter?`
+- `Show revenue by month`
+- `Show revenue by year`
+- `Show revenue by quarter`
+- `Compare revenue this month to last month`
+- `Compare revenue this quarter to last quarter`
+- `Compare revenue this year to last year`
+
+These prompts now route into canonical time-bucket tables and deterministic adjacent-period comparisons.
+
 ## Sources And Backends
 
 The architecture defines SAIDA as multi-source and multi-backend.

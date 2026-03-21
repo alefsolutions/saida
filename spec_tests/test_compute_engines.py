@@ -31,6 +31,25 @@ def build_statistical_dataframe() -> pd.DataFrame:
     )
 
 
+def build_time_bucket_dataframe() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "posted_at": [
+                "2025-01-01",
+                "2025-02-01",
+                "2025-05-01",
+                "2025-10-01",
+                "2026-01-01",
+                "2026-04-01",
+                "2026-07-01",
+                "2026-10-01",
+            ],
+            "revenue": [100.0, 120.0, 140.0, 160.0, 180.0, 200.0, 220.0, 240.0],
+            "region": ["West", "East", "West", "East", "West", "East", "West", "East"],
+        }
+    )
+
+
 def test_duckdb_period_and_contribution_breakdown() -> None:
     engine = DuckDBComputeEngine()
     dataframe = build_dataframe()
@@ -198,6 +217,75 @@ def test_duckdb_time_bucket_counts_returns_month_counts() -> None:
 
     assert list(table.dataframe["month"]) == ["2026-01", "2026-03", "2026-04"]
     assert list(table.dataframe["row_count"]) == [1, 2, 1]
+
+
+def test_duckdb_time_bucket_counts_returns_quarter_counts() -> None:
+    engine = DuckDBComputeEngine()
+
+    table = engine.time_bucket_counts(build_time_bucket_dataframe(), time_column="posted_at", bucket="quarter")
+
+    assert list(table.dataframe["quarter"]) == ["2025-Q1", "2025-Q2", "2025-Q4", "2026-Q1", "2026-Q2", "2026-Q3", "2026-Q4"]
+    assert list(table.dataframe["row_count"]) == [2, 1, 1, 1, 1, 1, 1]
+
+
+def test_duckdb_time_bucket_breakdown_returns_year_totals() -> None:
+    engine = DuckDBComputeEngine()
+
+    table = engine.time_bucket_breakdown(
+        build_time_bucket_dataframe(),
+        target="revenue",
+        time_column="posted_at",
+        bucket="year",
+    )
+
+    assert list(table.dataframe["year"]) == [2025, 2026]
+    assert list(table.dataframe["target_total"]) == [520.0, 840.0]
+
+
+def test_duckdb_time_bucket_breakdown_returns_grouped_quarter_totals() -> None:
+    engine = DuckDBComputeEngine()
+
+    table = engine.time_bucket_breakdown(
+        build_time_bucket_dataframe(),
+        target="revenue",
+        time_column="posted_at",
+        bucket="quarter",
+        group_by=["region"],
+    )
+
+    assert "quarter" in table.dataframe.columns
+    assert "region" in table.dataframe.columns
+    assert "target_total" in table.dataframe.columns
+
+
+def test_duckdb_period_comparison_supports_relative_quarter_reference() -> None:
+    engine = DuckDBComputeEngine()
+
+    table = engine.period_comparison(
+        build_time_bucket_dataframe(),
+        target="revenue",
+        time_column="posted_at",
+        time_reference={"type": "relative_period", "value": "this_quarter"},
+        bucket="quarter",
+    )
+
+    assert list(table.dataframe["period"]) == ["2026-Q3", "2026-Q4"]
+    assert list(table.dataframe["target_total"]) == [220.0, 240.0]
+
+
+def test_duckdb_period_comparison_supports_relative_year_reference() -> None:
+    engine = DuckDBComputeEngine()
+
+    table = engine.period_comparison(
+        build_time_bucket_dataframe(),
+        target="revenue",
+        time_column="posted_at",
+        time_reference={"type": "relative_period", "value": "this_year"},
+        bucket="year",
+    )
+
+    assert list(table.dataframe["period"]) == ["2025", "2026"]
+    assert list(table.dataframe["target_total"]) == [520.0, 840.0]
 
 
 def test_duckdb_time_bucket_counts_rejects_unsupported_bucket() -> None:

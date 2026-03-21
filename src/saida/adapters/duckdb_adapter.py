@@ -146,31 +146,58 @@ class DuckDBAdapter:
             prepared[time_column] = pd.to_datetime(prepared[time_column], errors="coerce")
         prepared = prepared.dropna(subset=[time_column])
 
-        if bucket == "year":
-            counted = (
-                prepared.assign(year=prepared[time_column].dt.year.astype(int))
-                .groupby("year", as_index=False)
-                .size()
-                .rename(columns={"size": "row_count"})
-                .sort_values("year")
-                .reset_index(drop=True)
-            )
-        elif bucket == "month":
-            counted = (
-                prepared.assign(month=prepared[time_column].dt.to_period("M").astype(str))
-                .groupby("month", as_index=False)
-                .size()
-                .rename(columns={"size": "row_count"})
-                .sort_values("month")
-                .reset_index(drop=True)
-            )
-        else:
-            raise ComputeError(f"Unsupported time bucket: {bucket}")
+        prepared = self._prepare_time_bucket_frame(prepared, time_column, bucket)
+        bucket_column = self._bucket_label_column(bucket)
+        counted = (
+            prepared.groupby(["_period_bucket", bucket_column], as_index=False)
+            .size()
+            .rename(columns={"size": "row_count"})
+            .sort_values("_period_bucket")
+            .drop(columns=["_period_bucket"])
+            .reset_index(drop=True)
+        )
 
         return TableArtifact(
             name="time_bucket_counts",
             description=f"Row counts by {bucket} for {time_column}.",
             dataframe=counted,
+        )
+
+    def time_bucket_breakdown(
+        self,
+        dataframe: pd.DataFrame,
+        target: str,
+        time_column: str,
+        bucket: str = "month",
+        aggregation: str = "sum",
+        group_by: list[str] | None = None,
+        filters: dict[str, str] | None = None,
+    ) -> TableArtifact:
+        """Aggregate a numeric target across derived time buckets, optionally by group."""
+        prepared = self._apply_filters(dataframe, filters).copy()
+        group_by = group_by or []
+        self._require_columns(prepared, [target, time_column, *group_by])
+        prepared = self._prepare_time_bucket_frame(prepared, time_column, bucket)
+        prepared["target_value"] = pd.to_numeric(prepared[target], errors="coerce")
+        prepared = prepared.dropna(subset=["target_value"])
+        if prepared.empty:
+            raise ComputeError(f"Target column '{target}' has no numeric values for time bucket analysis.")
+
+        aggregation_function = self._aggregation_function(aggregation)
+        bucket_column = self._bucket_label_column(bucket)
+        grouped = (
+            prepared.groupby(["_period_bucket", bucket_column, *group_by], as_index=False)["target_value"]
+            .agg(aggregation_function)
+            .rename(columns={"target_value": "target_total"})
+            .sort_values(["_period_bucket", *group_by])
+            .drop(columns=["_period_bucket"])
+            .reset_index(drop=True)
+        )
+
+        return TableArtifact(
+            name="time_bucket_breakdown",
+            description=f"{bucket.title()} {aggregation} breakdown for {target}.",
+            dataframe=grouped,
         )
 
     def row_existence(
@@ -390,18 +417,19 @@ class DuckDBAdapter:
         group_by: list[str],
         time_column: str,
         time_reference: dict[str, str],
+        bucket: str | None = None,
         aggregation: str = "sum",
         filters: dict[str, str] | None = None,
     ) -> TableArtifact:
         """Compare grouped totals between adjacent periods."""
         prepared = self._apply_filters(dataframe, filters).copy()
         self._require_columns(prepared, [target, time_column, *group_by])
-        expression = self._aggregation_expression(aggregation)
-        prepared[time_column] = pd.to_datetime(prepared[time_column], errors="coerce")
-        prepared = prepared.dropna(subset=[time_column, target])
-        prepared["period_month"] = prepared[time_column].dt.to_period("M")
+        resolved_bucket = bucket or self._bucket_from_time_reference(time_reference)
+        prepared = self._prepare_time_bucket_frame(prepared, time_column, resolved_bucket)
+        prepared["target_value"] = pd.to_numeric(prepared[target], errors="coerce")
+        prepared = prepared.dropna(subset=["target_value"])
 
-        periods = self._resolve_adjacent_periods(prepared, time_reference)
+        periods = self._resolve_adjacent_periods(prepared, time_reference, resolved_bucket)
         if periods is None:
             return TableArtifact(
                 name="grouped_period_comparison",
@@ -410,11 +438,20 @@ class DuckDBAdapter:
             )
 
         current_period, previous_period = periods
-        current_slice = prepared.loc[prepared["period_month"] == current_period]
-        previous_slice = prepared.loc[prepared["period_month"] == previous_period]
+        current_slice = prepared.loc[prepared["_period_bucket"] == current_period]
+        previous_slice = prepared.loc[prepared["_period_bucket"] == previous_period]
 
-        current_grouped = self._grouped_aggregate(current_slice, group_by, target, expression, "current_total")
-        previous_grouped = self._grouped_aggregate(previous_slice, group_by, target, expression, "previous_total")
+        aggregation_function = self._aggregation_function(aggregation)
+        current_grouped = (
+            current_slice.groupby(group_by, as_index=False)["target_value"]
+            .agg(aggregation_function)
+            .rename(columns={"target_value": "current_total"})
+        )
+        previous_grouped = (
+            previous_slice.groupby(group_by, as_index=False)["target_value"]
+            .agg(aggregation_function)
+            .rename(columns={"target_value": "previous_total"})
+        )
 
         comparison = current_grouped.merge(previous_grouped, on=group_by, how="outer").fillna(0.0)
         comparison["delta"] = comparison["current_total"] - comparison["previous_total"]
@@ -448,6 +485,7 @@ class DuckDBAdapter:
             group_by=group_by,
             time_column=time_column,
             time_reference=time_reference,
+            bucket=None,
             aggregation=aggregation,
             filters=filters,
         ).dataframe.copy()
@@ -601,26 +639,19 @@ class DuckDBAdapter:
         target: str,
         time_column: str,
         time_reference: dict[str, str],
+        bucket: str | None = None,
         aggregation: str = "sum",
         filters: dict[str, str] | None = None,
     ) -> TableArtifact:
         """Compare a selected period against the immediately previous comparable period."""
         prepared = self._apply_filters(dataframe, filters).copy()
         self._require_columns(prepared, [target, time_column])
-        expression = self._aggregation_expression(aggregation)
-        prepared[time_column] = pd.to_datetime(prepared[time_column], errors="coerce")
-        prepared = prepared.dropna(subset=[time_column, target])
-        prepared["period_month"] = prepared[time_column].dt.to_period("M")
+        resolved_bucket = bucket or self._bucket_from_time_reference(time_reference)
+        prepared = self._prepare_time_bucket_frame(prepared, time_column, resolved_bucket)
+        prepared["target_value"] = pd.to_numeric(prepared[target], errors="coerce")
+        prepared = prepared.dropna(subset=["target_value"])
 
-        if time_reference.get("type") != "month_name":
-            empty = pd.DataFrame(columns=["period", "target_total"])
-            return TableArtifact(
-                name="period_comparison",
-                description="No comparable period could be derived from the request.",
-                dataframe=empty,
-            )
-
-        periods = self._resolve_adjacent_periods(prepared, time_reference)
+        periods = self._resolve_adjacent_periods(prepared, time_reference, resolved_bucket)
         if periods is None:
             empty = pd.DataFrame(columns=["period", "target_total"])
             return TableArtifact(
@@ -630,12 +661,18 @@ class DuckDBAdapter:
             )
         current_period, previous_period = periods
 
-        current_total = self._aggregate_series(prepared.loc[prepared["period_month"] == current_period, target], aggregation)
-        previous_total = self._aggregate_series(prepared.loc[prepared["period_month"] == previous_period, target], aggregation)
+        current_total = self._aggregate_series(
+            prepared.loc[prepared["_period_bucket"] == current_period, "target_value"],
+            aggregation,
+        )
+        previous_total = self._aggregate_series(
+            prepared.loc[prepared["_period_bucket"] == previous_period, "target_value"],
+            aggregation,
+        )
 
         comparison = pd.DataFrame(
             {
-                "period": [str(previous_period), str(current_period)],
+                "period": [self._format_period_label(previous_period, resolved_bucket), self._format_period_label(current_period, resolved_bucket)],
                 "target_total": [float(previous_total), float(current_total)],
             }
         )
@@ -651,17 +688,38 @@ class DuckDBAdapter:
         self,
         dataframe: pd.DataFrame,
         time_reference: dict[str, str],
+        bucket: str,
     ) -> tuple[pd.Period, pd.Period] | None:
-        if time_reference.get("type") != "month_name":
+        periods = dataframe["_period_bucket"].dropna().sort_values().unique().tolist()
+        if not periods:
             return None
 
-        requested_month = int(time_reference["month"])
-        matching_periods = dataframe.loc[dataframe["period_month"].dt.month == requested_month, "period_month"].sort_values()
-        if matching_periods.empty:
+        reference_type = time_reference.get("type")
+        current_period: pd.Period | None = None
+        if reference_type == "month_name" and bucket == "month":
+            requested_month = int(time_reference["month"])
+            matching_periods = [period for period in periods if period.month == requested_month]
+            if matching_periods:
+                current_period = matching_periods[-1]
+        elif reference_type == "quarter" and bucket == "quarter":
+            requested_quarter = int(time_reference["quarter"])
+            matching_periods = [period for period in periods if period.quarter == requested_quarter]
+            if matching_periods:
+                current_period = matching_periods[-1]
+        elif reference_type == "relative_period":
+            latest_period = periods[-1]
+            value = time_reference.get("value")
+            offset = 0 if value in {"this_month", "this_quarter", "this_year"} else 1
+            current_candidate = latest_period - offset
+            if current_candidate in periods:
+                current_period = current_candidate
+
+        if current_period is None:
             return None
 
-        current_period = matching_periods.iloc[-1]
         previous_period = current_period - 1
+        if previous_period not in periods:
+            return None
         return current_period, previous_period
 
     def _apply_filters(self, dataframe: pd.DataFrame, filters: dict[str, str] | None) -> pd.DataFrame:
@@ -693,6 +751,18 @@ class DuckDBAdapter:
         if aggregation not in self.AGGREGATION_EXPRESSIONS:
             raise ComputeError(f"Unsupported aggregation: {aggregation}")
         return self.AGGREGATION_EXPRESSIONS[aggregation]
+
+    def _aggregation_function(self, aggregation: str) -> str:
+        mapping = {
+            "sum": "sum",
+            "mean": "mean",
+            "max": "max",
+            "min": "min",
+            "count": "count",
+        }
+        if aggregation not in mapping:
+            raise ComputeError(f"Unsupported aggregation: {aggregation}")
+        return mapping[aggregation]
 
     def _grouped_aggregate(
         self,
@@ -742,6 +812,66 @@ class DuckDBAdapter:
         if aggregation == "count":
             return float(numeric_series.count())
         raise ComputeError(f"Unsupported aggregation: {aggregation}")
+
+    def _prepare_time_bucket_frame(
+        self,
+        dataframe: pd.DataFrame,
+        time_column: str,
+        bucket: str,
+    ) -> pd.DataFrame:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=UserWarning)
+            prepared = dataframe.copy()
+            prepared[time_column] = pd.to_datetime(prepared[time_column], errors="coerce")
+        prepared = prepared.dropna(subset=[time_column])
+
+        if bucket == "month":
+            periods = prepared[time_column].dt.to_period("M")
+        elif bucket == "quarter":
+            periods = prepared[time_column].dt.to_period("Q")
+        elif bucket == "year":
+            periods = prepared[time_column].dt.to_period("Y")
+        else:
+            raise ComputeError(f"Unsupported time bucket: {bucket}")
+
+        prepared["_period_bucket"] = periods
+        if bucket == "year":
+            prepared[self._bucket_label_column(bucket)] = periods.map(lambda period: period.year)
+        else:
+            prepared[self._bucket_label_column(bucket)] = periods.map(lambda period: self._format_period_label(period, bucket))
+        return prepared
+
+    def _bucket_label_column(self, bucket: str) -> str:
+        return {
+            "month": "month",
+            "quarter": "quarter",
+            "year": "year",
+        }[bucket]
+
+    def _bucket_from_time_reference(self, time_reference: dict[str, str]) -> str:
+        reference_type = time_reference.get("type")
+        if reference_type == "month_name":
+            return "month"
+        if reference_type == "quarter":
+            return "quarter"
+        if reference_type == "relative_period":
+            value = time_reference.get("value", "")
+            if value.endswith("month"):
+                return "month"
+            if value.endswith("quarter"):
+                return "quarter"
+            if value.endswith("year"):
+                return "year"
+        raise ComputeError("Time comparison requires a supported month, quarter, or year reference.")
+
+    def _format_period_label(self, period: pd.Period, bucket: str) -> str:
+        if bucket == "month":
+            return str(period)
+        if bucket == "quarter":
+            return f"{period.year}-Q{period.quarter}"
+        if bucket == "year":
+            return str(period.year)
+        raise ComputeError(f"Unsupported time bucket: {bucket}")
 
 
 DuckDBComputeEngine = DuckDBAdapter

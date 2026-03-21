@@ -676,6 +676,122 @@ def test_normalizer_detects_time_bucket_counts_by_month_intent() -> None:
     assert request.options["time_bucket"] == "month"
 
 
+def test_normalizer_detects_time_bucket_counts_by_quarter_intent() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "How many tickets were created by quarter?",
+        build_statistical_dataset(),
+        build_statistical_profile(),
+        None,
+    )
+
+    assert request.intent_name == "time_bucket_counts"
+    assert request.options["time_bucket"] == "quarter"
+
+
+def test_normalizer_detects_time_bucket_breakdown_by_month_intent() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Show revenue by month",
+        build_dataset(),
+        build_profile(),
+        None,
+    )
+
+    assert request.intent_name == "time_bucket_breakdown"
+    assert request.target == "revenue"
+    assert request.options["time_bucket"] == "month"
+
+
+def test_normalizer_detects_time_bucket_breakdown_by_year_intent() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Show revenue by year",
+        build_dataset(),
+        build_profile(),
+        None,
+    )
+
+    assert request.intent_name == "time_bucket_breakdown"
+    assert request.options["time_bucket"] == "year"
+
+
+def test_normalizer_detects_time_bucket_breakdown_by_quarter_intent() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Show revenue by quarter",
+        build_dataset(),
+        build_profile(),
+        None,
+    )
+
+    assert request.intent_name == "time_bucket_breakdown"
+    assert request.options["time_bucket"] == "quarter"
+
+
+def test_normalizer_preserves_grouping_for_time_bucket_breakdown() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Show revenue by month for each region",
+        build_dataset(),
+        build_profile(),
+        None,
+    )
+
+    assert request.intent_name == "time_bucket_breakdown"
+    assert request.group_by == ["region"]
+
+
+def test_normalizer_detects_time_period_comparison_for_this_month() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Compare revenue this month to last month",
+        build_dataset(),
+        build_profile(),
+        None,
+    )
+
+    assert request.intent_name == "time_period_comparison"
+    assert request.time_reference == {"type": "relative_period", "value": "this_month"}
+    assert request.options["time_bucket"] == "month"
+
+
+def test_normalizer_detects_time_period_comparison_for_this_quarter() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Compare revenue this quarter to last quarter",
+        build_dataset(),
+        build_profile(),
+        None,
+    )
+
+    assert request.intent_name == "time_period_comparison"
+    assert request.time_reference == {"type": "relative_period", "value": "this_quarter"}
+    assert request.options["time_bucket"] == "quarter"
+
+
+def test_normalizer_detects_time_period_comparison_for_this_year() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Compare revenue this year to last year",
+        build_dataset(),
+        build_profile(),
+        None,
+    )
+
+    assert request.intent_name == "time_period_comparison"
+    assert request.time_reference == {"type": "relative_period", "value": "this_year"}
+    assert request.options["time_bucket"] == "year"
+
+
 def test_normalizer_detects_time_value_existence_intent() -> None:
     normalizer = RequestNormalizer()
 

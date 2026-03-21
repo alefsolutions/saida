@@ -57,6 +57,13 @@ class SummaryFormatter:
                 parts.append(f"Warnings: {'; '.join(warnings)}.")
             return " ".join(parts)
 
+        time_bucket_breakdown_part = self._describe_time_bucket_breakdown(tables, request)
+        if time_bucket_breakdown_part:
+            parts.append(time_bucket_breakdown_part)
+            if warnings:
+                parts.append(f"Warnings: {'; '.join(warnings)}.")
+            return " ".join(parts)
+
         existence_part = self._describe_existence_check(tables, request)
         if existence_part:
             parts.append(existence_part)
@@ -378,14 +385,35 @@ class SummaryFormatter:
             return None
 
         bucket = request.options.get("time_bucket", "year")
-        bucket_column = "month" if bucket == "month" else "year"
+        bucket_column = {"month": "month", "quarter": "quarter"}.get(str(bucket), "year")
         entries = [
             f"{row[bucket_column]} = {int(row['row_count'])}"
             for _, row in count_table.dataframe.iterrows()
         ]
         if bucket == "month":
             return f"Ticket counts by month: {'; '.join(entries)}."
+        if bucket == "quarter":
+            return f"Ticket counts by quarter: {'; '.join(entries)}."
         return f"Ticket counts by year: {'; '.join(entries)}."
+
+    def _describe_time_bucket_breakdown(self, tables: list[TableArtifact], request: AnalysisRequest) -> str | None:
+        if request.intent_name != "time_bucket_breakdown" or not request.target:
+            return None
+        breakdown_table = self._table(tables, "time_bucket_breakdown")
+        if breakdown_table is None or breakdown_table.dataframe.empty:
+            return None
+
+        bucket = request.options.get("time_bucket", "month")
+        bucket_column = {"month": "month", "quarter": "quarter"}.get(str(bucket), "year")
+        label = request.target.replace("_", " ")
+        entries: list[str] = []
+        for _, row in breakdown_table.dataframe.head(8).iterrows():
+            row_label = self._row_label(row, exclude={"target_total"})
+            entries.append(f"{row_label} = {float(row['target_total']):.2f}")
+
+        if not entries:
+            return None
+        return f"{label.title()} by {bucket_column}: {'; '.join(entries)}."
 
     def _describe_existence_check(self, tables: list[TableArtifact], request: AnalysisRequest) -> str | None:
         if request.intent_name != "existence_check":

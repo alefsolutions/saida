@@ -678,6 +678,126 @@ def test_analyze_returns_time_bucket_counts_by_year() -> None:
     assert any(table.name == "time_bucket_counts" for table in result.tables)
 
 
+def test_analyze_returns_time_bucket_counts_by_quarter() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "created_at": [
+                "2025-01-01",
+                "2025-02-03",
+                "2025-07-04",
+                "2026-01-02",
+                "2026-05-06",
+            ],
+            "team": ["Support", "Support", "Platform", "Platform", "Support"],
+            "resolution_hours": [4.2, 6.0, 3.1, 8.4, 5.0],
+        }
+    )
+    dataset = Dataset(name="support", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "How many tickets were created by quarter?")
+
+    assert "Ticket counts by quarter:" in result.summary
+    assert result.response["interpretation"]["intent_name"] == "time_bucket_counts"
+    assert result.response["interpretation"]["options"]["time_bucket"] == "quarter"
+    assert any(table.name == "time_bucket_counts" for table in result.tables)
+
+
+def test_analyze_returns_time_bucket_breakdown_by_month() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "posted_at": ["2026-01-01", "2026-01-15", "2026-02-01", "2026-03-01"],
+            "revenue": [100.0, 80.0, 60.0, 40.0],
+            "region": ["West", "East", "West", "East"],
+        }
+    )
+    dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "Show revenue by month")
+
+    assert "Revenue by month:" in result.summary
+    assert result.response["interpretation"]["intent_name"] == "time_bucket_breakdown"
+    assert result.response["interpretation"]["options"]["time_bucket"] == "month"
+    assert any(table.name == "time_bucket_breakdown" for table in result.tables)
+
+
+def test_analyze_returns_time_bucket_breakdown_by_quarter() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "posted_at": [
+                "2025-01-01",
+                "2025-04-01",
+                "2025-07-01",
+                "2025-10-01",
+                "2026-01-01",
+                "2026-04-01",
+            ],
+            "revenue": [100.0, 120.0, 140.0, 160.0, 180.0, 200.0],
+            "region": ["West", "East", "West", "East", "West", "East"],
+        }
+    )
+    dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "Show revenue by quarter")
+
+    assert "Revenue by quarter:" in result.summary
+    assert result.response["interpretation"]["options"]["time_bucket"] == "quarter"
+    assert any(table.name == "time_bucket_breakdown" for table in result.tables)
+
+
+def test_analyze_supports_time_period_comparison_by_quarter() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "posted_at": [
+                "2025-01-01",
+                "2025-04-01",
+                "2025-07-01",
+                "2025-10-01",
+                "2026-01-01",
+                "2026-04-01",
+                "2026-07-01",
+                "2026-10-01",
+            ],
+            "revenue": [100.0, 120.0, 140.0, 160.0, 180.0, 200.0, 220.0, 240.0],
+            "region": ["West", "East", "West", "East", "West", "East", "West", "East"],
+        }
+    )
+    dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "Compare revenue this quarter to last quarter")
+
+    assert "Revenue moved from 220.00 in 2026-Q3 to 240.00 in 2026-Q4" in result.summary
+    assert result.response["interpretation"]["intent_name"] == "time_period_comparison"
+    assert result.response["interpretation"]["options"]["time_bucket"] == "quarter"
+    assert any(table.name == "period_comparison" for table in result.tables)
+
+
+def test_analyze_supports_time_period_comparison_by_year() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "posted_at": [
+                "2025-01-01",
+                "2025-04-01",
+                "2025-07-01",
+                "2025-10-01",
+                "2026-01-01",
+                "2026-04-01",
+                "2026-07-01",
+                "2026-10-01",
+            ],
+            "revenue": [100.0, 120.0, 140.0, 160.0, 180.0, 200.0, 220.0, 240.0],
+            "region": ["West", "East", "West", "East", "West", "East", "West", "East"],
+        }
+    )
+    dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "Compare revenue this year to last year")
+
+    assert "Revenue moved from 520.00 in 2025 to 840.00 in 2026" in result.summary
+    assert result.response["interpretation"]["intent_name"] == "time_period_comparison"
+    assert result.response["interpretation"]["options"]["time_bucket"] == "year"
+    assert any(table.name == "period_comparison" for table in result.tables)
+
+
 def test_analyze_returns_yes_for_time_value_existence_prompt() -> None:
     dataframe = pd.DataFrame(
         {
@@ -869,7 +989,7 @@ def test_analyze_supports_sql_adapter_input(tmp_path: Path) -> None:
     assert any(metric.name == "revenue_sum" for metric in result.metrics)
 
 
-def test_analyze_rejects_quarter_prompt_until_supported() -> None:
+def test_analyze_supports_quarter_prompt_now() -> None:
     dataframe = pd.DataFrame(
         {
             "posted_at": ["2026-01-01", "2026-02-01", "2026-03-01"],
@@ -879,8 +999,9 @@ def test_analyze_rejects_quarter_prompt_until_supported() -> None:
     )
     dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
 
-    with pytest.raises(Exception):
-        Saida().analyze(dataset, "Show revenue in Q1")
+    result = Saida().analyze(dataset, "Compare revenue this quarter to last quarter")
+
+    assert result.response["interpretation"]["intent_name"] == "time_period_comparison"
 
 
 def test_profiler_warns_when_no_measures_or_time_columns_detected() -> None:

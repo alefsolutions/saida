@@ -255,6 +255,65 @@ def test_summarizer_describes_time_series_diagnostics() -> None:
     assert "Across 2026-01 to 2026-03, revenue changed by +30.00 with period-to-period volatility of 12.50." in summary
 
 
+def test_summarizer_describes_time_bucket_breakdown() -> None:
+    summarizer = ResultSummarizer()
+    plan = AnalysisPlan(task_type="descriptive", rationale="Test.")
+    request = AnalysisRequest(
+        question="Show revenue by quarter",
+        intent_name="time_bucket_breakdown",
+        task_type_hint="descriptive",
+        target="revenue",
+        options={"time_bucket": "quarter"},
+    )
+
+    summary = summarizer.summarize(
+        plan,
+        metrics=[],
+        tables=[
+            TableArtifact(
+                name="time_bucket_breakdown",
+                description="Quarter totals.",
+                dataframe=pd.DataFrame({"quarter": ["2026-Q1", "2026-Q2"], "target_total": [180.0, 200.0]}),
+            )
+        ],
+        warnings=[],
+        request=request,
+        profile=build_profile(),
+        context=None,
+    )
+
+    assert "Revenue by quarter: quarter=2026-Q1 = 180.00; quarter=2026-Q2 = 200.00." in summary
+
+
+def test_summarizer_describes_time_bucket_counts_by_quarter() -> None:
+    summarizer = ResultSummarizer()
+    plan = AnalysisPlan(task_type="descriptive", rationale="Test.")
+    request = AnalysisRequest(
+        question="How many tickets were created by quarter?",
+        intent_name="time_bucket_counts",
+        task_type_hint="descriptive",
+        options={"time_bucket": "quarter"},
+    )
+
+    summary = summarizer.summarize(
+        plan,
+        metrics=[],
+        tables=[
+            TableArtifact(
+                name="time_bucket_counts",
+                description="Quarter counts.",
+                dataframe=pd.DataFrame({"quarter": ["2026-Q1", "2026-Q2"], "row_count": [3, 5]}),
+            )
+        ],
+        warnings=[],
+        request=request,
+        profile=build_profile(),
+        context=None,
+    )
+
+    assert "Ticket counts by quarter: 2026-Q1 = 3; 2026-Q2 = 5." in summary
+
+
 def test_summarizer_uses_dataset_label_when_target_missing() -> None:
     summarizer = ResultSummarizer()
     plan = AnalysisPlan(task_type="descriptive", rationale="Test.")

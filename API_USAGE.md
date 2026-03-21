@@ -130,6 +130,14 @@ Examples that work today include:
 - `Which columns are likely identifiers?`
 - `Which columns have many unique values?`
 
+The current prototype also already supports richer time-derived prompts such as:
+
+- `How many tickets were created by quarter?`
+- `Show revenue by month`
+- `Show revenue by quarter`
+- `Compare revenue this quarter to last quarter`
+- `Compare revenue this year to last year`
+
 ## Design Rule
 
 The API surface should stay thin.
