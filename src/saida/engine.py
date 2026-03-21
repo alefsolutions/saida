@@ -4,17 +4,21 @@ from __future__ import annotations
 
 import pandas as pd
 
-from saida.compute import BaselineMlEngine, DuckDBComputeEngine, StatsComputeEngine
+from saida.adapters import DuckDBAdapter, MlAdapter, StatsModelsAdapter
 from saida.config import SaidaConfig
-from saida.context import SourceContextParser
+from saida.core import (
+    BackendRouter,
+    InputCanonicalizer,
+    PlanBuilder,
+    PlanValidator,
+    ResultCanonicalizer,
+    SchemaDiscoveryService,
+    SourceContextParser,
+)
 from saida.exceptions import ReasoningError, ValidationError
 from saida.llm import BaseLlmProvider, ResponseContext, build_llm_provider
-from saida.nlp import RequestNormalizer
-from saida.planning import AnalysisPlanner
-from saida.profiling import DatasetProfiler
-from saida.reasoning import ResultSummarizer
-from saida.results import ResultBuilder
-from saida.schemas import (
+from saida.outputs import SummaryFormatter
+from saida.core.contracts import (
     AnalysisResult,
     AnalysisPlan,
     AnalysisRequest,
@@ -36,19 +40,25 @@ class Saida:
 
     def __init__(self, config: SaidaConfig | None = None, llm_provider: BaseLlmProvider | None = None) -> None:
         self.config = config or SaidaConfig()
-        self.profiler = DatasetProfiler()
-        self.normalizer = RequestNormalizer(self.config.nlp)
-        self.planner = AnalysisPlanner()
-        self.duckdb = DuckDBComputeEngine()
-        self.stats = StatsComputeEngine()
-        self.ml = BaselineMlEngine()
-        self.summarizer = ResultSummarizer()
-        self.results = ResultBuilder()
+        self.discovery = SchemaDiscoveryService()
+        self.canonicalizer = InputCanonicalizer(self.config.nlp)
+        self.plan_builder = PlanBuilder()
+        self.validator = PlanValidator()
+        self.duckdb = DuckDBAdapter()
+        self.stats = StatsModelsAdapter()
+        self.ml = MlAdapter()
+        self.router = BackendRouter(
+            duckdb_adapter=self.duckdb,
+            stats_adapter=self.stats,
+            ml_adapter=self.ml,
+        )
+        self.summary_formatter = SummaryFormatter()
+        self.result_canonicalizer = ResultCanonicalizer()
         self.llm_provider = llm_provider or build_llm_provider(self.config.llm)
 
     def profile(self, dataset: Dataset) -> DatasetProfile:
         """Profile a dataset deterministically."""
-        return self.profiler.profile(dataset)
+        return self.discovery.profile(dataset)
 
     def capabilities(self) -> dict[str, bool]:
         """Return the currently available public SAIDA capabilities."""
@@ -65,7 +75,7 @@ class Saida:
 
     def analyze(self, dataset: Dataset, question: str) -> AnalysisResult:
         """Run an end-to-end deterministic analysis workflow."""
-        self._validate_dataset(dataset)
+        self.validator.validate_dataset(dataset)
         trace = [self._trace("adapter", "dataset loaded", {"dataset": dataset.name})]
         if dataset.context is not None:
             trace.append(self._trace("context", "context attached", {"metric_count": len(dataset.context.metric_definitions)}))
@@ -87,7 +97,7 @@ class Saida:
             )
             summary = request.options.get("llm_message") or "We need clarification before running this analysis."
             trace.append(self._trace("results", "clarification returned", {"summary_length": len(summary)}))
-            return self.results.build_analysis_result(summary, None, None, "deterministic", [], [], request_warnings, plan, request, profile, trace)
+            return self.result_canonicalizer.build_analysis_result(summary, None, None, "deterministic", [], [], request_warnings, plan, request, profile, trace)
 
         if request.options.get("analysis_outcome") == "refuse":
             plan = AnalysisPlan(
@@ -98,10 +108,10 @@ class Saida:
             )
             summary = request.options.get("llm_message") or "We are not able to provide this information at this time."
             trace.append(self._trace("results", "refusal returned", {"summary_length": len(summary)}))
-            return self.results.build_analysis_result(summary, None, None, "deterministic", [], [], request_warnings, plan, request, profile, trace)
+            return self.result_canonicalizer.build_analysis_result(summary, None, None, "deterministic", [], [], request_warnings, plan, request, profile, trace)
 
-        plan = self.planner.build_plan(request, profile, dataset.context)
-        self.planner.validate(plan)
+        plan = self.plan_builder.build_plan(request, profile, dataset.context)
+        self.validator.validate_plan(plan)
         trace.append(self._trace("planning", "plan validated", {"task_type": plan.task_type, "step_count": len(plan.steps)}))
 
         metrics = []
@@ -109,9 +119,15 @@ class Saida:
         warnings = self._merge_warnings(profile.warnings, request_warnings, plan.warnings)
 
         for step in plan.steps:
+            if step.tool_family == "metadata":
+                tables.append(self._metadata_table(step.action, profile))
+                trace.append(self._trace("compute", f"executed {step.action}", step.parameters))
+                continue
+
+            adapter = self.router.route(step.tool_family)
             if step.tool_family == "duckdb":
                 if step.action == "dataset_summary":
-                    step_metrics, step_tables = self.duckdb.dataset_summary(
+                    step_metrics, step_tables = adapter.dataset_summary(
                         dataset.data,
                         step.parameters.get("target"),
                         step.parameters.get("filters"),
@@ -120,14 +136,14 @@ class Saida:
                     tables.extend(step_tables)
                 elif step.action == "row_count":
                     metrics.extend(
-                        self.duckdb.row_count(
+                        adapter.row_count(
                             dataset.data,
                             step.parameters.get("filters"),
                         )
                     )
                 elif step.action == "count_rows_by_group":
                     tables.append(
-                        self.duckdb.count_rows_by_group(
+                        adapter.count_rows_by_group(
                             dataset.data,
                             step.parameters["group_by"],
                             step.parameters.get("filters"),
@@ -137,7 +153,7 @@ class Saida:
                     )
                 elif step.action == "distinct_values":
                     tables.append(
-                        self.duckdb.distinct_values(
+                        adapter.distinct_values(
                             dataset.data,
                             step.parameters["target"],
                             step.parameters.get("filters"),
@@ -145,7 +161,7 @@ class Saida:
                     )
                 elif step.action == "time_coverage":
                     tables.append(
-                        self.duckdb.time_coverage(
+                        adapter.time_coverage(
                             dataset.data,
                             step.parameters["time_column"],
                             step.parameters.get("mode", "years_present"),
@@ -153,7 +169,7 @@ class Saida:
                         )
                     )
                 elif step.action == "aggregate_value":
-                    step_metrics = self.duckdb.aggregate_value(
+                    step_metrics = adapter.aggregate_value(
                         dataset.data,
                         step.parameters["target"],
                         step.parameters["aggregation"],
@@ -162,7 +178,7 @@ class Saida:
                     metrics.extend(step_metrics)
                 elif step.action == "ranked_rows":
                     tables.append(
-                        self.duckdb.ranked_rows(
+                        adapter.ranked_rows(
                             dataset.data,
                             step.parameters["target"],
                             step.parameters.get("filters"),
@@ -172,7 +188,7 @@ class Saida:
                     )
                 elif step.action == "time_trend":
                     tables.append(
-                        self.duckdb.time_trend(
+                        adapter.time_trend(
                             dataset.data,
                             step.parameters["target"],
                             step.parameters["time_column"],
@@ -182,7 +198,7 @@ class Saida:
                     )
                 elif step.action == "group_breakdown":
                     tables.append(
-                        self.duckdb.group_breakdown(
+                        adapter.group_breakdown(
                             dataset.data,
                             step.parameters["target"],
                             step.parameters["group_by"],
@@ -192,7 +208,7 @@ class Saida:
                     )
                 elif step.action == "ranked_breakdown":
                     tables.append(
-                        self.duckdb.ranked_breakdown(
+                        adapter.ranked_breakdown(
                             dataset.data,
                             step.parameters["target"],
                             step.parameters["group_by"],
@@ -204,7 +220,7 @@ class Saida:
                     )
                 elif step.action == "grouped_period_comparison":
                     tables.append(
-                        self.duckdb.grouped_period_comparison(
+                        adapter.grouped_period_comparison(
                             dataset.data,
                             step.parameters["target"],
                             step.parameters["group_by"],
@@ -216,7 +232,7 @@ class Saida:
                     )
                 elif step.action == "top_movers":
                     tables.append(
-                        self.duckdb.top_movers(
+                        adapter.top_movers(
                             dataset.data,
                             step.parameters["target"],
                             step.parameters["group_by"],
@@ -229,7 +245,7 @@ class Saida:
                     )
                 elif step.action == "contribution_breakdown":
                     tables.append(
-                        self.duckdb.contribution_breakdown(
+                        adapter.contribution_breakdown(
                             dataset.data,
                             step.parameters["target"],
                             step.parameters["group_by"],
@@ -241,7 +257,7 @@ class Saida:
                     )
                 elif step.action == "period_comparison":
                     tables.append(
-                        self.duckdb.period_comparison(
+                        adapter.period_comparison(
                             dataset.data,
                             step.parameters["target"],
                             step.parameters["time_column"],
@@ -252,19 +268,19 @@ class Saida:
                     )
             elif step.tool_family == "stats":
                 if step.action == "missingness_summary":
-                    tables.append(self.stats.missingness_summary(dataset.data))
+                    tables.append(adapter.missingness_summary(dataset.data))
                 elif step.action == "numeric_summary":
-                    tables.append(self.stats.numeric_summary(dataset.data))
+                    tables.append(adapter.numeric_summary(dataset.data))
                 elif step.action == "distribution_summary":
-                    distribution_table = self.stats.distribution_summary(dataset.data, step.parameters["target"])
+                    distribution_table = adapter.distribution_summary(dataset.data, step.parameters["target"])
                     if distribution_table is not None:
                         tables.append(distribution_table)
                 elif step.action == "target_correlation":
-                    correlation_table = self.stats.correlation_matrix(dataset.data, step.parameters.get("target"))
+                    correlation_table = adapter.correlation_matrix(dataset.data, step.parameters.get("target"))
                     if correlation_table is not None:
                         tables.append(correlation_table)
                 elif step.action == "anomaly_summary":
-                    anomaly_table = self.stats.anomaly_summary(
+                    anomaly_table = adapter.anomaly_summary(
                         dataset.data,
                         step.parameters["target"],
                         step.parameters.get("time_column"),
@@ -272,7 +288,7 @@ class Saida:
                     if anomaly_table is not None:
                         tables.append(anomaly_table)
                 elif step.action == "time_series_diagnostics":
-                    diagnostics_table = self.stats.time_series_diagnostics(
+                    diagnostics_table = adapter.time_series_diagnostics(
                         dataset.data,
                         step.parameters["target"],
                         step.parameters["time_column"],
@@ -280,7 +296,7 @@ class Saida:
                     if diagnostics_table is not None:
                         tables.append(diagnostics_table)
                 elif step.action == "group_mean_comparison":
-                    comparison_table = self.stats.group_mean_comparison(
+                    comparison_table = adapter.group_mean_comparison(
                         dataset.data,
                         step.parameters["target"],
                         step.parameters["group_column"],
@@ -289,7 +305,7 @@ class Saida:
                         tables.append(comparison_table)
                 elif step.action == "t_test":
                     tables.append(
-                        self.stats.t_test(
+                        adapter.t_test(
                             dataset.data,
                             step.parameters["target"],
                             step.parameters["group_by"][0],
@@ -299,7 +315,7 @@ class Saida:
                 elif step.action == "chi_square":
                     comparison_columns = step.parameters.get("comparison_columns", [])
                     tables.append(
-                        self.stats.chi_square_test(
+                        adapter.chi_square_test(
                             dataset.data,
                             comparison_columns[0],
                             comparison_columns[1],
@@ -308,7 +324,7 @@ class Saida:
                     )
                 elif step.action == "anova":
                     tables.append(
-                        self.stats.anova_test(
+                        adapter.anova_test(
                             dataset.data,
                             step.parameters["target"],
                             step.parameters["group_by"][0],
@@ -317,7 +333,7 @@ class Saida:
                     )
                 elif step.action == "mann_whitney":
                     tables.append(
-                        self.stats.mann_whitney_test(
+                        adapter.mann_whitney_test(
                             dataset.data,
                             step.parameters["target"],
                             step.parameters["group_by"][0],
@@ -326,7 +342,7 @@ class Saida:
                     )
                 elif step.action == "confidence_interval":
                     tables.append(
-                        self.stats.confidence_interval(
+                        adapter.confidence_interval(
                             dataset.data,
                             step.parameters["target"],
                             step.parameters.get("confidence_level", 0.95),
@@ -334,7 +350,7 @@ class Saida:
                     )
                 elif step.action == "regression_significance":
                     tables.append(
-                        self.stats.regression_significance(
+                        adapter.regression_significance(
                             dataset.data,
                             step.parameters["target"],
                             step.parameters.get("feature_columns", []),
@@ -343,7 +359,7 @@ class Saida:
                     )
                 elif step.action == "significance_inference":
                     tables.append(
-                        self.stats.group_significance_test(
+                        adapter.group_significance_test(
                             dataset.data,
                             step.parameters["target"],
                             step.parameters["group_by"][0],
@@ -352,7 +368,7 @@ class Saida:
                     )
                 elif step.action == "power_analysis":
                     tables.append(
-                        self.stats.power_analysis(
+                        adapter.power_analysis(
                             dataset.data,
                             step.parameters["target"],
                             step.parameters["group_by"][0],
@@ -361,7 +377,7 @@ class Saida:
                     )
                 elif step.action == "sample_size_estimate":
                     tables.append(
-                        self.stats.sample_size_estimate(
+                        adapter.sample_size_estimate(
                             dataset.data,
                             step.parameters["target"],
                             step.parameters["group_by"][0],
@@ -369,11 +385,9 @@ class Saida:
                             step.parameters.get("desired_power", 0.80),
                         )
                     )
-            elif step.tool_family == "metadata":
-                tables.append(self._metadata_table(step.action, profile))
             trace.append(self._trace("compute", f"executed {step.action}", step.parameters))
 
-        deterministic_summary = self.summarizer.summarize(plan, metrics, tables, warnings, request, profile, dataset.context)
+        deterministic_summary = self.summary_formatter.summarize(plan, metrics, tables, warnings, request, profile, dataset.context)
         summary, llm_summary, summary_source, llm_reasoning_warning = self._build_summary(
             question,
             request,
@@ -388,7 +402,7 @@ class Saida:
         if llm_reasoning_warning is not None:
             warnings = self._merge_warnings(warnings, [llm_reasoning_warning])
         trace.append(self._trace("results", "analysis result packaged", {"summary_length": len(summary)}))
-        return self.results.build_analysis_result(
+        return self.result_canonicalizer.build_analysis_result(
             summary,
             deterministic_summary,
             llm_summary,
@@ -427,10 +441,8 @@ class Saida:
     def load_context(self, markdown: str) -> SourceContext:
         """Parse markdown context through the context layer."""
         return SourceContextParser().parse(markdown)
-
     def _trace(self, stage: str, message: str, payload: dict[str, object] | None = None) -> ExecutionTraceEvent:
         return ExecutionTraceEvent(stage=stage, message=message, payload=payload)
-
     def _merge_warnings(self, *warning_groups: list[str]) -> list[str]:
         merged: list[str] = []
         for warning_group in warning_groups:
@@ -446,7 +458,7 @@ class Saida:
         profile: DatasetProfile,
     ) -> tuple[AnalysisRequest, list[str], ExecutionTraceEvent | None]:
         if not self.llm_provider or not self.config.llm.use_for_prompting:
-            request, warnings = self.normalizer.normalize(question, dataset, profile, dataset.context)
+            request, warnings = self.canonicalizer.normalize(question, dataset, profile, dataset.context)
             return request, warnings, None
 
         try:
@@ -457,17 +469,17 @@ class Saida:
                 context_summary=self._context_summary(dataset.context),
             )
         except ReasoningError:
-            request, warnings = self.normalizer.normalize(question, dataset, profile, dataset.context)
+            request, warnings = self.canonicalizer.normalize(question, dataset, profile, dataset.context)
             warnings.append("Optional LLM prompting failed; falling back to deterministic request normalization.")
             return request, warnings, self._trace("llm", "prompt interpretation failed", {"fallback": "rules"})
 
         if proposal is None:
-            request, warnings = self.normalizer.normalize(question, dataset, profile, dataset.context)
+            request, warnings = self.canonicalizer.normalize(question, dataset, profile, dataset.context)
             warnings.append("Optional LLM prompting was unavailable; falling back to deterministic request normalization.")
             return request, warnings, self._trace("llm", "prompt interpretation skipped", {"fallback": "rules"})
 
         if proposal.status in {"clarify", "refuse"}:
-            fallback_request, fallback_warnings = self.normalizer.normalize(question, dataset, profile, dataset.context)
+            fallback_request, fallback_warnings = self.canonicalizer.normalize(question, dataset, profile, dataset.context)
             if self._is_confident_deterministic_request(fallback_request, fallback_warnings):
                 fallback_warnings.append(
                     "Optional LLM prompting requested clarification, but deterministic request normalization found a valid intent."
@@ -490,7 +502,7 @@ class Saida:
             )
             return request, list(proposal.warnings), self._trace("llm", "prompt interpretation returned early outcome", {"status": proposal.status})
 
-        request, warnings = self.normalizer.normalize_with_proposal(question, dataset, profile, proposal, dataset.context)
+        request, warnings = self.canonicalizer.normalize_with_proposal(question, dataset, profile, proposal, dataset.context)
         return request, warnings, self._trace("llm", "prompt interpreted by optional LLM", {"status": proposal.status})
 
     def _build_summary(
@@ -573,18 +585,6 @@ class Saida:
         if request.aggregation or request.group_by or request.time_reference:
             return True
         return False
-
-    def _validate_dataset(self, dataset: Dataset) -> None:
-        if not isinstance(dataset.data, pd.DataFrame):
-            raise ValidationError("Dataset.data must be a pandas DataFrame.")
-        if dataset.data.empty:
-            raise ValidationError("Cannot analyze an empty dataset.")
-        if len(dataset.data.columns) == 0:
-            raise ValidationError("Cannot analyze a dataset with no columns.")
-        duplicate_columns = dataset.data.columns[dataset.data.columns.duplicated()].tolist()
-        if duplicate_columns:
-            joined = ", ".join(str(column_name) for column_name in duplicate_columns)
-            raise ValidationError(f"Dataset contains duplicate column names: {joined}")
 
     def _metadata_table(self, action: str, profile: DatasetProfile) -> TableArtifact:
         if action == "column_inventory":

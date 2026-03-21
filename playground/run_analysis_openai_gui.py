@@ -17,9 +17,9 @@ if str(SRC_PATH) not in sys.path:
 
 from _env import load_project_env
 from saida import Saida
-from saida.adapters import CSVAdapter
 from saida.config import LlmConfig, SaidaConfig
-from saida.schemas import AnalysisResult, Dataset
+from saida.core import AnalysisResult, Dataset
+from saida.sources import CSVSource
 
 
 class OpenAiPlaygroundApp:
@@ -83,7 +83,7 @@ class OpenAiPlaygroundApp:
             raise RuntimeError("OPENAI_API_KEY is not set.")
 
     def _load_dataset(self) -> Dataset:
-        return CSVAdapter(
+        return CSVSource(
             PROJECT_ROOT / "examples" / "sales.csv",
             context_path=PROJECT_ROOT / "examples" / "sales_context.md",
         ).load()

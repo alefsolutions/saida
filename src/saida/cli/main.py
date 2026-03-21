@@ -7,9 +7,9 @@ import json
 from pathlib import Path
 
 from saida import Saida
-from saida.adapters import CSVAdapter
 from saida.config import LlmConfig, SaidaConfig
-from saida.schemas import AnalysisResult, DatasetProfile
+from saida.core import AnalysisResult, DatasetProfile
+from saida.sources import CSVSource
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -44,7 +44,7 @@ def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
     if args.command == "version":
-        print("SAIDA CLI 0.1.0")
+        print("SAIDA CLI 0.2.0")
         return 0
 
     if args.command == "profile":
@@ -88,8 +88,8 @@ def main() -> int:
 
 def _load_csv_dataset(csv_path: str, context_path: str | None) -> object:
     """Load a CSV dataset for CLI commands."""
-    csv_adapter = CSVAdapter(Path(csv_path), context_path=Path(context_path) if context_path else None)
-    return csv_adapter.load()
+    csv_source = CSVSource(Path(csv_path), context_path=Path(context_path) if context_path else None)
+    return csv_source.load()
 
 
 def _profile_payload(profile: DatasetProfile) -> dict[str, object]:

@@ -37,7 +37,7 @@ def test_openai_playground_exits_cleanly_from_clarification_prompt(
 
     monkeypatch.setattr(openai_playground, "load_project_env", lambda project_root: None)
     monkeypatch.setattr(openai_playground.os, "getenv", lambda key, default=None: "test-key" if key == "OPENAI_API_KEY" else default)
-    monkeypatch.setattr(openai_playground.CSVAdapter, "load", lambda self: dataset)
+    monkeypatch.setattr(openai_playground.CSVSource, "load", lambda self: dataset)
     monkeypatch.setattr(openai_playground, "Saida", lambda config=None: fake_engine)
 
     answers = iter(["Hi there", "exit"])

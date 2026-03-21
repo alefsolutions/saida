@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import pytest
 
-from saida.planning import AnalysisPlanner
+from saida.core import AnalysisPlanner
 from saida.exceptions import PlanningError
-from saida.schemas import AnalysisRequest, ColumnProfile, DatasetProfile
+from saida.core.contracts import AnalysisRequest, ColumnProfile, DatasetProfile
 
 
 def build_profile() -> DatasetProfile:
@@ -295,7 +295,7 @@ def test_planner_includes_group_mean_comparison_for_grouped_descriptive_requests
 
 
 def test_planner_builds_rationale_with_context_and_filters() -> None:
-    from saida.schemas import SourceContext
+    from saida.core.contracts import SourceContext
 
     planner = AnalysisPlanner()
     request = AnalysisRequest(

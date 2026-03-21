@@ -8,11 +8,11 @@ if str(SRC_PATH) not in sys.path:
     sys.path.insert(0, str(SRC_PATH))
 
 from saida import Saida
-from saida.adapters import CSVAdapter
+from saida.sources import CSVSource
 
 
 def main() -> None:
-    dataset = CSVAdapter(
+    dataset = CSVSource(
         PROJECT_ROOT / "examples" / "sales.csv",
         context_path=PROJECT_ROOT / "examples" / "sales_context.md",
     ).load()

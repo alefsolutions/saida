@@ -7,11 +7,10 @@ import pandas as pd
 import pytest
 
 from saida import Saida
-from saida.adapters import CSVAdapter, JSONAdapter, PandasAdapter, SQLAdapter
-from saida.context import SourceContextParser
+from saida.core import DatasetProfiler, SourceContextParser
+from saida.core.contracts import Dataset
 from saida.exceptions import ModelTrainingError
-from saida.profiling import DatasetProfiler
-from saida.schemas import Dataset
+from saida.sources import CSVAdapter, JSONAdapter, PandasAdapter, SQLAdapter
 
 
 def test_context_parser_extracts_metrics_and_rules() -> None:

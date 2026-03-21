@@ -1,9 +1,15 @@
-"""Dataset adapters."""
+"""Backend adapters."""
 
-from saida.adapters.csv_adapter import CSVAdapter
-from saida.adapters.excel_adapter import ExcelAdapter
-from saida.adapters.json_adapter import JSONAdapter
-from saida.adapters.pandas_adapter import PandasAdapter
-from saida.adapters.sql_adapter import SQLAdapter
+from saida.adapters.duckdb_adapter import DuckDBAdapter, DuckDBComputeEngine
+from saida.adapters.ml_adapter import BaselineMlEngine, MlAdapter, DEFERRED_ML_MESSAGE
+from saida.adapters.statsmodels_adapter import StatsComputeEngine, StatsModelsAdapter
 
-__all__ = ["CSVAdapter", "ExcelAdapter", "JSONAdapter", "PandasAdapter", "SQLAdapter"]
+__all__ = [
+    "BaselineMlEngine",
+    "DEFERRED_ML_MESSAGE",
+    "DuckDBAdapter",
+    "DuckDBComputeEngine",
+    "MlAdapter",
+    "StatsComputeEngine",
+    "StatsModelsAdapter",
+]

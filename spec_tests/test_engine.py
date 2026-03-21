@@ -5,9 +5,9 @@ import pytest
 
 from saida import Saida
 from saida.config import LlmConfig
+from saida.core.contracts import Dataset
 from saida.llm import BaseLlmProvider, IntentProposal, ResponseContext, ResponseProposal, build_llm_provider
 from saida.exceptions import ValidationError
-from saida.schemas import Dataset
 
 
 class FakeLlmProvider(BaseLlmProvider):

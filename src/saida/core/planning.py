@@ -1,0 +1,556 @@
+"""Structured planning from canonicalized requests."""
+
+from __future__ import annotations
+
+from saida.exceptions import PlanningError
+from saida.core.contracts import AnalysisPlan, AnalysisRequest, DatasetProfile, PlanStep, SourceContext
+
+
+class PlanBuilder:
+    """Create executable analytical plans from canonical requests."""
+
+    def build_plan(
+        self,
+        request: AnalysisRequest,
+        profile: DatasetProfile,
+        context: SourceContext | None = None,
+    ) -> AnalysisPlan:
+        """Build an executable plan from the request and profile."""
+        self._validate_request(request, profile)
+        task_type = request.task_type_hint or "descriptive"
+        warnings: list[str] = []
+        steps: list[PlanStep] = []
+
+        if request.target is None and profile.measure_columns and request.intent_name not in {
+            "row_count",
+            "column_inventory",
+            "measure_inventory",
+            "dimension_inventory",
+            "time_column_inventory",
+            "time_coverage",
+        }:
+            request.target = profile.measure_columns[0]
+            warnings.append("No target was provided; using the first measure column.")
+
+        if task_type in {"descriptive", "diagnostic", "statistical"}:
+            statistical_test = request.options.get("statistical_test")
+            if task_type == "statistical" and statistical_test:
+                steps.append(
+                    PlanStep(
+                        step_id=statistical_test,
+                        tool_family="stats",
+                        action=statistical_test,
+                        parameters={
+                            "target": request.target,
+                            "group_by": request.group_by,
+                            "filters": request.filters,
+                            "alpha": request.options.get("alpha", 0.05),
+                            "confidence_level": request.options.get("confidence_level", 0.95),
+                            "desired_power": request.options.get("desired_power", 0.80),
+                            "feature_columns": request.options.get("feature_columns", []),
+                            "comparison_columns": request.options.get("comparison_columns", []),
+                        },
+                        description=f"Run the deterministic {statistical_test} workflow.",
+                    )
+                )
+                rationale = self._build_rationale(task_type, request, context)
+                return AnalysisPlan(task_type=task_type, rationale=rationale, steps=steps, warnings=warnings)
+            if request.intent_name in {"column_inventory", "measure_inventory", "dimension_inventory", "time_column_inventory"}:
+                steps.append(
+                    PlanStep(
+                        step_id=request.intent_name,
+                        tool_family="metadata",
+                        action=request.intent_name,
+                        parameters={},
+                        description="Return dataset inventory information for the requested metadata view.",
+                    )
+                )
+                rationale = self._build_rationale(task_type, request, context)
+                return AnalysisPlan(task_type=task_type, rationale=rationale, steps=steps, warnings=warnings)
+            if request.intent_name == "time_coverage":
+                steps.append(
+                    PlanStep(
+                        step_id="time_coverage",
+                        tool_family="duckdb",
+                        action="time_coverage",
+                        parameters={
+                            "time_column": profile.time_columns[0],
+                            "filters": request.filters,
+                            "mode": request.options.get("time_coverage_mode", "years_present"),
+                        },
+                        description="Inspect time coverage in the dataset without treating the datetime column as a metric.",
+                    )
+                )
+                rationale = self._build_rationale(task_type, request, context)
+                return AnalysisPlan(task_type=task_type, rationale=rationale, steps=steps, warnings=warnings)
+            if request.intent_name == "row_count":
+                steps.append(
+                    PlanStep(
+                        step_id="row_count",
+                        tool_family="duckdb",
+                        action="row_count",
+                        parameters={"filters": request.filters},
+                        description="Count the number of rows in the requested dataset slice.",
+                    )
+                )
+                rationale = self._build_rationale(task_type, request, context)
+                return AnalysisPlan(task_type=task_type, rationale=rationale, steps=steps, warnings=warnings)
+            if request.intent_name == "representation_ranking" and request.target:
+                steps.append(
+                    PlanStep(
+                        step_id="count_rows_by_group",
+                        tool_family="duckdb",
+                        action="count_rows_by_group",
+                        parameters={
+                            "group_by": [request.target],
+                            "filters": request.filters,
+                            "ascending": request.options.get("ranking_direction") == "asc",
+                            "limit": 5,
+                        },
+                        description="Count rows by group and rank the representation of the requested dimension.",
+                    )
+                )
+                rationale = self._build_rationale(task_type, request, context)
+                return AnalysisPlan(task_type=task_type, rationale=rationale, steps=steps, warnings=warnings)
+            if request.intent_name == "row_ranking" and request.target:
+                steps.append(
+                    PlanStep(
+                        step_id="ranked_rows",
+                        tool_family="duckdb",
+                        action="ranked_rows",
+                        parameters={
+                            "target": request.target,
+                            "filters": request.filters,
+                            "ascending": request.options.get("ranking_direction") == "asc",
+                            "limit": int(request.options.get("ranking_limit", 5)),
+                        },
+                        description="Rank individual rows by the requested numeric target.",
+                    )
+                )
+                rationale = self._build_rationale(task_type, request, context)
+                return AnalysisPlan(task_type=task_type, rationale=rationale, steps=steps, warnings=warnings)
+            if request.intent_name == "group_ranking" and request.target and request.group_by:
+                steps.append(
+                    PlanStep(
+                        step_id="ranked_breakdown",
+                        tool_family="duckdb",
+                        action="ranked_breakdown",
+                        parameters={
+                            "target": request.target,
+                            "group_by": request.group_by,
+                            "aggregation": request.aggregation or "sum",
+                            "filters": request.filters,
+                            "limit": int(request.options.get("ranking_limit", 5)),
+                            "ascending": request.options.get("ranking_direction") == "asc",
+                        },
+                        description="Rank grouped results according to the requested top or bottom limit.",
+                    )
+                )
+                rationale = self._build_rationale(task_type, request, context)
+                return AnalysisPlan(task_type=task_type, rationale=rationale, steps=steps, warnings=warnings)
+            if request.options.get("distinct_values") and request.target:
+                steps.append(
+                    PlanStep(
+                        step_id="distinct_values",
+                        tool_family="duckdb",
+                        action="distinct_values",
+                        parameters={"target": request.target, "filters": request.filters},
+                        description="List the distinct values for the requested dimension.",
+                    )
+                )
+                rationale = self._build_rationale(task_type, request, context)
+                return AnalysisPlan(task_type=task_type, rationale=rationale, steps=steps, warnings=warnings)
+            if (
+                task_type == "descriptive"
+                and request.target in set(profile.dimension_columns)
+                and not request.aggregation
+                and not request.group_by
+            ):
+                steps.append(
+                    PlanStep(
+                        step_id="distinct_values",
+                        tool_family="duckdb",
+                        action="distinct_values",
+                        parameters={"target": request.target, "filters": request.filters},
+                        description="List the distinct values for the requested dimension.",
+                    )
+                )
+                warnings.append("Dimension prompt was routed to a distinct value listing.")
+                rationale = self._build_rationale(task_type, request, context)
+                return AnalysisPlan(task_type=task_type, rationale=rationale, steps=steps, warnings=warnings)
+            if request.target and request.aggregation:
+                steps.append(
+                    PlanStep(
+                        step_id="aggregate_value",
+                        tool_family="duckdb",
+                        action="aggregate_value",
+                        parameters={
+                            "target": request.target,
+                            "aggregation": request.aggregation,
+                            "filters": request.filters,
+                        },
+                        description=f"Compute the {request.aggregation} value for the requested target.",
+                    )
+                )
+            steps.append(
+                PlanStep(
+                    step_id="summary_metrics",
+                    tool_family="duckdb",
+                    action="dataset_summary",
+                    parameters={"target": request.target, "filters": request.filters},
+                    description="Compute top-level dataset metrics.",
+                )
+            )
+            if request.target and profile.time_columns:
+                steps.append(
+                    PlanStep(
+                        step_id="time_trend",
+                        tool_family="duckdb",
+                        action="time_trend",
+                        parameters={
+                            "target": request.target,
+                            "time_column": profile.time_columns[0],
+                            "aggregation": request.aggregation or "sum",
+                            "filters": request.filters,
+                        },
+                        description="Compute the target trend over time.",
+                    )
+                )
+            if request.target and request.time_reference and profile.time_columns:
+                steps.append(
+                    PlanStep(
+                        step_id="period_comparison",
+                        tool_family="duckdb",
+                        action="period_comparison",
+                        parameters={
+                            "target": request.target,
+                            "time_column": profile.time_columns[0],
+                            "time_reference": request.time_reference,
+                            "aggregation": request.aggregation or "sum",
+                            "filters": request.filters,
+                        },
+                        description="Compare the requested period against the previous comparable period.",
+                    )
+                )
+                if request.group_by:
+                    steps.append(
+                        PlanStep(
+                            step_id="grouped_period_comparison",
+                            tool_family="duckdb",
+                            action="grouped_period_comparison",
+                            parameters={
+                                "target": request.target,
+                                "group_by": request.group_by,
+                                "time_column": profile.time_columns[0],
+                                "time_reference": request.time_reference,
+                                "aggregation": request.aggregation or "sum",
+                                "filters": request.filters,
+                            },
+                            description="Compare grouped totals between adjacent periods.",
+                        )
+                    )
+            if request.group_by:
+                steps.append(
+                    PlanStep(
+                        step_id="group_breakdown",
+                        tool_family="duckdb",
+                        action="group_breakdown",
+                        parameters={
+                            "target": request.target,
+                            "group_by": request.group_by,
+                            "aggregation": request.aggregation or "sum",
+                            "filters": request.filters,
+                        },
+                        description="Break down the target metric by requested dimensions.",
+                    )
+                )
+                steps.append(
+                    PlanStep(
+                        step_id="ranked_breakdown",
+                        tool_family="duckdb",
+                        action="ranked_breakdown",
+                        parameters={
+                            "target": request.target,
+                            "group_by": request.group_by,
+                            "aggregation": request.aggregation or "sum",
+                            "filters": request.filters,
+                            "limit": 5,
+                        },
+                        description="Rank the largest grouped contributors.",
+                    )
+                )
+                if request.time_reference and profile.time_columns:
+                    steps.append(
+                        PlanStep(
+                            step_id="top_movers",
+                            tool_family="duckdb",
+                            action="top_movers",
+                            parameters={
+                                "target": request.target,
+                                "group_by": request.group_by,
+                                "time_column": profile.time_columns[0],
+                                "time_reference": request.time_reference,
+                                "aggregation": request.aggregation or "sum",
+                                "filters": request.filters,
+                                "limit": 5,
+                            },
+                            description="Identify the largest grouped movers between adjacent periods.",
+                        )
+                    )
+            elif task_type == "diagnostic" and request.target and profile.dimension_columns:
+                steps.append(
+                    PlanStep(
+                        step_id="top_dimension_breakdown",
+                        tool_family="duckdb",
+                        action="group_breakdown",
+                        parameters={
+                            "target": request.target,
+                            "group_by": [profile.dimension_columns[0]],
+                            "aggregation": request.aggregation or "sum",
+                            "filters": request.filters,
+                        },
+                        description="Break down the target metric by the leading dimension candidate.",
+                    )
+                )
+                steps.append(
+                    PlanStep(
+                        step_id="top_dimension_ranking",
+                        tool_family="duckdb",
+                        action="ranked_breakdown",
+                        parameters={
+                            "target": request.target,
+                            "group_by": [profile.dimension_columns[0]],
+                            "aggregation": request.aggregation or "sum",
+                            "filters": request.filters,
+                            "limit": 5,
+                        },
+                        description="Rank the leading grouped contributors for the diagnostic workflow.",
+                    )
+                )
+                if request.time_reference and profile.time_columns:
+                    steps.append(
+                        PlanStep(
+                            step_id="top_dimension_movers",
+                            tool_family="duckdb",
+                            action="top_movers",
+                            parameters={
+                                "target": request.target,
+                                "group_by": [profile.dimension_columns[0]],
+                                "time_column": profile.time_columns[0],
+                                "time_reference": request.time_reference,
+                                "aggregation": request.aggregation or "sum",
+                                "filters": request.filters,
+                                "limit": 5,
+                            },
+                            description="Identify the largest movers for the leading dimension candidate.",
+                        )
+                    )
+            if task_type == "diagnostic" and request.target and profile.dimension_columns:
+                steps.append(
+                    PlanStep(
+                        step_id="contribution_breakdown",
+                        tool_family="duckdb",
+                        action="contribution_breakdown",
+                        parameters={
+                            "target": request.target,
+                            "group_by": request.group_by or [profile.dimension_columns[0]],
+                            "time_column": profile.time_columns[0] if profile.time_columns else None,
+                            "time_reference": request.time_reference,
+                            "aggregation": request.aggregation or "sum",
+                            "filters": request.filters,
+                        },
+                        description="Estimate group-level contribution changes for the diagnostic workflow.",
+                    )
+                )
+            steps.append(
+                PlanStep(
+                    step_id="missingness_summary",
+                    tool_family="stats",
+                    action="missingness_summary",
+                    parameters={},
+                    description="Summarize missing values by column.",
+                )
+            )
+            steps.append(
+                PlanStep(
+                    step_id="numeric_summary",
+                    tool_family="stats",
+                    action="numeric_summary",
+                    parameters={},
+                    description="Summarize numeric columns with deterministic statistics.",
+                )
+            )
+            if request.target:
+                steps.append(
+                    PlanStep(
+                        step_id="distribution_summary",
+                        tool_family="stats",
+                        action="distribution_summary",
+                        parameters={"target": request.target},
+                        description="Summarize the target distribution.",
+                    )
+                )
+                steps.append(
+                    PlanStep(
+                        step_id="target_correlation",
+                        tool_family="stats",
+                        action="target_correlation",
+                        parameters={"target": request.target},
+                        description="Measure correlations between the target and other numeric columns.",
+                    )
+                )
+                steps.append(
+                    PlanStep(
+                        step_id="anomaly_summary",
+                        tool_family="stats",
+                        action="anomaly_summary",
+                        parameters={
+                            "target": request.target,
+                            "time_column": profile.time_columns[0] if profile.time_columns else None,
+                        },
+                        description="Flag simple anomaly candidates for the target.",
+                    )
+                )
+                if profile.time_columns:
+                    steps.append(
+                        PlanStep(
+                            step_id="time_series_diagnostics",
+                            tool_family="stats",
+                            action="time_series_diagnostics",
+                            parameters={"target": request.target, "time_column": profile.time_columns[0]},
+                            description="Compute simple time-series diagnostics for the target.",
+                        )
+                    )
+                candidate_dimensions = request.group_by or profile.dimension_columns
+                comparison_dimension = [column for column in candidate_dimensions if column != request.target][:1]
+                if comparison_dimension:
+                    steps.append(
+                        PlanStep(
+                            step_id="group_mean_comparison",
+                            tool_family="stats",
+                            action="group_mean_comparison",
+                            parameters={"target": request.target, "group_column": comparison_dimension[0]},
+                            description="Compare the target mean across the first available grouping dimension.",
+                        )
+                    )
+
+        if task_type == "forecasting":
+            if not profile.time_columns:
+                raise PlanningError("Forecasting requires a datetime column.")
+            if request.target is None:
+                raise PlanningError("Forecasting requires a target metric.")
+            steps.append(
+                PlanStep(
+                    step_id="forecast",
+                    tool_family="ml",
+                    action="forecast",
+                    parameters={"target": request.target, "time_column": profile.time_columns[0], "horizon": request.horizon or 3},
+                    description="Generate a forecast for the requested target.",
+                )
+            )
+
+        if task_type == "predictive":
+            warnings.append("Predictive model training is not implemented yet.")
+
+        rationale = self._build_rationale(task_type, request, context)
+        return AnalysisPlan(task_type=task_type, rationale=rationale, steps=steps, warnings=warnings)
+
+    def validate(self, plan: AnalysisPlan) -> None:
+        """Validate a plan before execution."""
+        if not plan.steps:
+            raise PlanningError("Analysis plan contains no executable steps.")
+
+    def _validate_request(self, request: AnalysisRequest, profile: DatasetProfile) -> None:
+        supported_tasks = {"descriptive", "diagnostic", "statistical", "predictive", "forecasting"}
+        supported_aggregations = {"sum", "mean", "max", "min", "count"}
+        task_type = request.task_type_hint or "descriptive"
+        if task_type not in supported_tasks:
+            raise PlanningError(f"Unsupported analysis task type: {task_type}")
+
+        profile_columns = {column.name for column in profile.columns}
+        if not profile_columns:
+            raise PlanningError("Dataset profile contains no columns.")
+
+        if request.target is not None and request.target not in profile_columns:
+            raise PlanningError(f"Target column '{request.target}' does not exist in the dataset profile.")
+        if request.options.get("distinct_values") and request.target not in set(profile.dimension_columns):
+            raise PlanningError("Distinct value listing requires a dimension target.")
+        if request.intent_name == "representation_ranking" and request.target not in set(profile.dimension_columns):
+            raise PlanningError("Representation ranking requires a dimension target.")
+        if request.intent_name == "row_ranking" and request.target not in set(profile.measure_columns):
+            raise PlanningError("Row ranking requires a numeric target.")
+        if request.intent_name == "group_ranking":
+            if request.target not in set(profile.measure_columns) or not request.group_by:
+                raise PlanningError("Group ranking requires a numeric target and one grouping column.")
+        if request.intent_name == "time_coverage" and not profile.time_columns:
+            raise PlanningError("Time coverage analysis requires a datetime column.")
+        if request.options.get("statistical_test") == "chi_square":
+            comparison_columns = request.options.get("comparison_columns", [])
+            if len(comparison_columns) < 2:
+                raise PlanningError("Chi-square testing requires two categorical columns.")
+        if request.options.get("statistical_test") in {"t_test", "anova", "mann_whitney", "significance_inference", "power_analysis", "sample_size_estimate"}:
+            if request.target is None or not request.group_by:
+                raise PlanningError("Group-based statistical testing requires a numeric target and one grouping column.")
+        if request.options.get("statistical_test") == "confidence_interval" and request.target is None:
+            raise PlanningError("Confidence interval analysis requires a numeric target.")
+        if request.options.get("statistical_test") == "regression_significance":
+            feature_columns = request.options.get("feature_columns", [])
+            if request.target is None or not feature_columns:
+                raise PlanningError("Regression significance testing requires a target and at least one feature column.")
+
+        if request.group_by:
+            invalid_groups = [column for column in request.group_by if column not in profile_columns]
+            if invalid_groups:
+                joined = ", ".join(invalid_groups)
+                raise PlanningError(f"Grouping columns do not exist in the dataset profile: {joined}")
+
+        if request.filters:
+            invalid_filters = [column for column in request.filters if column not in profile_columns]
+            if invalid_filters:
+                joined = ", ".join(invalid_filters)
+                raise PlanningError(f"Filter columns do not exist in the dataset profile: {joined}")
+
+        if request.time_reference and not profile.time_columns:
+            raise PlanningError("Time-based analysis requires a datetime column.")
+
+        supported_time_reference_types = {"month_name", "quarter", "relative_period"}
+        if request.time_reference and request.time_reference.get("type") not in supported_time_reference_types:
+            raise PlanningError("Unsupported time reference in analysis request.")
+
+        if request.time_reference and request.time_reference.get("type") != "month_name":
+            raise PlanningError("Only month-based time references are supported for non-ML analysis right now.")
+
+        if request.aggregation and request.aggregation not in supported_aggregations:
+            raise PlanningError(f"Unsupported aggregation: {request.aggregation}")
+
+        if task_type in {"diagnostic", "statistical", "predictive"} and request.target is None:
+            raise PlanningError(f"{task_type.title()} analysis requires a target metric.")
+        if task_type == "forecasting" and request.target is None:
+            raise PlanningError("Forecasting requires a target metric.")
+
+    def _build_rationale(self, task_type: str, request: AnalysisRequest, context: SourceContext | None) -> str:
+        rationale = f"Selected a {task_type} workflow based on the normalized request."
+        if request.target:
+            rationale += f" Target metric: {request.target}."
+        if request.aggregation:
+            rationale += f" Aggregation: {request.aggregation}."
+        if context and context.metric_definitions:
+            rationale += " Semantic metric definitions were available."
+        if request.filters:
+            rationale += f" Filters were detected for: {', '.join(request.filters)}."
+        if request.options.get("distinct_values"):
+            rationale += " A distinct value listing was requested."
+        if request.intent_name == "row_ranking":
+            rationale += " Ranked row retrieval was requested."
+        if request.intent_name == "group_ranking":
+            rationale += " Group ranking was requested."
+        if request.intent_name:
+            rationale += f" Intent: {request.intent_name}."
+        if request.intent_name == "time_coverage":
+            rationale += f" Time coverage mode: {request.options.get('time_coverage_mode', 'years_present')}."
+        if request.options.get("statistical_test"):
+            rationale += f" Statistical test: {request.options['statistical_test']}."
+        return rationale
+
+
+AnalysisPlanner = PlanBuilder

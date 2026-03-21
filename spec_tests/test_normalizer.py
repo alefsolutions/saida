@@ -3,9 +3,9 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from saida.nlp import RequestNormalizer
+from saida.core import RequestNormalizer
 from saida.exceptions import ValidationError
-from saida.schemas import ColumnProfile, Dataset, DatasetProfile, SourceContext
+from saida.core.contracts import ColumnProfile, Dataset, DatasetProfile, SourceContext
 
 
 def build_profile() -> DatasetProfile:

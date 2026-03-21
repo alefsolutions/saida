@@ -13,8 +13,8 @@ if str(SRC_PATH) not in sys.path:
 
 from _env import load_project_env
 from saida import Saida
-from saida.adapters import CSVAdapter
 from saida.config import LlmConfig, SaidaConfig
+from saida.sources import CSVSource
 
 try:
     from fastapi import FastAPI, HTTPException
@@ -56,7 +56,7 @@ class ErrorResponse(BaseModel):
 
 app = FastAPI(
     title="SAIDA Playground API",
-    version="0.1.0",
+    version="0.2.0",
     description="Small Postman-friendly API wrapper around the SAIDA analytics engine.",
 )
 
@@ -93,7 +93,7 @@ def _load_dataset(dataset_path: Path, context_path: Path | None) -> Any:
         raise HTTPException(status_code=404, detail=f"Dataset file not found: {dataset_path}")
     if context_path is not None and not context_path.exists():
         raise HTTPException(status_code=404, detail=f"Context file not found: {context_path}")
-    return CSVAdapter(dataset_path, context_path=context_path).load()
+    return CSVSource(dataset_path, context_path=context_path).load()
 
 
 @app.get("/")

@@ -6,7 +6,7 @@ import sqlite3
 import pandas as pd
 import pytest
 
-from saida.adapters import CSVAdapter, ExcelAdapter, JSONAdapter, PandasAdapter, SQLAdapter
+from saida.sources import CSVAdapter, ExcelAdapter, JSONAdapter, PandasAdapter, SQLAdapter
 from saida.exceptions import AdapterError, ContextError
 
 

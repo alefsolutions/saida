@@ -15,8 +15,8 @@ if str(SRC_PATH) not in sys.path:
 
 from _env import load_project_env
 from saida import Saida
-from saida.adapters import CSVAdapter
 from saida.config import LlmConfig, SaidaConfig
+from saida.sources import CSVSource
 
 
 EXIT_WORDS = {"exit", "quit", "q"}
@@ -40,7 +40,7 @@ def main() -> None:
     if not os.getenv("OPENAI_API_KEY"):
         raise RuntimeError("OPENAI_API_KEY is not set.")
 
-    dataset = CSVAdapter(
+    dataset = CSVSource(
         DEFAULT_DATASET_PATH,
         context_path=DEFAULT_CONTEXT_PATH,
     ).load()

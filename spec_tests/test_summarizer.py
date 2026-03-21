@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from saida.reasoning import ResultSummarizer
-from saida.schemas import (
+from saida.core.contracts import (
     AnalysisPlan,
     AnalysisRequest,
     ColumnProfile,
@@ -12,6 +11,7 @@ from saida.schemas import (
     SourceContext,
     TableArtifact,
 )
+from saida.outputs import ResultSummarizer
 
 
 def build_profile() -> DatasetProfile:

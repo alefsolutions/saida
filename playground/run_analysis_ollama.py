@@ -10,8 +10,8 @@ if str(SRC_PATH) not in sys.path:
 
 from _env import load_project_env
 from saida import Saida
-from saida.adapters import CSVAdapter
 from saida.config import LlmConfig, SaidaConfig
+from saida.sources import CSVSource
 
 
 EXIT_WORDS = {"exit", "quit", "q"}
@@ -20,7 +20,7 @@ EXIT_WORDS = {"exit", "quit", "q"}
 def main() -> None:
     load_project_env(PROJECT_ROOT)
 
-    dataset = CSVAdapter(
+    dataset = CSVSource(
         PROJECT_ROOT / "examples" / "sales.csv",
         context_path=PROJECT_ROOT / "examples" / "sales_context.md",
     ).load()

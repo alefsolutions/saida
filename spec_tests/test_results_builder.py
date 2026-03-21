@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pandas as pd
 
-from saida.results import ResultBuilder
-from saida.schemas import (
+from saida.core import ResultBuilder
+from saida.core.contracts import (
     AnalysisPlan,
     AnalysisRequest,
     ColumnProfile,

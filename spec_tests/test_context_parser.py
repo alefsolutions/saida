@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from saida.context import SourceContextParser
+from saida.core import SourceContextParser
 from saida.exceptions import ContextError
 
 

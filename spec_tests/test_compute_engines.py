@@ -3,8 +3,7 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from saida.compute.duckdb import DuckDBComputeEngine
-from saida.compute.stats import StatsComputeEngine
+from saida.adapters import DuckDBComputeEngine, StatsComputeEngine
 from saida.exceptions import ComputeError
 
 

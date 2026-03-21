@@ -1,8 +1,8 @@
 from saida import Saida
-from saida.adapters import CSVAdapter
+from saida.sources import CSVSource
 
 
-dataset = CSVAdapter("examples/sales.csv", context_path="examples/sales_context.md").load()
+dataset = CSVSource("examples/sales.csv", context_path="examples/sales_context.md").load()
 result = Saida().analyze(dataset, "Why did revenue drop in March by region?")
 
 print(result.summary)
