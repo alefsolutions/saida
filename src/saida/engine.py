@@ -577,12 +577,12 @@ class Saida:
             fallback_request, fallback_warnings = self.canonicalizer.normalize(question, dataset, profile, dataset.context)
             if self._is_confident_deterministic_request(fallback_request, fallback_warnings):
                 fallback_warnings.append(
-                    "Optional LLM prompting requested clarification, but deterministic request normalization found a valid intent."
+                    "Optional LLM prompting requested clarification or refusal, but deterministic request normalization found a valid supported intent."
                 )
                 return (
                     fallback_request,
                     fallback_warnings,
-                    self._trace("llm", "clarification overridden by deterministic request normalization", {"status": proposal.status}),
+                    self._trace("llm", "early LLM outcome overridden by deterministic request normalization", {"status": proposal.status}),
                 )
             request = AnalysisRequest(
                 question=question,
@@ -627,6 +627,7 @@ class Saida:
                     "rows": int(len(table.dataframe)),
                     "columns": list(table.dataframe.columns),
                     "description": table.description,
+                    "metadata": dict(table.metadata),
                 }
                 for table in tables
             },

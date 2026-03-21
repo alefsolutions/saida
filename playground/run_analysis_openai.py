@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 import os
 import sys
 import threading
@@ -19,6 +20,8 @@ from saida.sources import CSVSource
 EXIT_WORDS = {"exit", "quit", "q"}
 DEFAULT_DATASET_PATH = PROJECT_ROOT / "examples" / "datasets" / "support_tickets_500.csv"
 DEFAULT_CONTEXT_PATH = PROJECT_ROOT / "examples" / "contexts" / "support_tickets_500.md"
+ANSI_RESET = "\033[0m"
+ANSI_YELLOW = "\033[33m"
 
 
 def _show_loader(stop_event: threading.Event) -> None:
@@ -31,8 +34,47 @@ def _show_loader(stop_event: threading.Event) -> None:
     print("\r" + " " * 20 + "\r", end="", flush=True)
 
 
+def _json_mode_enabled(argv: list[str] | None = None) -> bool:
+    arguments = argv or sys.argv[1:]
+    return "--json" in arguments or os.getenv("SAIDA_PLAYGROUND_JSON") == "1"
+
+
+def _colorize_json_value_blocks(formatted_json: str) -> str:
+    lines = formatted_json.splitlines()
+    highlighted_lines: list[str] = []
+    open_block_depth = 0
+
+    for line in lines:
+        stripped = line.lstrip()
+        if open_block_depth > 0:
+            highlighted_lines.append(f"{ANSI_YELLOW}{line}{ANSI_RESET}")
+            open_block_depth += line.count("{") + line.count("[") - line.count("}") - line.count("]")
+            if open_block_depth <= 0:
+                open_block_depth = 0
+            continue
+
+        if stripped.startswith('"value":'):
+            highlighted_lines.append(f"{ANSI_YELLOW}{line}{ANSI_RESET}")
+            value_fragment = stripped.split(":", 1)[1].strip()
+            open_block_depth = value_fragment.count("{") + value_fragment.count("[") - value_fragment.count("}") - value_fragment.count("]")
+            if open_block_depth < 0:
+                open_block_depth = 0
+            continue
+
+        highlighted_lines.append(line)
+
+    return "\n".join(highlighted_lines)
+
+
+def _render_json_output(result: object) -> str:
+    payload = result.to_response_dict()
+    formatted_json = json.dumps(payload, indent=2, ensure_ascii=True)
+    return _colorize_json_value_blocks(formatted_json)
+
+
 def main() -> None:
     load_project_env(PROJECT_ROOT)
+    json_mode = _json_mode_enabled()
 
     if not os.getenv("OPENAI_API_KEY"):
         raise RuntimeError("OPENAI_API_KEY is not set.")
@@ -56,6 +98,8 @@ def main() -> None:
     print("SAIDA OpenAI playground")
     print(f"Dataset: {dataset.name}")
     print("Type a question, or type 'exit' to quit.")
+    if json_mode:
+        print("Output mode: structured JSON")
 
     pending_prompt: str | None = None
     while True:
@@ -82,17 +126,20 @@ def main() -> None:
             stop_event.set()
             loader_thread.join()
 
-        llm_summary = getattr(result, "llm_summary", None)
-        summary = getattr(result, "summary", "")
-        deterministic_summary = getattr(result, "deterministic_summary", None)
-        print(llm_summary or summary)
-        if deterministic_summary:
-            print("..........", deterministic_summary)
-        print()
-        if result.tables:
-            print("Tables:", ", ".join(table.name for table in result.tables))
-        if result.warnings:
-            print("Warnings:", "; ".join(result.warnings))
+        if json_mode:
+            print(_render_json_output(result))
+        else:
+            llm_summary = getattr(result, "llm_summary", None)
+            summary = getattr(result, "summary", "")
+            deterministic_summary = getattr(result, "deterministic_summary", None)
+            print(llm_summary or summary)
+            if deterministic_summary:
+                print("..........", deterministic_summary)
+            print()
+            if result.tables:
+                print("Tables:", ", ".join(table.name for table in result.tables))
+            if result.warnings:
+                print("Warnings:", "; ".join(result.warnings))
 
         if result.plan.task_type == "clarification":
             pending_prompt = question

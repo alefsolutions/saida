@@ -20,11 +20,20 @@ class _FakeEngine:
     def analyze(self, dataset: object, question: str) -> object:
         _ = dataset
         self.calls.append(question)
+        payload = {
+            "schema_version": "saida.response.v2",
+            "result": {
+                "value": {
+                    "rows": [{"ticket_id": "T1"}],
+                }
+            },
+        }
         return SimpleNamespace(
             summary="Please clarify the target metric.",
             tables=[],
             warnings=[],
             plan=SimpleNamespace(task_type="clarification"),
+            to_response_dict=lambda: payload,
         )
 
 
@@ -48,3 +57,27 @@ def test_openai_playground_exits_cleanly_from_clarification_prompt(
 
     assert "Please answer the clarification above, or type 'exit' to quit." in output
     assert fake_engine.calls == ["Hi there"]
+
+
+def test_openai_playground_json_mode_prints_structured_contract(
+    monkeypatch: object,
+    capsys: object,
+) -> None:
+    fake_engine = _FakeEngine()
+    dataset = SimpleNamespace(name="sales", data=pd.DataFrame({"revenue": [1.0]}))
+
+    monkeypatch.setattr(openai_playground, "load_project_env", lambda project_root: None)
+    monkeypatch.setattr(openai_playground.os, "getenv", lambda key, default=None: "test-key" if key == "OPENAI_API_KEY" else default)
+    monkeypatch.setattr(openai_playground.CSVSource, "load", lambda self: dataset)
+    monkeypatch.setattr(openai_playground, "Saida", lambda config=None: fake_engine)
+    monkeypatch.setattr(openai_playground.sys, "argv", ["run_analysis_openai.py", "--json"])
+
+    answers = iter(["Hi there", "exit"])
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(answers))
+
+    openai_playground.main()
+    output = capsys.readouterr().out
+
+    assert '"schema_version": "saida.response.v2"' in output
+    assert "\033[33m" in output
+    assert '"ticket_id": "T1"' in output

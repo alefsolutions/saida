@@ -1584,3 +1584,18 @@ def test_normalizer_uses_empty_selected_columns_for_all_rows_prompt() -> None:
 
     assert request.intent_name == "tabular_query"
     assert request.options["selected_columns"] == []
+
+
+def test_normalizer_detects_dataset_slice_request_with_limit() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Give me 20 tickets from the data set",
+        build_statistical_dataset(),
+        build_statistical_profile(),
+        None,
+    )
+
+    assert request.intent_name == "tabular_query"
+    assert request.options["limit"] == 20
+    assert request.options["selected_columns"] == []

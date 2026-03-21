@@ -6,7 +6,7 @@ import pytest
 from saida import Saida
 from saida.config import LlmConfig
 from saida.core.contracts import Dataset
-from saida.llm import BaseLlmProvider, IntentProposal, ResponseContext, ResponseProposal, build_llm_provider
+from saida.llm import BaseLlmProvider, IntentProposal, OpenAiLlmProvider, OllamaLlmProvider, ResponseContext, ResponseProposal, build_llm_provider
 from saida.exceptions import ValidationError
 
 
@@ -67,6 +67,26 @@ class ClarifyingLlmProvider(BaseLlmProvider):
         _ = profile_summary
         _ = context_summary
         return IntentProposal(status="clarify", message="Please clarify.", warnings=["llm clarification"])
+
+    def generate_response(self, response_context: ResponseContext) -> ResponseProposal | None:
+        return ResponseProposal(status="ready", summary=response_context.deterministic_summary)
+
+
+class RefusingLlmProvider(BaseLlmProvider):
+    """Provider that refuses requests so deterministic override can be tested."""
+
+    def interpret_prompt(
+        self,
+        question: str,
+        dataset_name: str,
+        profile_summary: str,
+        context_summary: str | None,
+    ) -> IntentProposal | None:
+        _ = question
+        _ = dataset_name
+        _ = profile_summary
+        _ = context_summary
+        return IntentProposal(status="refuse", message="Refused by test provider.", warnings=["llm refusal"])
 
     def generate_response(self, response_context: ResponseContext) -> ResponseProposal | None:
         return ResponseProposal(status="ready", summary=response_context.deterministic_summary)
@@ -328,6 +348,30 @@ def test_engine_passes_context_summary_into_llm_response_stage() -> None:
     assert "freshness_notes=['source refreshes daily']" in provider.last_response_context.context_summary
 
 
+def test_engine_passes_tabular_table_metadata_into_llm_response_stage() -> None:
+    provider = FakeLlmProvider()
+    engine = Saida(llm_provider=provider)
+    engine.config.llm.enabled = True
+    dataset = Dataset(
+        name="tickets",
+        source_type="pandas",
+        data=pd.DataFrame(
+            {
+                "ticket_id": ["T1", "T2", "T3"],
+                "created_at": ["2026-01-01", "2026-01-02", "2026-01-03"],
+                "reopened_flag": ["yes", "no", "yes"],
+                "priority": ["Low", "Medium", "High"],
+            }
+        ),
+    )
+
+    engine.analyze(dataset, "Give me 2 tickets from the data set")
+
+    assert provider.last_response_context is not None
+    assert "tabular_query" in provider.last_response_context.table_index
+    assert "metadata" in provider.last_response_context.table_index["tabular_query"]
+
+
 def test_llm_factory_builds_openai_provider() -> None:
     provider = build_llm_provider(
         LlmConfig(
@@ -340,6 +384,56 @@ def test_llm_factory_builds_openai_provider() -> None:
 
     assert provider is not None
     assert provider.provider_name == "openai"
+
+
+def test_engine_overrides_llm_refusal_for_supported_tabular_query() -> None:
+    engine = Saida(llm_provider=RefusingLlmProvider())
+    engine.config.llm.enabled = True
+    dataset = Dataset(
+        name="tickets",
+        source_type="pandas",
+        data=pd.DataFrame(
+            {
+                "ticket_id": ["T1", "T2", "T3"],
+                "created_at": ["2026-01-01", "2026-01-02", "2026-01-03"],
+                "reopened_flag": ["yes", "no", "yes"],
+                "priority": ["Low", "Medium", "High"],
+            }
+        ),
+    )
+
+    result = engine.analyze(dataset, "Give me 2 tickets from the data set")
+
+    assert result.response["status"] == "ok"
+    assert result.response["interpretation"]["intent_name"] == "tabular_query"
+    assert any(table.name == "tabular_query" for table in result.tables)
+    assert any("deterministic request normalization found a valid supported intent" in warning for warning in result.warnings)
+
+
+def test_openai_intent_prompt_mentions_tabular_query_capabilities() -> None:
+    provider = OpenAiLlmProvider(LlmConfig(enabled=True, provider="openai", model="gpt-4.1-mini", options={"api_key": "test-key"}))
+
+    prompt = provider._build_intent_prompt("Give me 20 tickets", "tickets", "rows=500", None)
+
+    assert "tabular query workflows" in prompt
+    assert "selected columns" in prompt
+    assert "sorting" in prompt
+    assert "limits" in prompt
+    assert "grouped table outputs" in prompt
+    assert "pagination-friendly requests" in prompt
+
+
+def test_ollama_intent_prompt_mentions_tabular_query_capabilities() -> None:
+    provider = OllamaLlmProvider(LlmConfig(enabled=True, provider="ollama", model="llama3.1"))
+
+    prompt = provider._build_intent_prompt("Give me 20 tickets", "tickets", "rows=500", None)
+
+    assert "tabular query workflows" in prompt
+    assert "selected columns" in prompt
+    assert "sorting" in prompt
+    assert "limits" in prompt
+    assert "grouped table outputs" in prompt
+    assert "pagination-friendly requests" in prompt
 
 
 _ENGINE_PROFILE_CASES = [

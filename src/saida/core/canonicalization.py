@@ -130,6 +130,7 @@ TABULAR_SURFACE_KEYWORDS = {"table", "tabular", "recordset"}
 TABULAR_VERBS = {"show", "list", "return", "give me", "display"}
 TABULAR_LIMIT_KEYWORDS = {"first", "last", "return", "show", "list"}
 TABULAR_SORT_KEYWORDS = {"sort by", "sorted by", "order by", "ordered by", "ascending", "descending", "latest", "earliest"}
+DATASET_SLICE_KEYWORDS = {"dataset", "data set", "data", "table"}
 EXISTENCE_REQUEST_KEYWORDS = {
     "is there",
     "are there",
@@ -481,6 +482,11 @@ class InputCanonicalizer:
         rule_horizon = self._extract_horizon(question)
         rule_group_by = self._extract_group_by(question, profile)
         rule_filters = self._extract_filters(question, profile, context)
+        rule_selected_columns = self._extract_selected_columns(question, profile, rule_filters)
+        rule_sort_by, rule_sort_direction = self._extract_sort_request(question, profile, rule_target, rule_group_by)
+        rule_limit = self._extract_tabular_limit(question)
+        rule_page = self._extract_page_number(question)
+        rule_page_size = self._extract_page_size(question)
 
         task_type_hint = self._validate_task_type(proposal.task_type_hint) or rule_task_type
         target = self._resolve_candidate_column(proposal.target, profile, context)
@@ -503,6 +509,17 @@ class InputCanonicalizer:
         rule_intent_name = self._resolve_ranking_intent(question, rule_intent_name, target or rule_target, group_by or rule_group_by, profile, options)
         if rule_intent_name in {"row_ranking", "group_ranking"}:
             aggregation = None
+        rule_intent_name = self._resolve_tabular_intent(
+            question,
+            rule_intent_name,
+            target or rule_target,
+            group_by or rule_group_by,
+            rule_selected_columns,
+            filters or rule_filters,
+            aggregation or rule_aggregation,
+        )
+        if rule_intent_name == "grouped_tabular_query" and target in set(group_by or []) and target not in set(profile.measure_columns):
+            target = None
         if rule_intent_name == "existence_check":
             target, aggregation, group_by = self._configure_existence_request(
                 question,
@@ -545,6 +562,15 @@ class InputCanonicalizer:
             group_by = [target]
             aggregation = "count"
             options["ranking_direction"] = self._representation_direction(question)
+        if rule_intent_name in {"tabular_query", "grouped_tabular_query"}:
+            options["selected_columns"] = rule_selected_columns or []
+            options["sort_by"] = rule_sort_by
+            options["sort_direction"] = rule_sort_direction
+            options["limit"] = rule_limit
+            options["page"] = rule_page
+            options["page_size"] = rule_page_size or rule_limit or 50
+            if rule_intent_name == "grouped_tabular_query" and aggregation is None:
+                aggregation = "count" if target is None else "sum"
 
         if target is None and profile.measure_columns and rule_intent_name not in {
             "row_count",
@@ -563,6 +589,8 @@ class InputCanonicalizer:
             "time_bucket_breakdown",
             "time_period_comparison",
             "existence_check",
+            "tabular_query",
+            "grouped_tabular_query",
         }:
             warnings.append("No explicit metric matched the prompt; using the first measure candidate.")
             target = profile.measure_columns[0]
@@ -583,6 +611,8 @@ class InputCanonicalizer:
             "time_bucket_breakdown",
             "time_period_comparison",
             "existence_check",
+            "tabular_query",
+            "grouped_tabular_query",
         }:
             raise ValidationError("No target metric could be resolved from the question or dataset profile.")
         distinct_values = self._should_list_distinct_values(question, target, profile)
@@ -859,6 +889,8 @@ class InputCanonicalizer:
             r"\b(?:first|last|return|show|list)\s+(\d+)\s+rows?\b",
             r"\b(?:return|show|list)\s+(\d+)\s+records?\b",
             r"\b(?:first|last)\s+(\d+)\b",
+            r"\b(?:give me|show|return|list)\s+(\d+)\s+[a-z0-9_ ]+\s+from\s+the\s+data\s*set\b",
+            r"\b(?:give me|show|return|list)\s+(\d+)\s+[a-z0-9_ ]+\s+from\s+the\s+dataset\b",
         ]
         for pattern in patterns:
             match = re.search(pattern, lowered)
@@ -1275,8 +1307,16 @@ class InputCanonicalizer:
         has_tabular_surface = any(keyword in lowered for keyword in TABULAR_ROW_KEYWORDS | TABULAR_SURFACE_KEYWORDS)
         has_sort_or_limit = any(keyword in lowered for keyword in TABULAR_SORT_KEYWORDS) or self._extract_tabular_limit(question) is not None
         has_tabular_verb = any(re.search(rf"\b{re.escape(keyword)}\b", lowered) for keyword in TABULAR_VERBS)
+        has_dataset_slice_language = (
+            self._extract_tabular_limit(question) is not None
+            and has_tabular_verb
+            and "from" in lowered
+            and any(keyword in lowered for keyword in DATASET_SLICE_KEYWORDS)
+        )
 
         if has_tabular_surface:
+            return True
+        if has_dataset_slice_language:
             return True
         if has_sort_or_limit and (has_tabular_verb or bool(named_columns)):
             return True
