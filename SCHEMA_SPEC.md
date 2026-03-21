@@ -91,6 +91,16 @@ The current prototype also returns canonical time-series result families for:
 
 These results are normalized as canonical timeseries-style tables in the same response contract.
 
+The current prototype also returns canonical verification result families for:
+
+- time-value existence checks
+- filtered row existence checks
+- null and completeness checks
+- numeric threshold and range checks
+- column-property checks such as numeric, datetime, categorical, and identifier validation
+
+These results are normalized as verification-style outputs in the same response contract.
+
 ## Guiding Principle
 
 Schemas in SAIDA 0.2.0 are not just internal containers.

@@ -825,6 +825,138 @@ def test_normalizer_detects_filtered_row_existence_intent() -> None:
     assert request.options["existence_mode"] == "filtered_rows"
 
 
+def test_normalizer_detects_null_check_for_missing_values() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Does csat_score have missing values?",
+        build_schema_dataset(),
+        build_schema_profile(),
+        None,
+    )
+
+    assert request.intent_name == "existence_check"
+    assert request.target == "csat_score"
+    assert request.options["existence_mode"] == "null_check"
+    assert request.options["null_expectation"] == "has_nulls"
+
+
+def test_normalizer_detects_complete_check() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Is csat_score complete?",
+        build_schema_dataset(),
+        build_schema_profile(),
+        None,
+    )
+
+    assert request.intent_name == "existence_check"
+    assert request.target == "csat_score"
+    assert request.options["existence_mode"] == "null_check"
+    assert request.options["null_expectation"] == "no_nulls"
+
+
+def test_normalizer_detects_threshold_check_above() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Are any resolution hours above 20?",
+        build_statistical_dataset(),
+        build_statistical_profile(),
+        None,
+    )
+
+    assert request.intent_name == "existence_check"
+    assert request.target == "resolution_hours"
+    assert request.options["existence_mode"] == "threshold_check"
+    assert request.options["threshold_operator"] == "gt"
+    assert request.options["threshold_value"] == 20.0
+
+
+def test_normalizer_detects_threshold_check_below() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Is revenue below 0 anywhere?",
+        build_dataset(),
+        build_profile(),
+        None,
+    )
+
+    assert request.intent_name == "existence_check"
+    assert request.target == "revenue"
+    assert request.options["existence_mode"] == "threshold_check"
+    assert request.options["threshold_operator"] == "lt"
+    assert request.options["threshold_value"] == 0.0
+
+
+def test_normalizer_detects_threshold_check_between() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Does csat_score fall between 3 and 5?",
+        build_schema_dataset(),
+        build_schema_profile(),
+        None,
+    )
+
+    assert request.intent_name == "existence_check"
+    assert request.target == "csat_score"
+    assert request.options["existence_mode"] == "threshold_check"
+    assert request.options["threshold_operator"] == "between"
+    assert request.options["lower_bound"] == 3.0
+    assert request.options["upper_bound"] == 5.0
+
+
+def test_normalizer_detects_numeric_property_check() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Is revenue numeric?",
+        build_dataset(),
+        build_profile(),
+        None,
+    )
+
+    assert request.intent_name == "existence_check"
+    assert request.target == "revenue"
+    assert request.options["existence_mode"] == "column_property_check"
+    assert request.options["expected_property"] == "numeric"
+
+
+def test_normalizer_detects_datetime_property_check() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Is created_at a datetime field?",
+        build_schema_dataset(),
+        build_schema_profile(),
+        None,
+    )
+
+    assert request.intent_name == "existence_check"
+    assert request.target == "created_at"
+    assert request.options["existence_mode"] == "column_property_check"
+    assert request.options["expected_property"] == "datetime"
+
+
+def test_normalizer_detects_identifier_property_check() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Is ticket_id likely an identifier?",
+        build_schema_dataset(),
+        build_schema_profile(),
+        None,
+    )
+
+    assert request.intent_name == "existence_check"
+    assert request.target == "ticket_id"
+    assert request.options["existence_mode"] == "column_property_check"
+    assert request.options["expected_property"] == "identifier"
+
+
 def test_normalizer_detects_natural_significance_prompt() -> None:
     normalizer = RequestNormalizer()
 

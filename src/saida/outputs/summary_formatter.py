@@ -430,6 +430,52 @@ class SummaryFormatter:
             if bool(row.get("exists")):
                 return f"Yes, {time_column} contains dates in {match_value} ({matching_row_count} matching rows)."
             return f"No, {time_column} does not contain dates in {match_value}."
+        if existence_mode == "null_check":
+            table = self._table(tables, "null_check")
+            if table is None or table.dataframe.empty:
+                return None
+            row = table.dataframe.iloc[0]
+            column_name = str(row.get("column_name", request.target or "the requested column"))
+            null_row_count = int(row.get("null_row_count", 0) or 0)
+            total_row_count = int(row.get("total_row_count", 0) or 0)
+            if row.get("null_expectation") == "no_nulls":
+                if bool(row.get("matches")):
+                    return f"Yes, {column_name} is complete with no missing values."
+                return f"No, {column_name} is not complete ({null_row_count} null rows out of {total_row_count})."
+            if bool(row.get("matches")):
+                return f"Yes, {column_name} has missing values ({null_row_count} null rows out of {total_row_count})."
+            return f"No, {column_name} does not have missing values."
+        if existence_mode == "threshold_check":
+            table = self._table(tables, "threshold_check")
+            if table is None or table.dataframe.empty:
+                return None
+            row = table.dataframe.iloc[0]
+            column_name = str(row.get("column_name", request.target or "the requested column"))
+            condition_text = self._threshold_condition_text(row)
+            matching_row_count = int(row.get("matching_row_count", 0) or 0)
+            total_numeric_row_count = int(row.get("total_numeric_row_count", 0) or 0)
+            if bool(row.get("matches")):
+                return (
+                    f"Yes, {column_name} contains values {condition_text} "
+                    f"({matching_row_count} matching rows out of {total_numeric_row_count})."
+                )
+            return f"No, {column_name} does not contain values {condition_text}."
+        if existence_mode == "column_property_check":
+            table = self._table(tables, "column_property_check")
+            if table is None or table.dataframe.empty:
+                return None
+            row = table.dataframe.iloc[0]
+            column_name = str(row.get("column_name", request.target or "the requested column"))
+            expected_property = str(row.get("expected_property", request.options.get("expected_property", "requested")))
+            if bool(row.get("matches")):
+                if expected_property == "identifier":
+                    return f"Yes, {column_name} is likely an identifier."
+                article = "an" if expected_property[:1] in {"a", "e", "i", "o", "u"} else "a"
+                return f"Yes, {column_name} is {article} {expected_property} column."
+            if expected_property == "identifier":
+                return f"No, {column_name} is not marked as an identifier."
+            actual_dtype = str(row.get("dtype", "unknown"))
+            return f"No, {column_name} is not a {expected_property} column; detected type is {actual_dtype}."
 
         table = self._table(tables, "row_existence")
         if table is None or table.dataframe.empty:
@@ -441,6 +487,19 @@ class SummaryFormatter:
         if bool(row.get("exists")):
             return f"Yes, the dataset contains rows matching {filter_text} ({matching_row_count} rows)."
         return f"No, the dataset does not contain rows matching {filter_text}."
+
+    def _threshold_condition_text(self, row: pd.Series) -> str:
+        operator = str(row.get("threshold_operator", ""))
+        if operator == "between":
+            return f"between {float(row['lower_bound']):.2f} and {float(row['upper_bound']):.2f}"
+        threshold_value = float(row.get("threshold_value", 0.0) or 0.0)
+        labels = {
+            "gt": f"above {threshold_value:.2f}",
+            "gte": f"at least {threshold_value:.2f}",
+            "lt": f"below {threshold_value:.2f}",
+            "lte": f"at most {threshold_value:.2f}",
+        }
+        return labels.get(operator, f"matching the threshold {threshold_value:.2f}")
 
     def _describe_statistical_result(self, tables: list[TableArtifact]) -> str | None:
         statistical_tables = {

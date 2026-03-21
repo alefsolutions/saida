@@ -485,6 +485,81 @@ def test_planner_builds_filtered_row_existence_plan() -> None:
     assert [step.action for step in plan.steps] == ["row_existence"]
 
 
+def test_planner_builds_null_check_plan() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="Does csat_score have missing values?",
+        intent_name="existence_check",
+        task_type_hint="descriptive",
+        target="csat_score",
+        options={"existence_mode": "null_check", "null_expectation": "has_nulls"},
+    )
+
+    plan = planner.build_plan(request, build_schema_profile())
+
+    assert [step.action for step in plan.steps] == ["null_check"]
+
+
+def test_planner_builds_threshold_check_plan() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="Is revenue below 0 anywhere?",
+        intent_name="existence_check",
+        task_type_hint="descriptive",
+        target="revenue",
+        options={"existence_mode": "threshold_check", "threshold_operator": "lt", "threshold_value": 0.0},
+    )
+
+    plan = planner.build_plan(request, build_profile())
+
+    assert [step.action for step in plan.steps] == ["threshold_check"]
+    assert plan.steps[0].parameters["threshold_value"] == 0.0
+
+
+def test_planner_builds_column_property_check_plan() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="Is ticket_id likely an identifier?",
+        intent_name="existence_check",
+        task_type_hint="descriptive",
+        target="ticket_id",
+        options={"existence_mode": "column_property_check", "expected_property": "identifier"},
+    )
+
+    plan = planner.build_plan(request, build_schema_profile())
+
+    assert [step.action for step in plan.steps] == ["column_property_check"]
+    assert plan.steps[0].tool_family == "metadata"
+
+
+def test_planner_rejects_threshold_check_for_non_numeric_target() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="Is region above 10?",
+        intent_name="existence_check",
+        task_type_hint="descriptive",
+        target="region",
+        options={"existence_mode": "threshold_check", "threshold_operator": "gt", "threshold_value": 10.0},
+    )
+
+    with pytest.raises(PlanningError, match="Threshold verification requires a numeric target"):
+        planner.build_plan(request, build_profile())
+
+
+def test_planner_rejects_column_property_check_without_expected_property() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="Is revenue something?",
+        intent_name="existence_check",
+        task_type_hint="descriptive",
+        target="revenue",
+        options={"existence_mode": "column_property_check"},
+    )
+
+    with pytest.raises(PlanningError, match="Column property verification requires a supported expected property"):
+        planner.build_plan(request, build_profile())
+
+
 def test_planner_rejects_invalid_filter_columns() -> None:
     planner = AnalysisPlanner()
     request = AnalysisRequest(

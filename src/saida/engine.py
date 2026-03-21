@@ -22,6 +22,7 @@ from saida.core.contracts import (
     AnalysisResult,
     AnalysisPlan,
     AnalysisRequest,
+    ColumnProfile,
     Dataset,
     DatasetProfile,
     ExecutionTraceEvent,
@@ -122,7 +123,10 @@ class Saida:
 
         for step in plan.steps:
             if step.tool_family == "metadata":
-                tables.append(self._metadata_table(step.action, profile))
+                if step.action == "column_property_check":
+                    tables.append(self._column_property_check_table(step.parameters, profile))
+                else:
+                    tables.append(self._metadata_table(step.action, profile))
                 trace.append(self._trace("compute", f"executed {step.action}", step.parameters))
                 continue
 
@@ -205,6 +209,27 @@ class Saida:
                             step.parameters["time_column"],
                             step.parameters.get("expected_year"),
                             step.parameters.get("time_reference"),
+                            step.parameters.get("filters"),
+                        )
+                    )
+                elif step.action == "null_check":
+                    tables.append(
+                        adapter.null_check(
+                            dataset.data,
+                            step.parameters["target"],
+                            step.parameters.get("null_expectation", "has_nulls"),
+                            step.parameters.get("filters"),
+                        )
+                    )
+                elif step.action == "threshold_check":
+                    tables.append(
+                        adapter.threshold_check(
+                            dataset.data,
+                            step.parameters["target"],
+                            step.parameters["threshold_operator"],
+                            step.parameters.get("threshold_value"),
+                            step.parameters.get("lower_bound"),
+                            step.parameters.get("upper_bound"),
                             step.parameters.get("filters"),
                         )
                     )
@@ -752,6 +777,39 @@ class Saida:
 
     def _estimated_null_count(self, profile: DatasetProfile, null_ratio: float) -> int:
         return int(round(profile.row_count * null_ratio))
+
+    def _column_property_check_table(self, parameters: dict[str, object], profile: DatasetProfile) -> TableArtifact:
+        target = str(parameters["target"])
+        expected_property = str(parameters["expected_property"])
+        column = next(column for column in profile.columns if column.name == target)
+        matches = self._column_matches_property(column, profile, expected_property)
+        return TableArtifact(
+            name="column_property_check",
+            description="Verification of a requested schema property for a column.",
+            dataframe=pd.DataFrame(
+                [
+                    {
+                        "column_name": target,
+                        "expected_property": expected_property,
+                        "matches": bool(matches),
+                        "dtype": column.inferred_type,
+                        "semantic_role": self._semantic_role(target, profile),
+                        "is_identifier_candidate": bool(column.is_identifier_candidate),
+                    }
+                ]
+            ),
+        )
+
+    def _column_matches_property(self, column: ColumnProfile, profile: DatasetProfile, expected_property: str) -> bool:
+        if expected_property == "datetime":
+            return column.name in set(profile.time_columns) or column.inferred_type == "datetime"
+        if expected_property == "numeric":
+            return column.name in set(profile.measure_columns) or column.inferred_type in {"integer", "float", "numeric"}
+        if expected_property == "categorical":
+            return column.name in set(profile.dimension_columns) or column.inferred_type in {"category", "string", "boolean"}
+        if expected_property == "identifier":
+            return column.name in set(profile.identifier_columns) or bool(column.is_identifier_candidate)
+        return False
 
     def _semantic_role(self, column_name: str, profile: DatasetProfile) -> str:
         if column_name in set(profile.time_columns):

@@ -137,6 +137,29 @@ EXISTENCE_REQUEST_KEYWORDS = {
     "has",
     "shows",
 }
+NULL_CHECK_KEYWORDS = {
+    "missing value",
+    "missing values",
+    "missing data",
+    "null value",
+    "null values",
+    "blank value",
+    "blank values",
+    "empty value",
+    "empty values",
+}
+COMPLETE_CHECK_KEYWORDS = {
+    "complete",
+    "fully populated",
+    "no missing values",
+    "no null values",
+    "without missing values",
+    "without null values",
+}
+NUMERIC_PROPERTY_KEYWORDS = {"numeric", "numerical", "number field", "number column", "number"}
+DATETIME_PROPERTY_KEYWORDS = {"datetime", "date/time", "date field", "date column", "time field", "time column"}
+IDENTIFIER_PROPERTY_KEYWORDS = {"identifier", "identifiers", "primary key", "primary keys", "id field", "id column"}
+CATEGORICAL_PROPERTY_KEYWORDS = {"categorical", "category", "text field", "text column", "string field", "string column"}
 STATISTICAL_TEST_KEYWORDS = {
     "t_test": {"t-test", "t test", "ttest"},
     "chi_square": {"chi-square", "chi square", "chisquare"},
@@ -264,17 +287,15 @@ class InputCanonicalizer:
         if intent_name in {"row_ranking", "group_ranking"}:
             aggregation = None
         if intent_name == "existence_check":
-            existence_mode = self._resolve_existence_mode(question, profile, target, filters)
-            options["existence_mode"] = existence_mode
-            if existence_mode == "time_value":
-                target = target or (profile.time_columns[0] if profile.time_columns else None)
-                expected_year = self._extract_year_value(question)
-                if expected_year is not None:
-                    options["expected_year"] = expected_year
-            else:
-                target = None
-                aggregation = None
-                group_by = None
+            target, aggregation, group_by = self._configure_existence_request(
+                question,
+                profile,
+                target,
+                aggregation,
+                group_by,
+                filters,
+                options,
+            )
         if options.get("statistical_test"):
             task_type_hint = "statistical"
         if options.get("statistical_test") == "chi_square" and options.get("comparison_columns"):
@@ -368,6 +389,44 @@ class InputCanonicalizer:
         )
         return request, warnings
 
+    def _configure_existence_request(
+        self,
+        question: str,
+        profile: DatasetProfile,
+        target: str | None,
+        aggregation: str | None,
+        group_by: list[str] | None,
+        filters: dict[str, str] | None,
+        options: dict[str, object],
+    ) -> tuple[str | None, str | None, list[str] | None]:
+        existence_mode = self._resolve_existence_mode(question, profile, target, filters)
+        options["existence_mode"] = existence_mode
+
+        if existence_mode == "time_value":
+            target = target or (profile.time_columns[0] if profile.time_columns else None)
+            expected_year = self._extract_year_value(question)
+            if expected_year is not None:
+                options["expected_year"] = expected_year
+            return target, aggregation, group_by
+
+        aggregation = None
+        group_by = None
+        if existence_mode == "null_check":
+            options["null_expectation"] = self._extract_null_expectation(question)
+            return target, aggregation, group_by
+        if existence_mode == "threshold_check":
+            threshold_spec = self._extract_threshold_check_spec(question)
+            if threshold_spec:
+                options.update(threshold_spec)
+            return target, aggregation, group_by
+        if existence_mode == "column_property_check":
+            expected_property = self._extract_expected_property(question)
+            if expected_property is not None:
+                options["expected_property"] = expected_property
+            return target, aggregation, group_by
+
+        return None, aggregation, group_by
+
     def normalize_with_proposal(
         self,
         question: str,
@@ -411,17 +470,15 @@ class InputCanonicalizer:
         if rule_intent_name in {"row_ranking", "group_ranking"}:
             aggregation = None
         if rule_intent_name == "existence_check":
-            existence_mode = self._resolve_existence_mode(question, profile, target, filters)
-            options["existence_mode"] = existence_mode
-            if existence_mode == "time_value":
-                target = target or (profile.time_columns[0] if profile.time_columns else None)
-                expected_year = self._extract_year_value(question)
-                if expected_year is not None:
-                    options["expected_year"] = expected_year
-            else:
-                target = None
-                aggregation = None
-                group_by = None
+            target, aggregation, group_by = self._configure_existence_request(
+                question,
+                profile,
+                target,
+                aggregation,
+                group_by,
+                filters,
+                options,
+            )
         if options.get("statistical_test"):
             task_type_hint = "statistical"
         if options.get("statistical_test") == "chi_square" and options.get("comparison_columns"):
@@ -568,6 +625,7 @@ class InputCanonicalizer:
         for column_name in profile.dimension_columns:
             dimension_aliases[column_name.lower()] = column_name
         time_aliases = {column_name.lower(): column_name for column_name in profile.time_columns}
+        all_column_aliases = {column.name.lower(): column.name for column in profile.columns}
 
         for alias, resolved_name in measure_aliases.items():
             if alias in lowered:
@@ -582,6 +640,16 @@ class InputCanonicalizer:
             time_token_match = self._resolve_column_by_tokens(lowered, profile.time_columns, context)
             if time_token_match:
                 return time_token_match
+            for alias, resolved_name in all_column_aliases.items():
+                if alias in lowered:
+                    return resolved_name
+            any_column_token_match = self._resolve_column_by_tokens(
+                lowered,
+                [column.name for column in profile.columns],
+                context,
+            )
+            if any_column_token_match:
+                return any_column_token_match
         if intent_name in {"distinct_values", "representation_ranking"}:
             for alias, resolved_name in dimension_aliases.items():
                 if alias in lowered:
@@ -911,7 +979,7 @@ class InputCanonicalizer:
             return "numeric_column_inventory"
         if self._looks_like_categorical_column_inventory_request(lowered):
             return "categorical_column_inventory"
-        if any(keyword in lowered for keyword in MISSING_VALUE_INVENTORY_KEYWORDS):
+        if any(keyword in lowered for keyword in MISSING_VALUE_INVENTORY_KEYWORDS) and not self._looks_like_column_specific_null_check(question, profile):
             return "missing_value_inventory"
         if any(keyword in lowered for keyword in IDENTIFIER_INVENTORY_KEYWORDS):
             return "identifier_inventory"
@@ -1041,12 +1109,27 @@ class InputCanonicalizer:
         starts_like_boolean_check = lowered.strip().startswith(("is ", "are ", "does ", "do "))
         if not starts_like_boolean_check and not any(keyword in lowered for keyword in EXISTENCE_REQUEST_KEYWORDS):
             return False
+        target = self._resolve_target(question, profile, None, "existence_check")
         year_value = self._extract_year_value(question)
         if year_value is not None and profile.time_columns:
-            if "date" in lowered or "dates" in lowered or any(column.lower() in lowered for column in profile.time_columns):
+            if target in set(profile.time_columns) or "date" in lowered or "dates" in lowered:
                 return True
+        if self._extract_null_expectation(question) is not None and target is not None:
+            return True
+        if self._extract_threshold_check_spec(question) is not None and target is not None:
+            return True
+        if self._extract_expected_property(question) is not None and target is not None:
+            return True
         filters = self._extract_filters(question, profile, None)
         return bool(filters)
+
+    def _looks_like_column_specific_null_check(self, question: str, profile: DatasetProfile) -> bool:
+        lowered = question.lower()
+        if self._extract_null_expectation(question) is None:
+            return False
+        if not lowered.strip().startswith(("is ", "are ", "does ", "do ")):
+            return False
+        return self._resolve_target(question, profile, None, "existence_check") is not None
 
     def _time_coverage_mode(self, question: str) -> str:
         lowered = question.lower()
@@ -1083,7 +1166,55 @@ class InputCanonicalizer:
         if self._extract_year_value(question) is not None and profile.time_columns:
             if target in set(profile.time_columns) or "date" in lowered or "dates" in lowered:
                 return "time_value"
+        if self._extract_null_expectation(question) is not None and target is not None:
+            return "null_check"
+        if self._extract_threshold_check_spec(question) is not None and target is not None:
+            return "threshold_check"
+        if self._extract_expected_property(question) is not None and target is not None:
+            return "column_property_check"
         return "filtered_rows"
+
+    def _extract_null_expectation(self, question: str) -> str | None:
+        lowered = question.lower()
+        if any(keyword in lowered for keyword in COMPLETE_CHECK_KEYWORDS):
+            return "no_nulls"
+        if any(keyword in lowered for keyword in NULL_CHECK_KEYWORDS):
+            return "has_nulls"
+        return None
+
+    def _extract_threshold_check_spec(self, question: str) -> dict[str, object] | None:
+        lowered = question.lower()
+        between_match = re.search(r"\bbetween\s+(-?\d+(?:\.\d+)?)\s+and\s+(-?\d+(?:\.\d+)?)\b", lowered)
+        if between_match:
+            lower_bound = float(between_match.group(1))
+            upper_bound = float(between_match.group(2))
+            if lower_bound > upper_bound:
+                lower_bound, upper_bound = upper_bound, lower_bound
+            return {"threshold_operator": "between", "lower_bound": lower_bound, "upper_bound": upper_bound}
+
+        threshold_patterns = {
+            "gt": r"\b(?:above|over|greater than|more than)\s+(-?\d+(?:\.\d+)?)\b",
+            "gte": r"\b(?:at least|greater than or equal to|no less than)\s+(-?\d+(?:\.\d+)?)\b",
+            "lt": r"\b(?:below|under|less than)\s+(-?\d+(?:\.\d+)?)\b",
+            "lte": r"\b(?:at most|less than or equal to|no more than)\s+(-?\d+(?:\.\d+)?)\b",
+        }
+        for operator, pattern in threshold_patterns.items():
+            match = re.search(pattern, lowered)
+            if match:
+                return {"threshold_operator": operator, "threshold_value": float(match.group(1))}
+        return None
+
+    def _extract_expected_property(self, question: str) -> str | None:
+        lowered = question.lower()
+        if any(keyword in lowered for keyword in IDENTIFIER_PROPERTY_KEYWORDS):
+            return "identifier"
+        if any(keyword in lowered for keyword in DATETIME_PROPERTY_KEYWORDS):
+            return "datetime"
+        if any(keyword in lowered for keyword in NUMERIC_PROPERTY_KEYWORDS):
+            return "numeric"
+        if any(keyword in lowered for keyword in CATEGORICAL_PROPERTY_KEYWORDS):
+            return "categorical"
+        return None
 
     def _extract_year_value(self, question: str) -> int | None:
         match = re.search(r"\b(19|20)\d{2}\b", question)

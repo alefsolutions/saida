@@ -315,6 +315,69 @@ def test_duckdb_row_existence_returns_false_when_no_match() -> None:
     assert row["matching_row_count"] == 0
 
 
+def test_duckdb_null_check_returns_true_for_missing_values() -> None:
+    engine = DuckDBComputeEngine()
+    dataframe = pd.DataFrame({"csat_score": [4.8, None, 4.1, 3.9]})
+
+    table = engine.null_check(dataframe, target="csat_score", null_expectation="has_nulls")
+
+    row = table.dataframe.iloc[0]
+    assert bool(row["matches"]) is True
+    assert row["null_row_count"] == 1
+
+
+def test_duckdb_null_check_returns_true_for_complete_column() -> None:
+    engine = DuckDBComputeEngine()
+    dataframe = pd.DataFrame({"revenue": [100.0, 90.0, 80.0]})
+
+    table = engine.null_check(dataframe, target="revenue", null_expectation="no_nulls")
+
+    row = table.dataframe.iloc[0]
+    assert bool(row["matches"]) is True
+    assert row["null_row_count"] == 0
+
+
+def test_duckdb_threshold_check_returns_true_for_above_threshold() -> None:
+    engine = DuckDBComputeEngine()
+    dataframe = pd.DataFrame({"resolution_hours": [4.0, 21.5, 19.0]})
+
+    table = engine.threshold_check(dataframe, target="resolution_hours", threshold_operator="gt", threshold_value=20.0)
+
+    row = table.dataframe.iloc[0]
+    assert bool(row["matches"]) is True
+    assert row["matching_row_count"] == 1
+
+
+def test_duckdb_threshold_check_returns_false_when_no_values_match() -> None:
+    engine = DuckDBComputeEngine()
+    dataframe = pd.DataFrame({"revenue": [100.0, 90.0, 80.0]})
+
+    table = engine.threshold_check(dataframe, target="revenue", threshold_operator="lt", threshold_value=0.0)
+
+    row = table.dataframe.iloc[0]
+    assert bool(row["matches"]) is False
+    assert row["matching_row_count"] == 0
+
+
+def test_duckdb_threshold_check_supports_between_bounds() -> None:
+    engine = DuckDBComputeEngine()
+    dataframe = pd.DataFrame({"csat_score": [2.5, 3.2, 4.4, 5.5]})
+
+    table = engine.threshold_check(dataframe, target="csat_score", threshold_operator="between", lower_bound=3.0, upper_bound=5.0)
+
+    row = table.dataframe.iloc[0]
+    assert bool(row["matches"]) is True
+    assert row["matching_row_count"] == 2
+
+
+def test_duckdb_threshold_check_rejects_non_numeric_values() -> None:
+    engine = DuckDBComputeEngine()
+    dataframe = pd.DataFrame({"region": ["West", "East"]})
+
+    with pytest.raises(ComputeError, match="has no numeric values for threshold verification"):
+        engine.threshold_check(dataframe, target="region", threshold_operator="gt", threshold_value=1.0)
+
+
 def test_duckdb_ranked_breakdown_respects_limit() -> None:
     engine = DuckDBComputeEngine()
     dataframe = build_dataframe()

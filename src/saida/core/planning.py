@@ -178,6 +178,50 @@ class PlanBuilder:
                             description="Verify whether the requested time value exists in the dataset.",
                         )
                     )
+                elif existence_mode == "null_check":
+                    steps.append(
+                        PlanStep(
+                            step_id="null_check",
+                            tool_family="duckdb",
+                            action="null_check",
+                            parameters={
+                                "target": request.target,
+                                "filters": request.filters,
+                                "null_expectation": request.options.get("null_expectation", "has_nulls"),
+                            },
+                            description="Verify whether the requested column has missing values or is complete.",
+                        )
+                    )
+                elif existence_mode == "threshold_check":
+                    steps.append(
+                        PlanStep(
+                            step_id="threshold_check",
+                            tool_family="duckdb",
+                            action="threshold_check",
+                            parameters={
+                                "target": request.target,
+                                "filters": request.filters,
+                                "threshold_operator": request.options.get("threshold_operator"),
+                                "threshold_value": request.options.get("threshold_value"),
+                                "lower_bound": request.options.get("lower_bound"),
+                                "upper_bound": request.options.get("upper_bound"),
+                            },
+                            description="Verify whether the requested numeric threshold condition is present in the data.",
+                        )
+                    )
+                elif existence_mode == "column_property_check":
+                    steps.append(
+                        PlanStep(
+                            step_id="column_property_check",
+                            tool_family="metadata",
+                            action="column_property_check",
+                            parameters={
+                                "target": request.target,
+                                "expected_property": request.options.get("expected_property"),
+                            },
+                            description="Verify whether the requested column has the expected schema property.",
+                        )
+                    )
                 else:
                     steps.append(
                         PlanStep(
@@ -615,6 +659,25 @@ class PlanBuilder:
                     raise PlanningError("Time existence verification requires a datetime target column.")
                 if request.options.get("expected_year") is None and not request.time_reference:
                     raise PlanningError("Time existence verification requires a concrete year or time reference.")
+            elif existence_mode == "null_check":
+                if request.target is None:
+                    raise PlanningError("Null verification requires a target column.")
+                if request.options.get("null_expectation") not in {"has_nulls", "no_nulls"}:
+                    raise PlanningError("Null verification requires a supported missing-value expectation.")
+            elif existence_mode == "threshold_check":
+                if request.target is None or request.target not in set(profile.measure_columns):
+                    raise PlanningError("Threshold verification requires a numeric target.")
+                operator = request.options.get("threshold_operator")
+                if operator == "between":
+                    if request.options.get("lower_bound") is None or request.options.get("upper_bound") is None:
+                        raise PlanningError("Between-threshold verification requires lower and upper bounds.")
+                elif operator not in {"gt", "gte", "lt", "lte"} or request.options.get("threshold_value") is None:
+                    raise PlanningError("Threshold verification requires a supported comparator and threshold value.")
+            elif existence_mode == "column_property_check":
+                if request.target is None:
+                    raise PlanningError("Column property verification requires a target column.")
+                if request.options.get("expected_property") not in {"datetime", "numeric", "categorical", "identifier"}:
+                    raise PlanningError("Column property verification requires a supported expected property.")
             elif not request.filters:
                 raise PlanningError("Existence verification requires filters or a time-value check.")
         if request.options.get("statistical_test") == "chi_square":

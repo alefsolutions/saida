@@ -138,6 +138,16 @@ The current prototype also already supports richer time-derived prompts such as:
 - `Compare revenue this quarter to last quarter`
 - `Compare revenue this year to last year`
 
+The current prototype also already supports boolean verification prompts such as:
+
+- `Does csat_score have missing values?`
+- `Is csat_score complete?`
+- `Are any resolution hours above 20?`
+- `Does csat_score fall between 3 and 5?`
+- `Is revenue numeric?`
+- `Is created_at a datetime field?`
+- `Is ticket_id likely an identifier?`
+
 ## Design Rule
 
 The API surface should stay thin.

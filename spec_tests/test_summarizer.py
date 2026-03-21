@@ -706,6 +706,162 @@ def test_summarizer_describes_high_cardinality_inventory() -> None:
     assert "High-cardinality columns: ticket_id (4 unique, 100.0% distinct); created_at (4 unique, 100.0% distinct)." in summary
 
 
+def test_summarizer_describes_null_check() -> None:
+    summarizer = ResultSummarizer()
+    plan = AnalysisPlan(task_type="descriptive", rationale="Test.")
+    request = AnalysisRequest(
+        question="Does csat_score have missing values?",
+        intent_name="existence_check",
+        task_type_hint="descriptive",
+        target="csat_score",
+        options={"existence_mode": "null_check", "null_expectation": "has_nulls"},
+    )
+
+    summary = summarizer.summarize(
+        plan,
+        metrics=[],
+        tables=[
+            TableArtifact(
+                name="null_check",
+                description="Null verification.",
+                dataframe=pd.DataFrame(
+                    {
+                        "column_name": ["csat_score"],
+                        "null_expectation": ["has_nulls"],
+                        "matches": [True],
+                        "null_row_count": [1],
+                        "non_null_row_count": [3],
+                        "total_row_count": [4],
+                    }
+                ),
+            )
+        ],
+        warnings=[],
+        request=request,
+        profile=build_schema_profile(),
+        context=None,
+    )
+
+    assert "Yes, csat_score has missing values (1 null rows out of 4)." in summary
+
+
+def test_summarizer_describes_threshold_check() -> None:
+    summarizer = ResultSummarizer()
+    plan = AnalysisPlan(task_type="descriptive", rationale="Test.")
+    request = AnalysisRequest(
+        question="Are any resolution_hours above 20?",
+        intent_name="existence_check",
+        task_type_hint="descriptive",
+        target="resolution_hours",
+        options={"existence_mode": "threshold_check", "threshold_operator": "gt", "threshold_value": 20.0},
+    )
+
+    summary = summarizer.summarize(
+        plan,
+        metrics=[],
+        tables=[
+            TableArtifact(
+                name="threshold_check",
+                description="Threshold verification.",
+                dataframe=pd.DataFrame(
+                    {
+                        "column_name": ["resolution_hours"],
+                        "threshold_operator": ["gt"],
+                        "threshold_value": [20.0],
+                        "lower_bound": [None],
+                        "upper_bound": [None],
+                        "matches": [True],
+                        "matching_row_count": [2],
+                        "total_numeric_row_count": [6],
+                    }
+                ),
+            )
+        ],
+        warnings=[],
+        request=request,
+        profile=build_schema_profile(),
+        context=None,
+    )
+
+    assert "Yes, resolution_hours contains values above 20.00 (2 matching rows out of 6)." in summary
+
+
+def test_summarizer_describes_column_property_check() -> None:
+    summarizer = ResultSummarizer()
+    plan = AnalysisPlan(task_type="descriptive", rationale="Test.")
+    request = AnalysisRequest(
+        question="Is ticket_id likely an identifier?",
+        intent_name="existence_check",
+        task_type_hint="descriptive",
+        target="ticket_id",
+        options={"existence_mode": "column_property_check", "expected_property": "identifier"},
+    )
+
+    summary = summarizer.summarize(
+        plan,
+        metrics=[],
+        tables=[
+            TableArtifact(
+                name="column_property_check",
+                description="Property verification.",
+                dataframe=pd.DataFrame(
+                    {
+                        "column_name": ["ticket_id"],
+                        "expected_property": ["identifier"],
+                        "matches": [True],
+                        "dtype": ["string"],
+                    }
+                ),
+            )
+        ],
+        warnings=[],
+        request=request,
+        profile=build_schema_profile(),
+        context=None,
+    )
+
+    assert "Yes, ticket_id is likely an identifier." in summary
+
+
+def test_summarizer_describes_negative_complete_check() -> None:
+    summarizer = ResultSummarizer()
+    plan = AnalysisPlan(task_type="descriptive", rationale="Test.")
+    request = AnalysisRequest(
+        question="Is csat_score complete?",
+        intent_name="existence_check",
+        task_type_hint="descriptive",
+        target="csat_score",
+        options={"existence_mode": "null_check", "null_expectation": "no_nulls"},
+    )
+
+    summary = summarizer.summarize(
+        plan,
+        metrics=[],
+        tables=[
+            TableArtifact(
+                name="null_check",
+                description="Null verification.",
+                dataframe=pd.DataFrame(
+                    {
+                        "column_name": ["csat_score"],
+                        "null_expectation": ["no_nulls"],
+                        "matches": [False],
+                        "null_row_count": [1],
+                        "non_null_row_count": [3],
+                        "total_row_count": [4],
+                    }
+                ),
+            )
+        ],
+        warnings=[],
+        request=request,
+        profile=build_schema_profile(),
+        context=None,
+    )
+
+    assert "No, csat_score is not complete (1 null rows out of 4)." in summary
+
+
 def test_summarizer_lists_top_ranked_row_values() -> None:
     summarizer = ResultSummarizer()
     plan = AnalysisPlan(task_type="descriptive", rationale="Test.")

@@ -18,6 +18,8 @@ Quick links: [Main README](./README.md) | [Architecture](./ARCHITECTURE.md) | [L
 - Added metadata result tables and summaries for typed schema questions in the 0.2.0 prototype.
 - Added richer time-derived grouping and comparison support across year, month, and quarter buckets.
 - Added deterministic adjacent-period comparison support for month, quarter, and year prompts in the 0.2.0 prototype.
+- Added broader boolean verification support for null checks, completeness checks, threshold checks, range checks, and column-property checks.
+- Added canonical verification result tables and summaries for the expanded Phase 3 prompt family in the 0.2.0 prototype.
 
 ### Planned
 

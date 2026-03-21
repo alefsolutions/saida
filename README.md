@@ -90,6 +90,18 @@ The current 0.2.0 prototype also supports richer time-derived analysis prompts s
 
 These prompts now route into canonical time-bucket tables and deterministic adjacent-period comparisons.
 
+The current 0.2.0 prototype also supports broader boolean verification prompts such as:
+
+- `Does csat_score have missing values?`
+- `Is csat_score complete?`
+- `Are any resolution hours above 20?`
+- `Does csat_score fall between 3 and 5?`
+- `Is revenue numeric?`
+- `Is created_at a datetime field?`
+- `Is ticket_id likely an identifier?`
+
+These prompts now route into canonical verification results instead of falling back to generic descriptive analysis.
+
 ## Sources And Backends
 
 The architecture defines SAIDA as multi-source and multi-backend.

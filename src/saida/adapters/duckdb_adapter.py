@@ -272,6 +272,94 @@ class DuckDBAdapter:
             ),
         )
 
+    def null_check(
+        self,
+        dataframe: pd.DataFrame,
+        target: str,
+        null_expectation: str = "has_nulls",
+        filters: dict[str, str] | None = None,
+    ) -> TableArtifact:
+        """Return whether a column has nulls or is complete."""
+        prepared = self._apply_filters(dataframe, filters)
+        self._require_columns(prepared, [target])
+        null_count = int(prepared[target].isna().sum())
+        total_row_count = int(len(prepared))
+        non_null_row_count = total_row_count - null_count
+        matches = null_count > 0 if null_expectation == "has_nulls" else null_count == 0
+        return TableArtifact(
+            name="null_check",
+            description=f"Whether {target} satisfies the requested null-value condition.",
+            dataframe=pd.DataFrame(
+                [
+                    {
+                        "column_name": target,
+                        "null_expectation": null_expectation,
+                        "matches": bool(matches),
+                        "null_row_count": null_count,
+                        "non_null_row_count": non_null_row_count,
+                        "total_row_count": total_row_count,
+                    }
+                ]
+            ),
+        )
+
+    def threshold_check(
+        self,
+        dataframe: pd.DataFrame,
+        target: str,
+        threshold_operator: str,
+        threshold_value: float | None = None,
+        lower_bound: float | None = None,
+        upper_bound: float | None = None,
+        filters: dict[str, str] | None = None,
+    ) -> TableArtifact:
+        """Return whether a numeric target satisfies a threshold condition."""
+        prepared = self._apply_filters(dataframe, filters).copy()
+        self._require_columns(prepared, [target])
+        prepared["_threshold_target"] = pd.to_numeric(prepared[target], errors="coerce")
+        prepared = prepared.dropna(subset=["_threshold_target"])
+        if prepared.empty:
+            raise ComputeError(f"Target column '{target}' has no numeric values for threshold verification.")
+
+        series = prepared["_threshold_target"]
+        if threshold_operator == "between":
+            if lower_bound is None or upper_bound is None:
+                raise ComputeError("Between-threshold verification requires lower and upper bounds.")
+            match_mask = series.between(lower_bound, upper_bound, inclusive="both")
+        elif threshold_operator == "gt":
+            match_mask = series > float(threshold_value)
+        elif threshold_operator == "gte":
+            match_mask = series >= float(threshold_value)
+        elif threshold_operator == "lt":
+            match_mask = series < float(threshold_value)
+        elif threshold_operator == "lte":
+            match_mask = series <= float(threshold_value)
+        else:
+            raise ComputeError(f"Unsupported threshold operator: {threshold_operator}")
+
+        matching_row_count = int(match_mask.sum())
+        total_numeric_row_count = int(len(prepared))
+        return TableArtifact(
+            name="threshold_check",
+            description=f"Whether {target} satisfies the requested threshold condition.",
+            dataframe=pd.DataFrame(
+                [
+                    {
+                        "column_name": target,
+                        "threshold_operator": threshold_operator,
+                        "threshold_value": threshold_value,
+                        "lower_bound": lower_bound,
+                        "upper_bound": upper_bound,
+                        "matches": bool(matching_row_count > 0),
+                        "matching_row_count": matching_row_count,
+                        "total_numeric_row_count": total_numeric_row_count,
+                        "observed_min": float(series.min()),
+                        "observed_max": float(series.max()),
+                    }
+                ]
+            ),
+        )
+
     def count_rows_by_group(
         self,
         dataframe: pd.DataFrame,

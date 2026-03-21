@@ -834,6 +834,103 @@ def test_analyze_returns_no_for_filtered_row_existence_prompt() -> None:
     assert any(table.name == "row_existence" for table in result.tables)
 
 
+def test_analyze_returns_yes_for_missing_value_verification_prompt() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "ticket_id": ["T1", "T2", "T3", "T4"],
+            "csat_score": [4.8, None, 4.1, 3.9],
+            "priority": ["Low", "Medium", "High", "Medium"],
+        }
+    )
+    dataset = Dataset(name="support", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "Does csat_score have missing values?")
+
+    assert "Yes, csat_score has missing values" in result.summary
+    assert result.response["interpretation"]["options"]["existence_mode"] == "null_check"
+    assert any(table.name == "null_check" for table in result.tables)
+
+
+def test_analyze_returns_no_for_incomplete_column_check() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "ticket_id": ["T1", "T2", "T3", "T4"],
+            "csat_score": [4.8, None, 4.1, 3.9],
+        }
+    )
+    dataset = Dataset(name="support", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "Is csat_score complete?")
+
+    assert "No, csat_score is not complete" in result.summary
+    assert result.response["interpretation"]["options"]["existence_mode"] == "null_check"
+    assert any(table.name == "null_check" for table in result.tables)
+
+
+def test_analyze_returns_yes_for_threshold_verification_prompt() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "resolution_hours": [4.0, 21.5, 19.0],
+            "team": ["Support", "Platform", "Support"],
+        }
+    )
+    dataset = Dataset(name="tickets", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "Are any resolution hours above 20?")
+
+    assert "Yes, resolution_hours contains values above 20.00" in result.summary
+    assert result.response["interpretation"]["options"]["existence_mode"] == "threshold_check"
+    assert any(table.name == "threshold_check" for table in result.tables)
+
+
+def test_analyze_returns_yes_for_numeric_property_check() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "revenue": [100.0, 120.0],
+            "region": ["West", "East"],
+        }
+    )
+    dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "Is revenue numeric?")
+
+    assert "Yes, revenue is a numeric column." in result.summary
+    assert result.response["interpretation"]["options"]["existence_mode"] == "column_property_check"
+    assert any(table.name == "column_property_check" for table in result.tables)
+
+
+def test_analyze_returns_yes_for_datetime_property_check() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "created_at": ["2026-01-01", "2026-01-02"],
+            "priority": ["Low", "High"],
+        }
+    )
+    dataset = Dataset(name="support", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "Is created_at a datetime field?")
+
+    assert "Yes, created_at is a datetime column." in result.summary
+    assert result.response["interpretation"]["options"]["existence_mode"] == "column_property_check"
+    assert any(table.name == "column_property_check" for table in result.tables)
+
+
+def test_analyze_returns_yes_for_identifier_property_check() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "ticket_id": ["T1", "T2", "T3", "T4"],
+            "priority": ["Low", "Medium", "High", "Medium"],
+        }
+    )
+    dataset = Dataset(name="support", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "Is ticket_id likely an identifier?")
+
+    assert "Yes, ticket_id is likely an identifier." in result.summary
+    assert result.response["interpretation"]["options"]["existence_mode"] == "column_property_check"
+    assert any(table.name == "column_property_check" for table in result.tables)
+
+
 def test_analyze_supports_p_value_driven_inference_workflow() -> None:
     dataframe = pd.DataFrame(
         {
