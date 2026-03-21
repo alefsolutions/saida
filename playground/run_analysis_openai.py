@@ -86,17 +86,17 @@ def main() -> None:
         summary = getattr(result, "summary", "")
         deterministic_summary = getattr(result, "deterministic_summary", None)
         print(llm_summary or summary)
-        # if deterministic_summary:
-        #     print("..........", deterministic_summary)
-        # print()
-        # if result.tables:
-        #     print("Tables:", ", ".join(table.name for table in result.tables))
-        # if result.warnings:
-        #     print("Warnings:", "; ".join(result.warnings))
+        if deterministic_summary:
+            print("..........", deterministic_summary)
+        print()
+        if result.tables:
+            print("Tables:", ", ".join(table.name for table in result.tables))
+        if result.warnings:
+            print("Warnings:", "; ".join(result.warnings))
 
-        # if result.plan.task_type == "clarification":
-        #     pending_prompt = question
-        #     print("Please answer the clarification above, or type 'exit' to quit.")
+        if result.plan.task_type == "clarification":
+            pending_prompt = question
+            print("Please answer the clarification above, or type 'exit' to quit.")
 
 
 if __name__ == "__main__":

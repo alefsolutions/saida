@@ -24,15 +24,24 @@ class PlanBuilder:
         if request.target is None and profile.measure_columns and request.intent_name not in {
             "row_count",
             "column_inventory",
+            "column_type_inventory",
+            "numeric_column_inventory",
+            "categorical_column_inventory",
             "measure_inventory",
             "dimension_inventory",
             "time_column_inventory",
+            "missing_value_inventory",
+            "identifier_inventory",
+            "high_cardinality_inventory",
             "time_coverage",
+            "time_bucket_counts",
+            "existence_check",
         }:
             request.target = profile.measure_columns[0]
             warnings.append("No target was provided; using the first measure column.")
 
         if task_type in {"descriptive", "diagnostic", "statistical"}:
+            numeric_target = bool(request.target and request.target in set(profile.measure_columns))
             statistical_test = request.options.get("statistical_test")
             if task_type == "statistical" and statistical_test:
                 steps.append(
@@ -55,7 +64,18 @@ class PlanBuilder:
                 )
                 rationale = self._build_rationale(task_type, request, context)
                 return AnalysisPlan(task_type=task_type, rationale=rationale, steps=steps, warnings=warnings)
-            if request.intent_name in {"column_inventory", "measure_inventory", "dimension_inventory", "time_column_inventory"}:
+            if request.intent_name in {
+                "column_inventory",
+                "column_type_inventory",
+                "numeric_column_inventory",
+                "categorical_column_inventory",
+                "measure_inventory",
+                "dimension_inventory",
+                "time_column_inventory",
+                "missing_value_inventory",
+                "identifier_inventory",
+                "high_cardinality_inventory",
+            }:
                 steps.append(
                     PlanStep(
                         step_id=request.intent_name,
@@ -81,6 +101,51 @@ class PlanBuilder:
                         description="Inspect time coverage in the dataset without treating the datetime column as a metric.",
                     )
                 )
+                rationale = self._build_rationale(task_type, request, context)
+                return AnalysisPlan(task_type=task_type, rationale=rationale, steps=steps, warnings=warnings)
+            if request.intent_name == "time_bucket_counts":
+                steps.append(
+                    PlanStep(
+                        step_id="time_bucket_counts",
+                        tool_family="duckdb",
+                        action="time_bucket_counts",
+                        parameters={
+                            "time_column": profile.time_columns[0],
+                            "filters": request.filters,
+                            "bucket": request.options.get("time_bucket", "year"),
+                        },
+                        description="Count rows across derived time buckets such as years or months.",
+                    )
+                )
+                rationale = self._build_rationale(task_type, request, context)
+                return AnalysisPlan(task_type=task_type, rationale=rationale, steps=steps, warnings=warnings)
+            if request.intent_name == "existence_check":
+                existence_mode = request.options.get("existence_mode", "filtered_rows")
+                if existence_mode == "time_value":
+                    steps.append(
+                        PlanStep(
+                            step_id="time_value_exists",
+                            tool_family="duckdb",
+                            action="time_value_exists",
+                            parameters={
+                                "time_column": request.target or profile.time_columns[0],
+                                "filters": request.filters,
+                                "expected_year": request.options.get("expected_year"),
+                                "time_reference": request.time_reference,
+                            },
+                            description="Verify whether the requested time value exists in the dataset.",
+                        )
+                    )
+                else:
+                    steps.append(
+                        PlanStep(
+                            step_id="row_existence",
+                            tool_family="duckdb",
+                            action="row_existence",
+                            parameters={"filters": request.filters or {}},
+                            description="Verify whether any rows match the requested filters.",
+                        )
+                    )
                 rationale = self._build_rationale(task_type, request, context)
                 return AnalysisPlan(task_type=task_type, rationale=rationale, steps=steps, warnings=warnings)
             if request.intent_name == "row_count":
@@ -178,7 +243,7 @@ class PlanBuilder:
                 warnings.append("Dimension prompt was routed to a distinct value listing.")
                 rationale = self._build_rationale(task_type, request, context)
                 return AnalysisPlan(task_type=task_type, rationale=rationale, steps=steps, warnings=warnings)
-            if request.target and request.aggregation:
+            if numeric_target and request.aggregation:
                 steps.append(
                     PlanStep(
                         step_id="aggregate_value",
@@ -201,7 +266,7 @@ class PlanBuilder:
                     description="Compute top-level dataset metrics.",
                 )
             )
-            if request.target and profile.time_columns:
+            if numeric_target and profile.time_columns:
                 steps.append(
                     PlanStep(
                         step_id="time_trend",
@@ -216,7 +281,7 @@ class PlanBuilder:
                         description="Compute the target trend over time.",
                     )
                 )
-            if request.target and request.time_reference and profile.time_columns:
+            if numeric_target and request.time_reference and profile.time_columns:
                 steps.append(
                     PlanStep(
                         step_id="period_comparison",
@@ -249,7 +314,7 @@ class PlanBuilder:
                             description="Compare grouped totals between adjacent periods.",
                         )
                     )
-            if request.group_by:
+            if numeric_target and request.group_by:
                 steps.append(
                     PlanStep(
                         step_id="group_breakdown",
@@ -297,7 +362,7 @@ class PlanBuilder:
                             description="Identify the largest grouped movers between adjacent periods.",
                         )
                     )
-            elif task_type == "diagnostic" and request.target and profile.dimension_columns:
+            elif task_type == "diagnostic" and numeric_target and profile.dimension_columns:
                 steps.append(
                     PlanStep(
                         step_id="top_dimension_breakdown",
@@ -345,7 +410,7 @@ class PlanBuilder:
                             description="Identify the largest movers for the leading dimension candidate.",
                         )
                     )
-            if task_type == "diagnostic" and request.target and profile.dimension_columns:
+            if task_type == "diagnostic" and numeric_target and profile.dimension_columns:
                 steps.append(
                     PlanStep(
                         step_id="contribution_breakdown",
@@ -380,7 +445,7 @@ class PlanBuilder:
                     description="Summarize numeric columns with deterministic statistics.",
                 )
             )
-            if request.target:
+            if numeric_target:
                 steps.append(
                     PlanStep(
                         step_id="distribution_summary",
@@ -484,6 +549,21 @@ class PlanBuilder:
                 raise PlanningError("Group ranking requires a numeric target and one grouping column.")
         if request.intent_name == "time_coverage" and not profile.time_columns:
             raise PlanningError("Time coverage analysis requires a datetime column.")
+        if request.intent_name == "time_bucket_counts" and not profile.time_columns:
+            raise PlanningError("Time bucket count analysis requires a datetime column.")
+        if request.intent_name == "time_column_inventory" and not profile.time_columns:
+            raise PlanningError("Time column inventory requires at least one datetime column.")
+        if request.intent_name == "existence_check":
+            existence_mode = request.options.get("existence_mode", "filtered_rows")
+            if existence_mode == "time_value":
+                if not profile.time_columns:
+                    raise PlanningError("Time existence verification requires a datetime column.")
+                if request.target is not None and request.target not in set(profile.time_columns):
+                    raise PlanningError("Time existence verification requires a datetime target column.")
+                if request.options.get("expected_year") is None and not request.time_reference:
+                    raise PlanningError("Time existence verification requires a concrete year or time reference.")
+            elif not request.filters:
+                raise PlanningError("Existence verification requires filters or a time-value check.")
         if request.options.get("statistical_test") == "chi_square":
             comparison_columns = request.options.get("comparison_columns", [])
             if len(comparison_columns) < 2:
@@ -548,6 +628,10 @@ class PlanBuilder:
             rationale += f" Intent: {request.intent_name}."
         if request.intent_name == "time_coverage":
             rationale += f" Time coverage mode: {request.options.get('time_coverage_mode', 'years_present')}."
+        if request.intent_name == "time_bucket_counts":
+            rationale += f" Time bucket counts: {request.options.get('time_bucket', 'year')}."
+        if request.intent_name == "existence_check":
+            rationale += f" Existence mode: {request.options.get('existence_mode', 'filtered_rows')}."
         if request.options.get("statistical_test"):
             rationale += f" Statistical test: {request.options['statistical_test']}."
         return rationale

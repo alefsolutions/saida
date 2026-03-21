@@ -170,6 +170,63 @@ def test_duckdb_time_coverage_rejects_unsupported_mode() -> None:
         engine.time_coverage(build_dataframe(), time_column="posted_at", mode="week_numbers")
 
 
+def test_duckdb_time_bucket_counts_returns_year_counts() -> None:
+    engine = DuckDBComputeEngine()
+    dataframe = pd.DataFrame(
+        {
+            "posted_at": ["2024-01-01", "2025-03-01", "2025-04-01", "2026-01-15"],
+            "revenue": [10.0, 20.0, 30.0, 40.0],
+        }
+    )
+
+    table = engine.time_bucket_counts(dataframe, time_column="posted_at", bucket="year")
+
+    assert list(table.dataframe["year"]) == [2024, 2025, 2026]
+    assert list(table.dataframe["row_count"]) == [1, 2, 1]
+
+
+def test_duckdb_time_bucket_counts_returns_month_counts() -> None:
+    engine = DuckDBComputeEngine()
+    dataframe = pd.DataFrame(
+        {
+            "posted_at": ["2026-01-01", "2026-03-01", "2026-03-15", "2026-04-01"],
+            "revenue": [10.0, 20.0, 30.0, 40.0],
+        }
+    )
+
+    table = engine.time_bucket_counts(dataframe, time_column="posted_at", bucket="month")
+
+    assert list(table.dataframe["month"]) == ["2026-01", "2026-03", "2026-04"]
+    assert list(table.dataframe["row_count"]) == [1, 2, 1]
+
+
+def test_duckdb_time_bucket_counts_rejects_unsupported_bucket() -> None:
+    engine = DuckDBComputeEngine()
+
+    with pytest.raises(ComputeError, match="Unsupported time bucket"):
+        engine.time_bucket_counts(build_dataframe(), time_column="posted_at", bucket="week")
+
+
+def test_duckdb_time_value_exists_returns_true_for_year_match() -> None:
+    engine = DuckDBComputeEngine()
+
+    table = engine.time_value_exists(build_dataframe(), time_column="posted_at", expected_year=2026)
+
+    row = table.dataframe.iloc[0]
+    assert bool(row["exists"]) is True
+    assert row["matching_row_count"] == 5
+
+
+def test_duckdb_row_existence_returns_false_when_no_match() -> None:
+    engine = DuckDBComputeEngine()
+
+    table = engine.row_existence(build_dataframe(), filters={"region": "North"})
+
+    row = table.dataframe.iloc[0]
+    assert bool(row["exists"]) is False
+    assert row["matching_row_count"] == 0
+
+
 def test_duckdb_ranked_breakdown_respects_limit() -> None:
     engine = DuckDBComputeEngine()
     dataframe = build_dataframe()

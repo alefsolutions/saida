@@ -38,6 +38,71 @@ def build_profile() -> DatasetProfile:
     )
 
 
+def build_schema_profile() -> DatasetProfile:
+    return DatasetProfile(
+        dataset_name="support",
+        row_count=4,
+        column_count=5,
+        columns=[
+            ColumnProfile(
+                name="ticket_id",
+                inferred_type="string",
+                nullable=False,
+                null_ratio=0.0,
+                unique_count=4,
+                distinct_ratio=1.0,
+                sample_values=["T1"],
+                is_identifier_candidate=True,
+                is_dimension_candidate=True,
+            ),
+            ColumnProfile(
+                name="created_at",
+                inferred_type="datetime",
+                nullable=False,
+                null_ratio=0.0,
+                unique_count=4,
+                distinct_ratio=1.0,
+                sample_values=["2026-01-01"],
+                is_time_candidate=True,
+            ),
+            ColumnProfile(
+                name="resolution_hours",
+                inferred_type="float",
+                nullable=False,
+                null_ratio=0.0,
+                unique_count=4,
+                distinct_ratio=1.0,
+                sample_values=[4.2],
+                is_measure_candidate=True,
+            ),
+            ColumnProfile(
+                name="priority",
+                inferred_type="category",
+                nullable=False,
+                null_ratio=0.0,
+                unique_count=3,
+                distinct_ratio=0.75,
+                sample_values=["Low"],
+                is_dimension_candidate=True,
+            ),
+            ColumnProfile(
+                name="csat_score",
+                inferred_type="float",
+                nullable=True,
+                null_ratio=0.25,
+                unique_count=3,
+                distinct_ratio=0.75,
+                sample_values=[4.8],
+                is_measure_candidate=True,
+            ),
+        ],
+        measure_columns=["resolution_hours", "csat_score"],
+        dimension_columns=["ticket_id", "priority"],
+        time_columns=["created_at"],
+        identifier_columns=["ticket_id"],
+    )
+
+
 def test_summarizer_describes_share_of_total_and_freshness_note() -> None:
     summarizer = ResultSummarizer()
     plan = AnalysisPlan(task_type="descriptive", rationale="Test.")
@@ -440,6 +505,146 @@ def test_summarizer_describes_column_inventory() -> None:
     )
 
     assert "Available columns: revenue, region, posted_at." in summary
+
+
+def test_summarizer_describes_column_type_inventory() -> None:
+    summarizer = ResultSummarizer()
+    plan = AnalysisPlan(task_type="descriptive", rationale="Test.")
+    request = AnalysisRequest(
+        question="What are the data types of each field?",
+        intent_name="column_type_inventory",
+        task_type_hint="descriptive",
+    )
+
+    summary = summarizer.summarize(
+        plan,
+        metrics=[],
+        tables=[
+            TableArtifact(
+                name="column_type_inventory",
+                description="Column types.",
+                dataframe=pd.DataFrame(
+                    {
+                        "column_name": ["ticket_id", "created_at", "csat_score"],
+                        "dtype": ["string", "datetime", "float"],
+                        "nullable": [False, False, True],
+                    }
+                ),
+            )
+        ],
+        warnings=[],
+        request=request,
+        profile=build_schema_profile(),
+        context=None,
+    )
+
+    assert "Column types: ticket_id (string, non-null); created_at (datetime, non-null); csat_score (float, nullable)." in summary
+
+
+def test_summarizer_describes_missing_value_inventory() -> None:
+    summarizer = ResultSummarizer()
+    plan = AnalysisPlan(task_type="descriptive", rationale="Test.")
+    request = AnalysisRequest(
+        question="Which columns have missing values?",
+        intent_name="missing_value_inventory",
+        task_type_hint="descriptive",
+    )
+
+    summary = summarizer.summarize(
+        plan,
+        metrics=[],
+        tables=[
+            TableArtifact(
+                name="missing_value_inventory",
+                description="Missing values.",
+                dataframe=pd.DataFrame({"column_name": ["csat_score"], "null_count": [1], "null_ratio": [0.25]}),
+            )
+        ],
+        warnings=[],
+        request=request,
+        profile=build_schema_profile(),
+        context=None,
+    )
+
+    assert "Columns with missing values: csat_score (1 nulls, 25.0%)." in summary
+
+
+def test_summarizer_describes_no_missing_value_inventory() -> None:
+    summarizer = ResultSummarizer()
+    plan = AnalysisPlan(task_type="descriptive", rationale="Test.")
+    request = AnalysisRequest(
+        question="Which columns have missing values?",
+        intent_name="missing_value_inventory",
+        task_type_hint="descriptive",
+    )
+
+    summary = summarizer.summarize(
+        plan,
+        metrics=[],
+        tables=[TableArtifact(name="missing_value_inventory", description="Missing values.", dataframe=pd.DataFrame())],
+        warnings=[],
+        request=request,
+        profile=build_schema_profile(),
+        context=None,
+    )
+
+    assert "No columns with missing values were detected." in summary
+
+
+def test_summarizer_describes_no_identifier_inventory() -> None:
+    summarizer = ResultSummarizer()
+    plan = AnalysisPlan(task_type="descriptive", rationale="Test.")
+    request = AnalysisRequest(
+        question="Which columns are likely identifiers?",
+        intent_name="identifier_inventory",
+        task_type_hint="descriptive",
+    )
+
+    summary = summarizer.summarize(
+        plan,
+        metrics=[],
+        tables=[TableArtifact(name="identifier_inventory", description="Identifiers.", dataframe=pd.DataFrame())],
+        warnings=[],
+        request=request,
+        profile=build_schema_profile(),
+        context=None,
+    )
+
+    assert "No likely identifier columns were detected." in summary
+
+
+def test_summarizer_describes_high_cardinality_inventory() -> None:
+    summarizer = ResultSummarizer()
+    plan = AnalysisPlan(task_type="descriptive", rationale="Test.")
+    request = AnalysisRequest(
+        question="Which columns have many unique values?",
+        intent_name="high_cardinality_inventory",
+        task_type_hint="descriptive",
+    )
+
+    summary = summarizer.summarize(
+        plan,
+        metrics=[],
+        tables=[
+            TableArtifact(
+                name="high_cardinality_inventory",
+                description="High-cardinality columns.",
+                dataframe=pd.DataFrame(
+                    {
+                        "column_name": ["ticket_id", "created_at"],
+                        "unique_count": [4, 4],
+                        "distinct_ratio": [1.0, 1.0],
+                    }
+                ),
+            )
+        ],
+        warnings=[],
+        request=request,
+        profile=build_schema_profile(),
+        context=None,
+    )
+
+    assert "High-cardinality columns: ticket_id (4 unique, 100.0% distinct); created_at (4 unique, 100.0% distinct)." in summary
 
 
 def test_summarizer_lists_top_ranked_row_values() -> None:

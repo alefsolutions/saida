@@ -495,6 +495,131 @@ def test_analyze_returns_column_inventory() -> None:
     assert any(table.name == "column_inventory" for table in result.tables)
 
 
+def test_analyze_returns_column_type_inventory() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "ticket_id": ["T1", "T2", "T3", "T4"],
+            "created_at": ["2026-01-01", "2026-01-02", "2026-01-03", "2026-01-04"],
+            "resolution_hours": [4.2, 6.1, 3.4, 8.0],
+            "priority": ["Low", "Medium", "High", "Medium"],
+            "csat_score": [4.8, None, 4.1, 3.9],
+        }
+    )
+    dataset = Dataset(name="support", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "What are the data types of each field or column in the data?")
+
+    assert result.response["interpretation"]["intent_name"] == "column_type_inventory"
+    assert "Column types:" in result.summary
+    assert any(table.name == "column_type_inventory" for table in result.tables)
+
+
+def test_analyze_returns_numeric_column_inventory() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "ticket_id": ["T1", "T2", "T3", "T4"],
+            "created_at": ["2026-01-01", "2026-01-02", "2026-01-03", "2026-01-04"],
+            "resolution_hours": [4.2, 6.1, 3.4, 8.0],
+            "priority": ["Low", "Medium", "High", "Medium"],
+            "csat_score": [4.8, None, 4.1, 3.9],
+        }
+    )
+    dataset = Dataset(name="support", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "Which columns are numeric?")
+
+    assert result.response["interpretation"]["intent_name"] == "numeric_column_inventory"
+    assert "Numeric columns: resolution_hours, csat_score." in result.summary
+    assert any(table.name == "numeric_column_inventory" for table in result.tables)
+
+
+def test_analyze_returns_categorical_column_inventory() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "ticket_id": ["T1", "T2", "T3", "T4"],
+            "priority": ["Low", "Medium", "High", "Medium"],
+            "reopened_flag": ["no", "yes", "no", "no"],
+            "resolution_hours": [4.2, 6.1, 3.4, 8.0],
+        }
+    )
+    dataset = Dataset(name="support", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "Which fields are categorical?")
+
+    assert result.response["interpretation"]["intent_name"] == "categorical_column_inventory"
+    assert "Categorical columns:" in result.summary
+    assert any(table.name == "categorical_column_inventory" for table in result.tables)
+
+
+def test_analyze_returns_missing_value_inventory() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "ticket_id": ["T1", "T2", "T3", "T4"],
+            "resolution_hours": [4.2, 6.1, 3.4, 8.0],
+            "csat_score": [4.8, None, 4.1, 3.9],
+        }
+    )
+    dataset = Dataset(name="support", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "Which columns have missing values?")
+
+    assert result.response["interpretation"]["intent_name"] == "missing_value_inventory"
+    assert "Columns with missing values: csat_score (1 nulls, 25.0%)." in result.summary
+    assert any(table.name == "missing_value_inventory" for table in result.tables)
+
+
+def test_analyze_returns_no_identifier_inventory_when_none_detected() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "priority": ["Low", "Medium", "High", "Medium"],
+            "resolution_hours": [4.2, 6.1, 3.4, 8.0],
+            "csat_score": [4.8, 4.4, 4.1, 3.9],
+        }
+    )
+    dataset = Dataset(name="support", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "Which columns are likely identifiers?")
+
+    assert result.response["interpretation"]["intent_name"] == "identifier_inventory"
+    assert "No likely identifier columns were detected." in result.summary
+    assert any(table.name == "identifier_inventory" for table in result.tables)
+
+
+def test_analyze_returns_identifier_inventory_when_present() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "ticket_id": ["T1", "T2", "T3", "T4"],
+            "priority": ["Low", "Medium", "High", "Medium"],
+            "resolution_hours": [4.2, 6.1, 3.4, 8.0],
+        }
+    )
+    dataset = Dataset(name="support", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "Which columns are likely identifiers?")
+
+    assert result.response["interpretation"]["intent_name"] == "identifier_inventory"
+    assert "Likely identifier columns: ticket_id." in result.summary
+    assert any(table.name == "identifier_inventory" for table in result.tables)
+
+
+def test_analyze_returns_high_cardinality_inventory() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "ticket_id": ["T1", "T2", "T3", "T4"],
+            "created_at": ["2026-01-01", "2026-01-02", "2026-01-03", "2026-01-04"],
+            "priority": ["Low", "Medium", "High", "Medium"],
+            "resolution_hours": [4.2, 6.1, 3.4, 8.0],
+        }
+    )
+    dataset = Dataset(name="support", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "Which columns have many unique values?")
+
+    assert result.response["interpretation"]["intent_name"] == "high_cardinality_inventory"
+    assert "High-cardinality columns:" in result.summary
+    assert any(table.name == "high_cardinality_inventory" for table in result.tables)
+
+
 def test_analyze_returns_time_coverage_years() -> None:
     dataframe = pd.DataFrame(
         {
@@ -527,6 +652,66 @@ def test_analyze_returns_time_coverage_date_range() -> None:
 
     assert "The data covers 2026-01-09 to 2026-04-11." in result.summary
     assert any(table.name == "time_coverage" for table in result.tables)
+
+
+def test_analyze_returns_time_bucket_counts_by_year() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "created_at": [
+                "2024-01-01",
+                "2025-01-02",
+                "2025-02-03",
+                "2026-03-04",
+                "bad-date",
+            ],
+            "team": ["Support", "Support", "Platform", "Platform", "Support"],
+            "resolution_hours": [4.2, 6.0, 3.1, 8.4, 5.0],
+        }
+    )
+    dataset = Dataset(name="support", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "I need a list of years, and how many tickets created in those years.")
+
+    assert "Ticket counts by year: 2024 = 1; 2025 = 2; 2026 = 1." in result.summary
+    assert result.response["interpretation"]["intent_name"] == "time_bucket_counts"
+    assert result.response["interpretation"]["options"]["time_bucket"] == "year"
+    assert any(table.name == "time_bucket_counts" for table in result.tables)
+
+
+def test_analyze_returns_yes_for_time_value_existence_prompt() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "created_at": ["2025-01-01", "2025-01-02", "2025-03-04"],
+            "team": ["Support", "Support", "Platform"],
+            "resolution_hours": [4.2, 6.0, 3.1],
+        }
+    )
+    dataset = Dataset(name="support", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "The created_at column shows dates in 2025?")
+
+    assert "Yes, created_at contains dates in 2025" in result.summary
+    assert result.response["interpretation"]["intent_name"] == "existence_check"
+    assert result.response["interpretation"]["options"]["existence_mode"] == "time_value"
+    assert any(table.name == "time_value_exists" for table in result.tables)
+
+
+def test_analyze_returns_no_for_filtered_row_existence_prompt() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "posted_at": ["2026-01-01", "2026-01-02", "2026-01-03"],
+            "revenue": [100.0, 120.0, 90.0],
+            "region": ["West", "West", "East"],
+        }
+    )
+    dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "Is North in the region column?")
+
+    assert "No, the dataset does not contain rows matching region=North." in result.summary
+    assert result.response["interpretation"]["intent_name"] == "existence_check"
+    assert result.response["interpretation"]["options"]["existence_mode"] == "filtered_rows"
+    assert any(table.name == "row_existence" for table in result.tables)
 
 
 def test_analyze_supports_p_value_driven_inference_workflow() -> None:

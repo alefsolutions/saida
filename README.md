@@ -64,6 +64,20 @@ SAIDA should return:
 
 - canonical structured results with stable shape, schema, and metadata
 
+## Current Prototype Support
+
+The current 0.2.0 prototype already supports a first-class schema metadata question family for prompts such as:
+
+- `What are the data types of each field or column?`
+- `Which columns are numeric?`
+- `Which columns are categorical?`
+- `Which columns are dates?`
+- `Which columns have missing values?`
+- `Which columns are likely identifiers?`
+- `Which columns have many unique values?`
+
+These prompts currently route into canonical metadata tables rather than the generic descriptive analysis path.
+
 ## Sources And Backends
 
 The architecture defines SAIDA as multi-source and multi-backend.

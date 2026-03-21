@@ -117,6 +117,19 @@ Not allowed:
 - silent fact generation
 - bypassing validation
 
+## Current Prototype Note
+
+The current 0.2.0 prototype already supports prompt-driven schema metadata requests before the planned public API surface is finalized.
+
+Examples that work today include:
+
+- `What are the data types of each field or column?`
+- `Which columns are numeric?`
+- `Which columns are categorical?`
+- `Which columns have missing values?`
+- `Which columns are likely identifiers?`
+- `Which columns have many unique values?`
+
 ## Design Rule
 
 The API surface should stay thin.

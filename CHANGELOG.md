@@ -14,6 +14,8 @@ Quick links: [Main README](./README.md) | [Architecture](./ARCHITECTURE.md) | [L
 - SAIDA documentation has been realigned around the 0.2.0 architecture reset.
 - `ARCHITECTURE.md` is now treated as the primary source of truth for the framework direction.
 - Repo docs now describe SAIDA as a canonical analytics framework built around `AnalysisPlan` and `AnalyticalResult`.
+- Added first-class schema metadata question support for column types, numeric columns, categorical columns, missing values, identifiers, and high-cardinality columns.
+- Added metadata result tables and summaries for typed schema questions in the 0.2.0 prototype.
 
 ### Planned
 

@@ -51,6 +51,71 @@ def build_profile() -> DatasetProfile:
     )
 
 
+def build_schema_profile() -> DatasetProfile:
+    return DatasetProfile(
+        dataset_name="support",
+        row_count=4,
+        column_count=5,
+        columns=[
+            ColumnProfile(
+                name="ticket_id",
+                inferred_type="string",
+                nullable=False,
+                null_ratio=0.0,
+                unique_count=4,
+                distinct_ratio=1.0,
+                sample_values=["T1"],
+                is_identifier_candidate=True,
+                is_dimension_candidate=True,
+            ),
+            ColumnProfile(
+                name="created_at",
+                inferred_type="datetime",
+                nullable=False,
+                null_ratio=0.0,
+                unique_count=4,
+                distinct_ratio=1.0,
+                sample_values=["2026-01-01"],
+                is_time_candidate=True,
+            ),
+            ColumnProfile(
+                name="resolution_hours",
+                inferred_type="float",
+                nullable=False,
+                null_ratio=0.0,
+                unique_count=4,
+                distinct_ratio=1.0,
+                sample_values=[4.2],
+                is_measure_candidate=True,
+            ),
+            ColumnProfile(
+                name="priority",
+                inferred_type="category",
+                nullable=False,
+                null_ratio=0.0,
+                unique_count=3,
+                distinct_ratio=0.75,
+                sample_values=["Low"],
+                is_dimension_candidate=True,
+            ),
+            ColumnProfile(
+                name="csat_score",
+                inferred_type="float",
+                nullable=True,
+                null_ratio=0.25,
+                unique_count=3,
+                distinct_ratio=0.75,
+                sample_values=[4.8],
+                is_measure_candidate=True,
+            ),
+        ],
+        measure_columns=["resolution_hours", "csat_score"],
+        dimension_columns=["ticket_id", "priority"],
+        time_columns=["created_at"],
+        identifier_columns=["ticket_id"],
+    )
+
+
 def test_planner_builds_diagnostic_plan_with_contribution_steps() -> None:
     planner = AnalysisPlanner()
     request = AnalysisRequest(
@@ -185,6 +250,112 @@ def test_planner_builds_column_inventory_plan() -> None:
     assert [step.action for step in plan.steps] == ["column_inventory"]
 
 
+def test_planner_builds_column_type_inventory_plan() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="What are the data types of each field?",
+        intent_name="column_type_inventory",
+        task_type_hint="descriptive",
+    )
+
+    plan = planner.build_plan(request, build_schema_profile())
+
+    assert [step.action for step in plan.steps] == ["column_type_inventory"]
+
+
+def test_planner_builds_numeric_column_inventory_plan() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="Which columns are numeric?",
+        intent_name="numeric_column_inventory",
+        task_type_hint="descriptive",
+    )
+
+    plan = planner.build_plan(request, build_schema_profile())
+
+    assert [step.action for step in plan.steps] == ["numeric_column_inventory"]
+
+
+def test_planner_builds_categorical_column_inventory_plan() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="Which columns are categorical?",
+        intent_name="categorical_column_inventory",
+        task_type_hint="descriptive",
+    )
+
+    plan = planner.build_plan(request, build_schema_profile())
+
+    assert [step.action for step in plan.steps] == ["categorical_column_inventory"]
+
+
+def test_planner_builds_missing_value_inventory_plan() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="Which columns have missing values?",
+        intent_name="missing_value_inventory",
+        task_type_hint="descriptive",
+    )
+
+    plan = planner.build_plan(request, build_schema_profile())
+
+    assert [step.action for step in plan.steps] == ["missing_value_inventory"]
+
+
+def test_planner_builds_identifier_inventory_plan() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="Which columns are likely identifiers?",
+        intent_name="identifier_inventory",
+        task_type_hint="descriptive",
+    )
+
+    plan = planner.build_plan(request, build_schema_profile())
+
+    assert [step.action for step in plan.steps] == ["identifier_inventory"]
+
+
+def test_planner_builds_high_cardinality_inventory_plan() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="Which columns have many unique values?",
+        intent_name="high_cardinality_inventory",
+        task_type_hint="descriptive",
+    )
+
+    plan = planner.build_plan(request, build_schema_profile())
+
+    assert [step.action for step in plan.steps] == ["high_cardinality_inventory"]
+
+
+def test_planner_does_not_inject_first_measure_for_schema_metadata_intent() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="Which columns have missing values?",
+        intent_name="missing_value_inventory",
+        task_type_hint="descriptive",
+    )
+
+    plan = planner.build_plan(request, build_schema_profile())
+
+    assert request.target is None
+    assert plan.warnings == []
+
+
+def test_planner_rejects_time_column_inventory_without_time_columns() -> None:
+    planner = AnalysisPlanner()
+    profile = build_schema_profile()
+    profile.time_columns = []
+    request = AnalysisRequest(
+        question="Which columns are dates?",
+        intent_name="time_column_inventory",
+        task_type_hint="descriptive",
+    )
+
+    with pytest.raises(PlanningError, match="Time column inventory requires at least one datetime column"):
+        planner.build_plan(request, profile)
+
+
 def test_planner_builds_time_coverage_plan() -> None:
     planner = AnalysisPlanner()
     request = AnalysisRequest(
@@ -198,6 +369,52 @@ def test_planner_builds_time_coverage_plan() -> None:
 
     assert [step.action for step in plan.steps] == ["time_coverage"]
     assert plan.steps[0].parameters["mode"] == "years_present"
+
+
+def test_planner_builds_time_bucket_count_plan() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="I need a list of years, and how many tickets created in those years.",
+        intent_name="time_bucket_counts",
+        task_type_hint="descriptive",
+        options={"time_bucket": "year"},
+    )
+
+    plan = planner.build_plan(request, build_profile())
+
+    assert [step.action for step in plan.steps] == ["time_bucket_counts"]
+    assert plan.steps[0].parameters["bucket"] == "year"
+
+
+def test_planner_builds_time_value_existence_plan() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="The created_at column shows dates in 2025?",
+        intent_name="existence_check",
+        task_type_hint="descriptive",
+        target="posted_at",
+        options={"existence_mode": "time_value", "expected_year": 2025},
+    )
+
+    plan = planner.build_plan(request, build_profile())
+
+    assert [step.action for step in plan.steps] == ["time_value_exists"]
+    assert plan.steps[0].parameters["expected_year"] == 2025
+
+
+def test_planner_builds_filtered_row_existence_plan() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="Is West in the region column?",
+        intent_name="existence_check",
+        task_type_hint="descriptive",
+        filters={"region": "West"},
+        options={"existence_mode": "filtered_rows"},
+    )
+
+    plan = planner.build_plan(request, build_profile())
+
+    assert [step.action for step in plan.steps] == ["row_existence"]
 
 
 def test_planner_rejects_invalid_filter_columns() -> None:
@@ -241,6 +458,35 @@ def test_planner_rejects_time_coverage_without_time_column() -> None:
 
     with pytest.raises(PlanningError, match="Time coverage analysis requires a datetime column"):
         planner.build_plan(request, profile)
+
+
+def test_planner_rejects_time_bucket_counts_without_time_column() -> None:
+    planner = AnalysisPlanner()
+    profile = build_profile()
+    profile.time_columns = []
+    request = AnalysisRequest(
+        question="How many tickets were created by year?",
+        intent_name="time_bucket_counts",
+        task_type_hint="descriptive",
+        options={"time_bucket": "year"},
+    )
+
+    with pytest.raises(PlanningError, match="Time bucket count analysis requires a datetime column"):
+        planner.build_plan(request, profile)
+
+
+def test_planner_rejects_time_value_existence_without_expected_value() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="Does posted_at contain the requested date?",
+        intent_name="existence_check",
+        task_type_hint="descriptive",
+        target="posted_at",
+        options={"existence_mode": "time_value"},
+    )
+
+    with pytest.raises(PlanningError, match="Time existence verification requires a concrete year or time reference"):
+        planner.build_plan(request, build_profile())
 
 
 def test_planner_rejects_non_month_time_references_for_non_ml_analysis() -> None:

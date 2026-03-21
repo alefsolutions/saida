@@ -38,6 +38,8 @@ from saida.core.contracts import (
 class Saida:
     """Coordinate SAIDA modules through a simple Python API."""
 
+    HIGH_CARDINALITY_DISTINCT_RATIO = 0.8
+
     def __init__(self, config: SaidaConfig | None = None, llm_provider: BaseLlmProvider | None = None) -> None:
         self.config = config or SaidaConfig()
         self.discovery = SchemaDiscoveryService()
@@ -165,6 +167,32 @@ class Saida:
                             dataset.data,
                             step.parameters["time_column"],
                             step.parameters.get("mode", "years_present"),
+                            step.parameters.get("filters"),
+                        )
+                    )
+                elif step.action == "time_bucket_counts":
+                    tables.append(
+                        adapter.time_bucket_counts(
+                            dataset.data,
+                            step.parameters["time_column"],
+                            step.parameters.get("bucket", "year"),
+                            step.parameters.get("filters"),
+                        )
+                    )
+                elif step.action == "row_existence":
+                    tables.append(
+                        adapter.row_existence(
+                            dataset.data,
+                            step.parameters.get("filters", {}),
+                        )
+                    )
+                elif step.action == "time_value_exists":
+                    tables.append(
+                        adapter.time_value_exists(
+                            dataset.data,
+                            step.parameters["time_column"],
+                            step.parameters.get("expected_year"),
+                            step.parameters.get("time_reference"),
                             step.parameters.get("filters"),
                         )
                     )
@@ -590,6 +618,51 @@ class Saida:
         if action == "column_inventory":
             dataframe = pd.DataFrame({"column_name": [column.name for column in profile.columns]})
             return TableArtifact(name="column_inventory", description="Available dataset columns.", dataframe=dataframe)
+        if action == "column_type_inventory":
+            rows = []
+            for column in profile.columns:
+                rows.append(
+                    {
+                        "column_name": column.name,
+                        "dtype": column.inferred_type,
+                        "nullable": column.nullable,
+                        "null_count": self._estimated_null_count(profile, column.null_ratio),
+                        "null_ratio": column.null_ratio,
+                        "unique_count": column.unique_count,
+                        "distinct_ratio": column.distinct_ratio,
+                        "semantic_role": self._semantic_role(column.name, profile),
+                    }
+                )
+            dataframe = pd.DataFrame(rows)
+            return TableArtifact(
+                name="column_type_inventory",
+                description="Detected data types and schema properties for all columns.",
+                dataframe=dataframe,
+            )
+        if action == "numeric_column_inventory":
+            rows = []
+            for column in profile.columns:
+                if column.inferred_type not in {"integer", "float", "numeric"}:
+                    continue
+                rows.append({"column_name": column.name, "dtype": column.inferred_type})
+            dataframe = pd.DataFrame(rows, columns=["column_name", "dtype"])
+            return TableArtifact(
+                name="numeric_column_inventory",
+                description="Detected numeric columns.",
+                dataframe=dataframe,
+            )
+        if action == "categorical_column_inventory":
+            rows = []
+            for column in profile.columns:
+                if column.inferred_type not in {"category", "string", "boolean"}:
+                    continue
+                rows.append({"column_name": column.name, "dtype": column.inferred_type})
+            dataframe = pd.DataFrame(rows, columns=["column_name", "dtype"])
+            return TableArtifact(
+                name="categorical_column_inventory",
+                description="Detected categorical and text-like columns.",
+                dataframe=dataframe,
+            )
         if action == "measure_inventory":
             dataframe = pd.DataFrame({"measure_column": list(profile.measure_columns)})
             return TableArtifact(name="measure_inventory", description="Detected measure columns.", dataframe=dataframe)
@@ -597,6 +670,82 @@ class Saida:
             dataframe = pd.DataFrame({"dimension_column": list(profile.dimension_columns)})
             return TableArtifact(name="dimension_inventory", description="Detected dimension columns.", dataframe=dataframe)
         if action == "time_column_inventory":
-            dataframe = pd.DataFrame({"time_column": list(profile.time_columns)})
+            rows = []
+            for column in profile.columns:
+                if column.name not in set(profile.time_columns):
+                    continue
+                rows.append({"time_column": column.name, "dtype": column.inferred_type})
+            dataframe = pd.DataFrame(rows, columns=["time_column", "dtype"])
             return TableArtifact(name="time_column_inventory", description="Detected time columns.", dataframe=dataframe)
+        if action == "missing_value_inventory":
+            rows = []
+            for column in profile.columns:
+                null_count = self._estimated_null_count(profile, column.null_ratio)
+                if null_count <= 0:
+                    continue
+                rows.append(
+                    {
+                        "column_name": column.name,
+                        "null_count": null_count,
+                        "null_ratio": column.null_ratio,
+                    }
+                )
+            dataframe = pd.DataFrame(rows, columns=["column_name", "null_count", "null_ratio"])
+            return TableArtifact(
+                name="missing_value_inventory",
+                description="Columns with observed missing values.",
+                dataframe=dataframe,
+            )
+        if action == "identifier_inventory":
+            rows = []
+            for column in profile.columns:
+                if not column.is_identifier_candidate:
+                    continue
+                rows.append(
+                    {
+                        "column_name": column.name,
+                        "dtype": column.inferred_type,
+                        "unique_count": column.unique_count,
+                        "distinct_ratio": column.distinct_ratio,
+                    }
+                )
+            dataframe = pd.DataFrame(rows, columns=["column_name", "dtype", "unique_count", "distinct_ratio"])
+            return TableArtifact(
+                name="identifier_inventory",
+                description="Columns that look like identifiers.",
+                dataframe=dataframe,
+            )
+        if action == "high_cardinality_inventory":
+            rows = []
+            for column in profile.columns:
+                if column.distinct_ratio is None or column.distinct_ratio < self.HIGH_CARDINALITY_DISTINCT_RATIO:
+                    continue
+                rows.append(
+                    {
+                        "column_name": column.name,
+                        "dtype": column.inferred_type,
+                        "unique_count": column.unique_count,
+                        "distinct_ratio": column.distinct_ratio,
+                    }
+                )
+            dataframe = pd.DataFrame(rows, columns=["column_name", "dtype", "unique_count", "distinct_ratio"])
+            return TableArtifact(
+                name="high_cardinality_inventory",
+                description="Columns with a high distinct-value ratio.",
+                dataframe=dataframe,
+            )
         raise ValidationError(f"Unsupported metadata action: {action}")
+
+    def _estimated_null_count(self, profile: DatasetProfile, null_ratio: float) -> int:
+        return int(round(profile.row_count * null_ratio))
+
+    def _semantic_role(self, column_name: str, profile: DatasetProfile) -> str:
+        if column_name in set(profile.time_columns):
+            return "time"
+        if column_name in set(profile.identifier_columns):
+            return "identifier"
+        if column_name in set(profile.measure_columns):
+            return "measure"
+        if column_name in set(profile.dimension_columns):
+            return "dimension"
+        return "unclassified"

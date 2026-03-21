@@ -50,6 +50,20 @@ class SummaryFormatter:
                 parts.append(f"Warnings: {'; '.join(warnings)}.")
             return " ".join(parts)
 
+        time_bucket_count_part = self._describe_time_bucket_counts(tables, request)
+        if time_bucket_count_part:
+            parts.append(time_bucket_count_part)
+            if warnings:
+                parts.append(f"Warnings: {'; '.join(warnings)}.")
+            return " ".join(parts)
+
+        existence_part = self._describe_existence_check(tables, request)
+        if existence_part:
+            parts.append(existence_part)
+            if warnings:
+                parts.append(f"Warnings: {'; '.join(warnings)}.")
+            return " ".join(parts)
+
         statistical_part = self._describe_statistical_result(tables)
         if statistical_part:
             parts.append(statistical_part)
@@ -279,10 +293,49 @@ class SummaryFormatter:
     def _describe_metadata_inventory(self, tables: list[TableArtifact], request: AnalysisRequest) -> str | None:
         inventory_mapping = {
             "column_inventory": ("column_inventory", "column_name", "Available columns"),
+            "numeric_column_inventory": ("numeric_column_inventory", "column_name", "Numeric columns"),
+            "categorical_column_inventory": ("categorical_column_inventory", "column_name", "Categorical columns"),
             "measure_inventory": ("measure_inventory", "measure_column", "Available measure columns"),
             "dimension_inventory": ("dimension_inventory", "dimension_column", "Available dimension columns"),
             "time_column_inventory": ("time_column_inventory", "time_column", "Available time columns"),
         }
+        if request.intent_name == "column_type_inventory":
+            inventory_table = self._table(tables, "column_type_inventory")
+            if inventory_table is None or inventory_table.dataframe.empty:
+                return "No column type information is available."
+            entries = []
+            for _, row in inventory_table.dataframe.iterrows():
+                nullable_label = "nullable" if bool(row.get("nullable")) else "non-null"
+                entries.append(f"{row['column_name']} ({row['dtype']}, {nullable_label})")
+            return f"Column types: {'; '.join(entries)}."
+        if request.intent_name == "missing_value_inventory":
+            inventory_table = self._table(tables, "missing_value_inventory")
+            if inventory_table is None:
+                return None
+            if inventory_table.dataframe.empty:
+                return "No columns with missing values were detected."
+            entries = []
+            for _, row in inventory_table.dataframe.iterrows():
+                entries.append(f"{row['column_name']} ({int(row['null_count'])} nulls, {float(row['null_ratio']):.1%})")
+            return f"Columns with missing values: {'; '.join(entries)}."
+        if request.intent_name == "identifier_inventory":
+            inventory_table = self._table(tables, "identifier_inventory")
+            if inventory_table is None:
+                return None
+            if inventory_table.dataframe.empty:
+                return "No likely identifier columns were detected."
+            values = [str(value) for value in inventory_table.dataframe["column_name"].tolist()]
+            return f"Likely identifier columns: {', '.join(values)}."
+        if request.intent_name == "high_cardinality_inventory":
+            inventory_table = self._table(tables, "high_cardinality_inventory")
+            if inventory_table is None:
+                return None
+            if inventory_table.dataframe.empty:
+                return "No high-cardinality columns were detected."
+            entries = []
+            for _, row in inventory_table.dataframe.iterrows():
+                entries.append(f"{row['column_name']} ({int(row['unique_count'])} unique, {float(row['distinct_ratio']):.1%} distinct)")
+            return f"High-cardinality columns: {'; '.join(entries)}."
         if request.intent_name not in inventory_mapping:
             return None
         table_name, column_name, prefix = inventory_mapping[request.intent_name]
@@ -316,6 +369,50 @@ class SummaryFormatter:
             row = dataframe.iloc[0]
             return f"The data covers {row['earliest_date']} to {row['latest_date']}."
         return None
+
+    def _describe_time_bucket_counts(self, tables: list[TableArtifact], request: AnalysisRequest) -> str | None:
+        if request.intent_name != "time_bucket_counts":
+            return None
+        count_table = self._table(tables, "time_bucket_counts")
+        if count_table is None or count_table.dataframe.empty:
+            return None
+
+        bucket = request.options.get("time_bucket", "year")
+        bucket_column = "month" if bucket == "month" else "year"
+        entries = [
+            f"{row[bucket_column]} = {int(row['row_count'])}"
+            for _, row in count_table.dataframe.iterrows()
+        ]
+        if bucket == "month":
+            return f"Ticket counts by month: {'; '.join(entries)}."
+        return f"Ticket counts by year: {'; '.join(entries)}."
+
+    def _describe_existence_check(self, tables: list[TableArtifact], request: AnalysisRequest) -> str | None:
+        if request.intent_name != "existence_check":
+            return None
+        existence_mode = request.options.get("existence_mode", "filtered_rows")
+        if existence_mode == "time_value":
+            table = self._table(tables, "time_value_exists")
+            if table is None or table.dataframe.empty:
+                return None
+            row = table.dataframe.iloc[0]
+            time_column = str(row.get("time_column", request.target or "the time column"))
+            match_value = str(row.get("match_value", "the requested value"))
+            matching_row_count = int(row.get("matching_row_count", 0) or 0)
+            if bool(row.get("exists")):
+                return f"Yes, {time_column} contains dates in {match_value} ({matching_row_count} matching rows)."
+            return f"No, {time_column} does not contain dates in {match_value}."
+
+        table = self._table(tables, "row_existence")
+        if table is None or table.dataframe.empty:
+            return None
+        row = table.dataframe.iloc[0]
+        filter_parts = [f"{column}={value}" for column, value in (request.filters or {}).items()]
+        filter_text = ", ".join(filter_parts) if filter_parts else "the requested conditions"
+        matching_row_count = int(row.get("matching_row_count", 0) or 0)
+        if bool(row.get("exists")):
+            return f"Yes, the dataset contains rows matching {filter_text} ({matching_row_count} rows)."
+        return f"No, the dataset does not contain rows matching {filter_text}."
 
     def _describe_statistical_result(self, tables: list[TableArtifact]) -> str | None:
         statistical_tables = {

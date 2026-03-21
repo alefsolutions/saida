@@ -69,6 +69,20 @@ Instead, SAIDA should normalize backend output into canonical result form with:
 - stable schema
 - stable type information
 
+## Current Prototype Result Families
+
+The current 0.2.0 prototype already returns canonical table results for schema metadata questions, including:
+
+- full column type inventory
+- numeric column inventory
+- categorical column inventory
+- time column inventory
+- missing value inventory
+- identifier inventory
+- high-cardinality inventory
+
+These results are exposed through the same standardized response envelope as analytical tables.
+
 ## Guiding Principle
 
 Schemas in SAIDA 0.2.0 are not just internal containers.

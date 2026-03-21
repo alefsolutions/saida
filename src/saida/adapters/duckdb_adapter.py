@@ -131,6 +131,120 @@ class DuckDBAdapter:
             dataframe=coverage,
         )
 
+    def time_bucket_counts(
+        self,
+        dataframe: pd.DataFrame,
+        time_column: str,
+        bucket: str = "year",
+        filters: dict[str, str] | None = None,
+    ) -> TableArtifact:
+        """Count rows across derived year or month buckets from a datetime column."""
+        prepared = self._apply_filters(dataframe, filters).copy()
+        self._require_columns(prepared, [time_column])
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=UserWarning)
+            prepared[time_column] = pd.to_datetime(prepared[time_column], errors="coerce")
+        prepared = prepared.dropna(subset=[time_column])
+
+        if bucket == "year":
+            counted = (
+                prepared.assign(year=prepared[time_column].dt.year.astype(int))
+                .groupby("year", as_index=False)
+                .size()
+                .rename(columns={"size": "row_count"})
+                .sort_values("year")
+                .reset_index(drop=True)
+            )
+        elif bucket == "month":
+            counted = (
+                prepared.assign(month=prepared[time_column].dt.to_period("M").astype(str))
+                .groupby("month", as_index=False)
+                .size()
+                .rename(columns={"size": "row_count"})
+                .sort_values("month")
+                .reset_index(drop=True)
+            )
+        else:
+            raise ComputeError(f"Unsupported time bucket: {bucket}")
+
+        return TableArtifact(
+            name="time_bucket_counts",
+            description=f"Row counts by {bucket} for {time_column}.",
+            dataframe=counted,
+        )
+
+    def row_existence(
+        self,
+        dataframe: pd.DataFrame,
+        filters: dict[str, str],
+    ) -> TableArtifact:
+        """Return whether any rows match the requested filters."""
+        prepared = dataframe.copy()
+        self._require_columns(prepared, list(filters))
+        for column_name, expected_value in filters.items():
+            series = prepared[column_name]
+            if pd.api.types.is_string_dtype(series):
+                prepared = prepared.loc[series.astype(str).str.lower() == expected_value.lower()]
+            else:
+                prepared = prepared.loc[series.astype(str) == str(expected_value)]
+
+        return TableArtifact(
+            name="row_existence",
+            description="Whether matching rows exist for the requested filters.",
+            dataframe=pd.DataFrame(
+                [
+                    {
+                        "exists": bool(not prepared.empty),
+                        "matching_row_count": int(len(prepared)),
+                    }
+                ]
+            ),
+        )
+
+    def time_value_exists(
+        self,
+        dataframe: pd.DataFrame,
+        time_column: str,
+        expected_year: int | None = None,
+        time_reference: dict[str, str] | None = None,
+        filters: dict[str, str] | None = None,
+    ) -> TableArtifact:
+        """Return whether a requested time value exists in a datetime column."""
+        prepared = dataframe.copy()
+        self._require_columns(prepared, [time_column])
+        if filters:
+            prepared = self._apply_filters(prepared, filters)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=UserWarning)
+            prepared[time_column] = pd.to_datetime(prepared[time_column], errors="coerce")
+        prepared = prepared.dropna(subset=[time_column])
+
+        label: str
+        if expected_year is not None:
+            matches = prepared.loc[prepared[time_column].dt.year == expected_year]
+            label = str(expected_year)
+        elif time_reference and time_reference.get("type") == "month_name":
+            expected_month = int(time_reference["month"])
+            matches = prepared.loc[prepared[time_column].dt.month == expected_month]
+            label = time_reference["value"]
+        else:
+            raise ComputeError("Time existence verification requires a supported year or month reference.")
+
+        return TableArtifact(
+            name="time_value_exists",
+            description=f"Whether {time_column} contains the requested time value.",
+            dataframe=pd.DataFrame(
+                [
+                    {
+                        "time_column": time_column,
+                        "match_value": label,
+                        "exists": bool(not matches.empty),
+                        "matching_row_count": int(len(matches)),
+                    }
+                ]
+            ),
+        )
+
     def count_rows_by_group(
         self,
         dataframe: pd.DataFrame,

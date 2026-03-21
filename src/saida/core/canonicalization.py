@@ -51,6 +51,81 @@ TIME_COVERAGE_RANGE_KEYWORDS = {
     "earliest and latest date",
     "from when to when",
 }
+COLUMN_TYPE_INVENTORY_KEYWORDS = {
+    "data type",
+    "data types",
+    "field types",
+    "column types",
+    "dtype",
+    "schema",
+}
+NUMERIC_COLUMN_INVENTORY_KEYWORDS = {
+    "numeric columns",
+    "numeric fields",
+    "numerical columns",
+    "numerical fields",
+    "number columns",
+    "number fields",
+}
+CATEGORICAL_COLUMN_INVENTORY_KEYWORDS = {
+    "categorical columns",
+    "categorical fields",
+    "category columns",
+    "category fields",
+    "text columns",
+    "text fields",
+    "string columns",
+    "string fields",
+}
+MISSING_VALUE_INVENTORY_KEYWORDS = {
+    "missing values",
+    "missing data",
+    "null values",
+    "null data",
+    "nullable columns",
+    "nullable fields",
+}
+IDENTIFIER_INVENTORY_KEYWORDS = {
+    "identifier columns",
+    "identifier fields",
+    "likely identifiers",
+    "primary key",
+    "primary keys",
+    "unique identifiers",
+}
+HIGH_CARDINALITY_INVENTORY_KEYWORDS = {
+    "high cardinality",
+    "high-cardinality",
+    "many unique values",
+    "most unique values",
+    "cardinality",
+}
+TIME_BUCKET_COUNT_YEAR_KEYWORDS = {
+    "by year",
+    "per year",
+    "each year",
+    "those years",
+    "years and how many",
+}
+TIME_BUCKET_COUNT_MONTH_KEYWORDS = {
+    "by month",
+    "per month",
+    "each month",
+    "those months",
+    "months and how many",
+}
+EXISTENCE_REQUEST_KEYWORDS = {
+    "is there",
+    "are there",
+    "does",
+    "do we have",
+    "contains",
+    "contain",
+    "includes",
+    "include",
+    "has",
+    "shows",
+}
 STATISTICAL_TEST_KEYWORDS = {
     "t_test": {"t-test", "t test", "ttest"},
     "chi_square": {"chi-square", "chi square", "chisquare"},
@@ -177,6 +252,18 @@ class InputCanonicalizer:
         intent_name = self._resolve_ranking_intent(question, intent_name, target, group_by, profile, options)
         if intent_name in {"row_ranking", "group_ranking"}:
             aggregation = None
+        if intent_name == "existence_check":
+            existence_mode = self._resolve_existence_mode(question, profile, target, filters)
+            options["existence_mode"] = existence_mode
+            if existence_mode == "time_value":
+                target = target or (profile.time_columns[0] if profile.time_columns else None)
+                expected_year = self._extract_year_value(question)
+                if expected_year is not None:
+                    options["expected_year"] = expected_year
+            else:
+                target = None
+                aggregation = None
+                group_by = None
         if options.get("statistical_test"):
             task_type_hint = "statistical"
         if options.get("statistical_test") == "chi_square" and options.get("comparison_columns"):
@@ -191,8 +278,10 @@ class InputCanonicalizer:
                 named_columns = self._extract_named_columns(question, profile)
                 if named_columns:
                     target = named_columns[0]
-        if intent_name == "time_coverage":
+        if intent_name in {"time_coverage", "time_bucket_counts"}:
             options["time_coverage_mode"] = self._time_coverage_mode(question)
+            if intent_name == "time_bucket_counts":
+                options["time_bucket"] = self._time_bucket_mode(question)
             target = None
             aggregation = None
             group_by = None
@@ -208,10 +297,40 @@ class InputCanonicalizer:
             aggregation = "count"
             options["ranking_direction"] = self._representation_direction(question)
 
-        if target is None and profile.measure_columns and intent_name not in {"row_count", "column_inventory", "measure_inventory", "dimension_inventory", "time_column_inventory", "time_coverage"}:
+        if target is None and profile.measure_columns and intent_name not in {
+            "row_count",
+            "column_inventory",
+            "column_type_inventory",
+            "numeric_column_inventory",
+            "categorical_column_inventory",
+            "measure_inventory",
+            "dimension_inventory",
+            "time_column_inventory",
+            "missing_value_inventory",
+            "identifier_inventory",
+            "high_cardinality_inventory",
+            "time_coverage",
+            "time_bucket_counts",
+            "existence_check",
+        }:
             warnings.append("No explicit metric matched the prompt; using the first measure candidate.")
             target = profile.measure_columns[0]
-        if target is None and not profile.measure_columns and intent_name not in {"row_count", "column_inventory", "measure_inventory", "dimension_inventory", "time_column_inventory", "time_coverage"}:
+        if target is None and not profile.measure_columns and intent_name not in {
+            "row_count",
+            "column_inventory",
+            "column_type_inventory",
+            "numeric_column_inventory",
+            "categorical_column_inventory",
+            "measure_inventory",
+            "dimension_inventory",
+            "time_column_inventory",
+            "missing_value_inventory",
+            "identifier_inventory",
+            "high_cardinality_inventory",
+            "time_coverage",
+            "time_bucket_counts",
+            "existence_check",
+        }:
             raise ValidationError("No target metric could be resolved from the question or dataset profile.")
         distinct_values = self._should_list_distinct_values(question, target, profile)
 
@@ -275,6 +394,18 @@ class InputCanonicalizer:
         rule_intent_name = self._resolve_ranking_intent(question, rule_intent_name, target or rule_target, group_by or rule_group_by, profile, options)
         if rule_intent_name in {"row_ranking", "group_ranking"}:
             aggregation = None
+        if rule_intent_name == "existence_check":
+            existence_mode = self._resolve_existence_mode(question, profile, target, filters)
+            options["existence_mode"] = existence_mode
+            if existence_mode == "time_value":
+                target = target or (profile.time_columns[0] if profile.time_columns else None)
+                expected_year = self._extract_year_value(question)
+                if expected_year is not None:
+                    options["expected_year"] = expected_year
+            else:
+                target = None
+                aggregation = None
+                group_by = None
         if options.get("statistical_test"):
             task_type_hint = "statistical"
         if options.get("statistical_test") == "chi_square" and options.get("comparison_columns"):
@@ -289,8 +420,10 @@ class InputCanonicalizer:
                 named_columns = self._extract_named_columns(question, profile)
                 if named_columns:
                     target = named_columns[0]
-        if rule_intent_name == "time_coverage":
+        if rule_intent_name in {"time_coverage", "time_bucket_counts"}:
             options["time_coverage_mode"] = self._time_coverage_mode(question)
+            if rule_intent_name == "time_bucket_counts":
+                options["time_bucket"] = self._time_bucket_mode(question)
             target = None
             aggregation = None
             group_by = None
@@ -305,10 +438,40 @@ class InputCanonicalizer:
             aggregation = "count"
             options["ranking_direction"] = self._representation_direction(question)
 
-        if target is None and profile.measure_columns and rule_intent_name not in {"row_count", "column_inventory", "measure_inventory", "dimension_inventory", "time_column_inventory", "time_coverage"}:
+        if target is None and profile.measure_columns and rule_intent_name not in {
+            "row_count",
+            "column_inventory",
+            "column_type_inventory",
+            "numeric_column_inventory",
+            "categorical_column_inventory",
+            "measure_inventory",
+            "dimension_inventory",
+            "time_column_inventory",
+            "missing_value_inventory",
+            "identifier_inventory",
+            "high_cardinality_inventory",
+            "time_coverage",
+            "time_bucket_counts",
+            "existence_check",
+        }:
             warnings.append("No explicit metric matched the prompt; using the first measure candidate.")
             target = profile.measure_columns[0]
-        if target is None and not profile.measure_columns and rule_intent_name not in {"row_count", "column_inventory", "measure_inventory", "dimension_inventory", "time_column_inventory", "time_coverage"}:
+        if target is None and not profile.measure_columns and rule_intent_name not in {
+            "row_count",
+            "column_inventory",
+            "column_type_inventory",
+            "numeric_column_inventory",
+            "categorical_column_inventory",
+            "measure_inventory",
+            "dimension_inventory",
+            "time_column_inventory",
+            "missing_value_inventory",
+            "identifier_inventory",
+            "high_cardinality_inventory",
+            "time_coverage",
+            "time_bucket_counts",
+            "existence_check",
+        }:
             raise ValidationError("No target metric could be resolved from the question or dataset profile.")
         distinct_values = self._should_list_distinct_values(question, target, profile)
 
@@ -383,6 +546,7 @@ class InputCanonicalizer:
             measure_aliases[column_name.lower()] = column_name
         for column_name in profile.dimension_columns:
             dimension_aliases[column_name.lower()] = column_name
+        time_aliases = {column_name.lower(): column_name for column_name in profile.time_columns}
 
         for alias, resolved_name in measure_aliases.items():
             if alias in lowered:
@@ -390,6 +554,13 @@ class InputCanonicalizer:
         measure_token_matches = self._resolve_column_by_tokens(lowered, profile.measure_columns, context)
         if measure_token_matches:
             return measure_token_matches
+        if intent_name == "existence_check":
+            for alias, resolved_name in time_aliases.items():
+                if alias in lowered:
+                    return resolved_name
+            time_token_match = self._resolve_column_by_tokens(lowered, profile.time_columns, context)
+            if time_token_match:
+                return time_token_match
         if intent_name in {"distinct_values", "representation_ranking"}:
             for alias, resolved_name in dimension_aliases.items():
                 if alias in lowered:
@@ -514,6 +685,19 @@ class InputCanonicalizer:
             for value in values:
                 if value and re.search(rf"\b{re.escape(value.lower())}\b", lowered):
                     filters[column_name] = value
+
+        membership_match = re.search(
+            r"\bis\s+([a-z0-9_\- ]+?)\s+in\s+the\s+([a-z0-9_ ]+?)\s+column\b",
+            question,
+            flags=re.IGNORECASE,
+        )
+        if membership_match:
+            requested_value = membership_match.group(1).strip()
+            requested_column = membership_match.group(2).strip().lower()
+            profile_columns = {column.name.lower(): column.name for column in profile.columns}
+            resolved_column = profile_columns.get(requested_column)
+            if resolved_column and requested_value:
+                filters[resolved_column] = requested_value
 
         return filters or None
 
@@ -688,14 +872,30 @@ class InputCanonicalizer:
 
     def _detect_intent_name(self, question: str, profile: DatasetProfile) -> str | None:
         lowered = question.lower()
+        if self._looks_like_column_type_inventory_request(lowered):
+            return "column_type_inventory"
+        if self._looks_like_numeric_column_inventory_request(lowered):
+            return "numeric_column_inventory"
+        if self._looks_like_categorical_column_inventory_request(lowered):
+            return "categorical_column_inventory"
+        if any(keyword in lowered for keyword in MISSING_VALUE_INVENTORY_KEYWORDS):
+            return "missing_value_inventory"
+        if any(keyword in lowered for keyword in IDENTIFIER_INVENTORY_KEYWORDS):
+            return "identifier_inventory"
+        if any(keyword in lowered for keyword in HIGH_CARDINALITY_INVENTORY_KEYWORDS):
+            return "high_cardinality_inventory"
+        if self._looks_like_existence_request(question, profile):
+            return "existence_check"
         if "columns" in lowered and any(keyword in lowered for keyword in {"available", "what are", "which", "show"}):
             return "column_inventory"
         if any(keyword in lowered for keyword in {"measure columns", "metrics available", "available metrics"}):
             return "measure_inventory"
         if any(keyword in lowered for keyword in {"dimension columns", "available dimensions", "grouping columns"}):
             return "dimension_inventory"
-        if any(keyword in lowered for keyword in {"time columns", "date columns", "datetime columns"}):
+        if self._looks_like_time_column_inventory_request(lowered):
             return "time_column_inventory"
+        if self._looks_like_time_bucket_count_request(question):
+            return "time_bucket_counts"
         if self._looks_like_time_coverage_request(question):
             return "time_coverage"
         if any(keyword in lowered for keyword in ROW_COUNT_KEYWORDS):
@@ -705,6 +905,32 @@ class InputCanonicalizer:
         if self._looks_like_representation_request(question, profile):
             return "representation_ranking"
         return None
+
+    def _looks_like_column_type_inventory_request(self, lowered: str) -> bool:
+        if "schema" in lowered:
+            return True
+        if not any(keyword in lowered for keyword in COLUMN_TYPE_INVENTORY_KEYWORDS):
+            return False
+        return any(keyword in lowered for keyword in {"column", "columns", "field", "fields", "data"})
+
+    def _looks_like_numeric_column_inventory_request(self, lowered: str) -> bool:
+        if any(keyword in lowered for keyword in NUMERIC_COLUMN_INVENTORY_KEYWORDS):
+            return True
+        return any(keyword in lowered for keyword in {"numeric", "numerical"}) and any(
+            keyword in lowered for keyword in {"column", "columns", "field", "fields"}
+        )
+
+    def _looks_like_categorical_column_inventory_request(self, lowered: str) -> bool:
+        if any(keyword in lowered for keyword in CATEGORICAL_COLUMN_INVENTORY_KEYWORDS):
+            return True
+        return any(keyword in lowered for keyword in {"categorical", "category", "text", "string"}) and any(
+            keyword in lowered for keyword in {"column", "columns", "field", "fields"}
+        )
+
+    def _looks_like_time_column_inventory_request(self, lowered: str) -> bool:
+        return any(keyword in lowered for keyword in {"time", "date", "dates", "datetime"}) and any(
+            keyword in lowered for keyword in {"column", "columns", "field", "fields"}
+        )
 
     def _looks_like_representation_request(self, question: str, profile: DatasetProfile) -> bool:
         lowered = question.lower()
@@ -734,6 +960,27 @@ class InputCanonicalizer:
         all_keywords = TIME_COVERAGE_YEAR_KEYWORDS | TIME_COVERAGE_MONTH_KEYWORDS | TIME_COVERAGE_RANGE_KEYWORDS
         return any(keyword in lowered for keyword in all_keywords)
 
+    def _looks_like_time_bucket_count_request(self, question: str) -> bool:
+        lowered = question.lower()
+        has_count_language = any(keyword in lowered for keyword in {"how many", "count", "number of"})
+        if not has_count_language:
+            return False
+        year_request = any(keyword in lowered for keyword in TIME_BUCKET_COUNT_YEAR_KEYWORDS)
+        month_request = any(keyword in lowered for keyword in TIME_BUCKET_COUNT_MONTH_KEYWORDS)
+        return year_request or month_request
+
+    def _looks_like_existence_request(self, question: str, profile: DatasetProfile) -> bool:
+        lowered = question.lower()
+        starts_like_boolean_check = lowered.strip().startswith(("is ", "are ", "does ", "do "))
+        if not starts_like_boolean_check and not any(keyword in lowered for keyword in EXISTENCE_REQUEST_KEYWORDS):
+            return False
+        year_value = self._extract_year_value(question)
+        if year_value is not None and profile.time_columns:
+            if "date" in lowered or "dates" in lowered or any(column.lower() in lowered for column in profile.time_columns):
+                return True
+        filters = self._extract_filters(question, profile, None)
+        return bool(filters)
+
     def _time_coverage_mode(self, question: str) -> str:
         lowered = question.lower()
         if any(keyword in lowered for keyword in TIME_COVERAGE_YEAR_KEYWORDS):
@@ -741,6 +988,31 @@ class InputCanonicalizer:
         if any(keyword in lowered for keyword in TIME_COVERAGE_MONTH_KEYWORDS):
             return "months_present"
         return "date_range"
+
+    def _time_bucket_mode(self, question: str) -> str:
+        lowered = question.lower()
+        if any(keyword in lowered for keyword in TIME_BUCKET_COUNT_MONTH_KEYWORDS):
+            return "month"
+        return "year"
+
+    def _resolve_existence_mode(
+        self,
+        question: str,
+        profile: DatasetProfile,
+        target: str | None,
+        filters: dict[str, str] | None,
+    ) -> str:
+        lowered = question.lower()
+        if self._extract_year_value(question) is not None and profile.time_columns:
+            if target in set(profile.time_columns) or "date" in lowered or "dates" in lowered:
+                return "time_value"
+        return "filtered_rows"
+
+    def _extract_year_value(self, question: str) -> int | None:
+        match = re.search(r"\b(19|20)\d{2}\b", question)
+        if not match:
+            return None
+        return int(match.group(0))
 
     def _should_list_distinct_values(
         self,

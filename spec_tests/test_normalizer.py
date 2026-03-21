@@ -169,6 +169,84 @@ def build_statistical_dataset() -> Dataset:
     return Dataset(name="tickets", source_type="pandas", data=dataframe)
 
 
+def build_schema_profile() -> DatasetProfile:
+    return DatasetProfile(
+        dataset_name="support",
+        row_count=4,
+        column_count=5,
+        columns=[
+            ColumnProfile(
+                name="ticket_id",
+                inferred_type="string",
+                nullable=False,
+                null_ratio=0.0,
+                unique_count=4,
+                distinct_ratio=1.0,
+                sample_values=["T1", "T2"],
+                is_identifier_candidate=True,
+                is_dimension_candidate=True,
+            ),
+            ColumnProfile(
+                name="created_at",
+                inferred_type="datetime",
+                nullable=False,
+                null_ratio=0.0,
+                unique_count=4,
+                distinct_ratio=1.0,
+                sample_values=["2026-01-01"],
+                is_time_candidate=True,
+            ),
+            ColumnProfile(
+                name="resolution_hours",
+                inferred_type="float",
+                nullable=False,
+                null_ratio=0.0,
+                unique_count=4,
+                distinct_ratio=1.0,
+                sample_values=[4.2, 6.1],
+                is_measure_candidate=True,
+            ),
+            ColumnProfile(
+                name="priority",
+                inferred_type="category",
+                nullable=False,
+                null_ratio=0.0,
+                unique_count=3,
+                distinct_ratio=0.75,
+                sample_values=["Low", "High"],
+                is_dimension_candidate=True,
+            ),
+            ColumnProfile(
+                name="csat_score",
+                inferred_type="float",
+                nullable=True,
+                null_ratio=0.25,
+                unique_count=3,
+                distinct_ratio=0.75,
+                sample_values=[4.8, 4.1],
+                is_measure_candidate=True,
+            ),
+        ],
+        measure_columns=["resolution_hours", "csat_score"],
+        dimension_columns=["ticket_id", "priority"],
+        time_columns=["created_at"],
+        identifier_columns=["ticket_id"],
+    )
+
+
+def build_schema_dataset() -> Dataset:
+    dataframe = pd.DataFrame(
+        {
+            "ticket_id": ["T1", "T2", "T3", "T4"],
+            "created_at": ["2026-01-01", "2026-01-02", "2026-01-03", "2026-01-04"],
+            "resolution_hours": [4.2, 6.1, 3.4, 8.0],
+            "priority": ["Low", "Medium", "High", "Medium"],
+            "csat_score": [4.8, None, 4.1, 3.9],
+        }
+    )
+    return Dataset(name="support", source_type="pandas", data=dataframe)
+
+
 def test_normalizer_extracts_group_by_filters_and_time_reference() -> None:
     normalizer = RequestNormalizer()
     context = SourceContext(raw_markdown="", metric_definitions={"revenue": "total revenue"})
@@ -386,6 +464,144 @@ def test_normalizer_detects_column_inventory_intent() -> None:
     assert request.target is None
 
 
+def test_normalizer_detects_column_type_inventory_intent() -> None:
+    normalizer = RequestNormalizer()
+
+    request, warnings = normalizer.normalize(
+        "What are the data types of each field or column in the data?",
+        build_schema_dataset(),
+        build_schema_profile(),
+        None,
+    )
+
+    assert warnings == []
+    assert request.intent_name == "column_type_inventory"
+    assert request.target is None
+
+
+def test_normalizer_detects_schema_prompt_as_column_type_inventory() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "What is the schema of this data?",
+        build_schema_dataset(),
+        build_schema_profile(),
+        None,
+    )
+
+    assert request.intent_name == "column_type_inventory"
+
+
+def test_normalizer_detects_numeric_column_inventory_intent() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Which columns are numeric?",
+        build_schema_dataset(),
+        build_schema_profile(),
+        None,
+    )
+
+    assert request.intent_name == "numeric_column_inventory"
+    assert request.target is None
+
+
+def test_normalizer_detects_categorical_column_inventory_intent() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Which fields are categorical?",
+        build_schema_dataset(),
+        build_schema_profile(),
+        None,
+    )
+
+    assert request.intent_name == "categorical_column_inventory"
+
+
+def test_normalizer_detects_time_column_inventory_for_date_fields_prompt() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Which fields are dates?",
+        build_schema_dataset(),
+        build_schema_profile(),
+        None,
+    )
+
+    assert request.intent_name == "time_column_inventory"
+
+
+def test_normalizer_detects_missing_value_inventory_intent() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Which columns have missing values?",
+        build_schema_dataset(),
+        build_schema_profile(),
+        None,
+    )
+
+    assert request.intent_name == "missing_value_inventory"
+
+
+def test_normalizer_detects_identifier_inventory_intent() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Which columns are likely identifiers?",
+        build_schema_dataset(),
+        build_schema_profile(),
+        None,
+    )
+
+    assert request.intent_name == "identifier_inventory"
+
+
+def test_normalizer_detects_high_cardinality_inventory_intent() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Which columns have many unique values?",
+        build_schema_dataset(),
+        build_schema_profile(),
+        None,
+    )
+
+    assert request.intent_name == "high_cardinality_inventory"
+
+
+def test_normalizer_does_not_force_measure_target_for_schema_metadata_prompt() -> None:
+    normalizer = RequestNormalizer()
+
+    request, warnings = normalizer.normalize(
+        "Which columns are numeric?",
+        build_schema_dataset(),
+        build_schema_profile(),
+        None,
+    )
+
+    assert warnings == []
+    assert request.target is None
+
+
+def test_normalizer_schema_metadata_prompts_work_without_measure_columns() -> None:
+    normalizer = RequestNormalizer()
+    profile = build_schema_profile()
+    profile.measure_columns = []
+
+    request, warnings = normalizer.normalize(
+        "Which columns have missing values?",
+        build_schema_dataset(),
+        profile,
+        None,
+    )
+
+    assert warnings == []
+    assert request.intent_name == "missing_value_inventory"
+    assert request.target is None
+
+
 def test_normalizer_detects_time_coverage_years_intent() -> None:
     normalizer = RequestNormalizer()
 
@@ -428,6 +644,69 @@ def test_normalizer_detects_time_coverage_date_range_intent() -> None:
 
     assert request.intent_name == "time_coverage"
     assert request.options["time_coverage_mode"] == "date_range"
+
+
+def test_normalizer_detects_time_bucket_counts_by_year_intent() -> None:
+    normalizer = RequestNormalizer()
+
+    request, warnings = normalizer.normalize(
+        "I need a list of years, and how many tickets created in those years.",
+        build_statistical_dataset(),
+        build_statistical_profile(),
+        None,
+    )
+
+    assert warnings == []
+    assert request.intent_name == "time_bucket_counts"
+    assert request.target is None
+    assert request.options["time_bucket"] == "year"
+
+
+def test_normalizer_detects_time_bucket_counts_by_month_intent() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "How many tickets were created by month?",
+        build_statistical_dataset(),
+        build_statistical_profile(),
+        None,
+    )
+
+    assert request.intent_name == "time_bucket_counts"
+    assert request.options["time_bucket"] == "month"
+
+
+def test_normalizer_detects_time_value_existence_intent() -> None:
+    normalizer = RequestNormalizer()
+
+    request, warnings = normalizer.normalize(
+        "The created_at column shows dates in 2025?",
+        build_statistical_dataset(),
+        build_statistical_profile(),
+        None,
+    )
+
+    assert warnings == []
+    assert request.intent_name == "existence_check"
+    assert request.target == "created_at"
+    assert request.options["existence_mode"] == "time_value"
+    assert request.options["expected_year"] == 2025
+
+
+def test_normalizer_detects_filtered_row_existence_intent() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Is West in the region column?",
+        build_dataset(),
+        build_profile(),
+        None,
+    )
+
+    assert request.intent_name == "existence_check"
+    assert request.target is None
+    assert request.filters == {"region": "West"}
+    assert request.options["existence_mode"] == "filtered_rows"
 
 
 def test_normalizer_detects_natural_significance_prompt() -> None:
