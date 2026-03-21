@@ -35,10 +35,10 @@ Typical responsibilities of the plan:
 
 It must include:
 
-- `result_type`
-- `schema`
-- `data`
-- `metadata`
+- a standardized response envelope
+- a self-describing primary `result`
+- optional secondary `tables`
+- metadata and execution trace information
 
 The result must be self-describing enough to travel across:
 
@@ -46,6 +46,23 @@ The result must be self-describing enough to travel across:
 - UIs
 - plugins
 - output formatters
+
+## Current Prototype Envelope
+
+The current 0.2.0 prototype returns `saida.response.v2` with these top-level fields:
+
+- `schema_version`
+- `status`
+- `request`
+- `interpretation`
+- `execution`
+- `result`
+- `tables`
+- `reasoning`
+- `history`
+- `warnings`
+- `errors`
+- `meta`
 
 ## Shape Requirements
 
@@ -55,9 +72,16 @@ The architecture names these output shapes as first-class:
 - vector
 - table
 - matrix
-- time_series
+- timeseries
 - distribution
 - spatial
+
+The current prototype also uses:
+
+- recordset
+- object
+- verification
+- statistical_test
 
 ## Result Normalization
 
@@ -68,6 +92,17 @@ Instead, SAIDA should normalize backend output into canonical result form with:
 - stable shape
 - stable schema
 - stable type information
+
+The current primary `result` object is normalized with:
+
+- `physical_shape`
+- `logical_shape`
+- `dtype`
+- `schema`
+- `dimensions`
+- `row_count`
+- `labels`
+- `value`
 
 ## Current Prototype Result Families
 

@@ -81,12 +81,31 @@ Example direct-plan payload:
 
 All results should return a canonical analytical result that includes enough structure to be interpreted without external context.
 
-Minimum result expectations:
+The current 0.2.0 prototype returns `saida.response.v2` with:
 
-- `result_type`
+- `schema_version`
+- `status`
+- `request`
+- `interpretation`
+- `execution`
+- `result`
+- `tables`
+- `reasoning`
+- `history`
+- `warnings`
+- `errors`
+- `meta`
+
+The current primary `result` object includes:
+
+- `physical_shape`
+- `logical_shape`
+- `dtype`
 - `schema`
-- `data`
-- `metadata`
+- `dimensions`
+- `row_count`
+- `labels`
+- `value`
 
 ## Output Formats
 

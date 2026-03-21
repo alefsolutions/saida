@@ -64,6 +64,21 @@ SAIDA should return:
 
 - canonical structured results with stable shape, schema, and metadata
 
+The current prototype response envelope is:
+
+- `schema_version`
+- `status`
+- `request`
+- `interpretation`
+- `execution`
+- `result`
+- `tables`
+- `reasoning`
+- `history`
+- `warnings`
+- `errors`
+- `meta`
+
 ## Current Prototype Support
 
 The current 0.2.0 prototype already supports a first-class schema metadata question family for prompts such as:
@@ -119,6 +134,23 @@ The current 0.2.0 prototype also applies stronger typed routing guards so that:
 - grouped descriptive requests require a numeric target unless they map to a dedicated dimension workflow
 
 This keeps prompt routing closer to the actual compute contract and reduces weak generic analysis paths.
+
+## Current Response Contract
+
+The current 0.2.0 prototype returns the standardized JSON envelope `saida.response.v2`.
+
+The primary `result` object is self-describing and includes:
+
+- `physical_shape`
+- `logical_shape`
+- `dtype`
+- `schema`
+- `dimensions`
+- `row_count`
+- `labels`
+- `value`
+
+This is the current portable contract for APIs, UIs, playgrounds, and downstream plugins.
 
 ## Sources And Backends
 

@@ -24,6 +24,7 @@ Quick links: [Main README](./README.md) | [Architecture](./ARCHITECTURE.md) | [L
 - Added canonical filter handling for richer prompt-driven slicing in the 0.2.0 prototype.
 - Added stronger typed routing guards so unsupported categorical and datetime aggregations fail clearly instead of silently falling back to a numeric measure.
 - Added stricter grouped descriptive validation to keep request routing aligned with the actual compute contract.
+- Tightened the 0.2.0 docs around the live `saida.response.v2` envelope and the self-describing primary `result` contract.
 
 ### Planned
 
