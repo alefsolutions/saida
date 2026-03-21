@@ -367,6 +367,80 @@ def test_normalizer_extracts_equals_filters() -> None:
     assert request.filters == {"region": "West"}
 
 
+def test_normalizer_extracts_multiple_natural_filters() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize("Show revenue for West SMB", build_dataset(), build_profile(), None)
+
+    assert request.filters == {"region": "West", "segment": "SMB"}
+
+
+def test_normalizer_extracts_exclusion_filter_from_without_phrase() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize("Show revenue without West", build_dataset(), build_profile(), None)
+
+    assert request.filters == {"region": {"op": "neq", "value": "West"}}
+
+
+def test_normalizer_extracts_implied_flag_filter() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Only reopened tickets",
+        build_statistical_dataset(),
+        build_statistical_profile(),
+        None,
+    )
+
+    assert request.filters == {"reopened_flag": "yes"}
+
+
+def test_normalizer_extracts_implied_flag_exclusion_filter() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Exclude reopened tickets",
+        build_statistical_dataset(),
+        build_statistical_profile(),
+        None,
+    )
+
+    assert request.filters == {"reopened_flag": {"op": "neq", "value": "yes"}}
+
+
+def test_normalizer_extracts_year_filter() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize("Show revenue for West in 2026", build_dataset(), build_profile(), None)
+
+    assert request.filters == {"region": "West", "posted_at": {"op": "year_eq", "value": 2026}}
+
+
+def test_normalizer_extracts_month_filter() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize("Show revenue for West in March", build_dataset(), build_profile(), None)
+
+    assert request.filters == {"region": "West", "posted_at": {"op": "month_eq", "value": 3, "label": "march"}}
+
+
+def test_normalizer_does_not_convert_diagnostic_month_prompt_into_time_filter() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize("Why did revenue drop in March?", build_dataset(), build_profile(), None)
+
+    assert request.filters is None
+
+
+def test_normalizer_does_not_convert_comparison_prompt_into_time_filter() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize("Compare revenue this year to last year", build_dataset(), build_profile(), None)
+
+    assert request.filters is None
+
+
 def test_normalizer_deduplicates_group_by_matches() -> None:
     normalizer = RequestNormalizer()
 

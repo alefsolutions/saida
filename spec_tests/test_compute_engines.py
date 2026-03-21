@@ -104,6 +104,43 @@ def test_duckdb_row_count_counts_filtered_rows() -> None:
     assert metrics[0].value == 2
 
 
+def test_duckdb_row_count_supports_not_equal_filter() -> None:
+    engine = DuckDBComputeEngine()
+    dataframe = pd.DataFrame({"region": ["West", "East", "West"], "revenue": [1, 2, 3]})
+
+    metrics = engine.row_count(dataframe, filters={"region": {"op": "neq", "value": "West"}})
+
+    assert metrics[0].value == 1
+
+
+def test_duckdb_row_count_supports_year_filter() -> None:
+    engine = DuckDBComputeEngine()
+    dataframe = pd.DataFrame(
+        {
+            "posted_at": ["2025-01-01", "2026-02-01", "2026-03-01"],
+            "revenue": [1, 2, 3],
+        }
+    )
+
+    metrics = engine.row_count(dataframe, filters={"posted_at": {"op": "year_eq", "value": 2026}})
+
+    assert metrics[0].value == 2
+
+
+def test_duckdb_row_count_supports_month_filter() -> None:
+    engine = DuckDBComputeEngine()
+    dataframe = pd.DataFrame(
+        {
+            "posted_at": ["2026-02-01", "2026-03-01", "2026-03-15"],
+            "revenue": [1, 2, 3],
+        }
+    )
+
+    metrics = engine.row_count(dataframe, filters={"posted_at": {"op": "month_eq", "value": 3}})
+
+    assert metrics[0].value == 2
+
+
 def test_duckdb_count_rows_by_group_supports_ranking() -> None:
     engine = DuckDBComputeEngine()
     dataframe = pd.DataFrame({"segment": ["Retail", "Retail", "Wholesale", "Online"], "revenue": [1, 2, 3, 4]})

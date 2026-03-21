@@ -481,7 +481,7 @@ class SummaryFormatter:
         if table is None or table.dataframe.empty:
             return None
         row = table.dataframe.iloc[0]
-        filter_parts = [f"{column}={value}" for column, value in (request.filters or {}).items()]
+        filter_parts = [self._format_filter_condition(column, value) for column, value in (request.filters or {}).items()]
         filter_text = ", ".join(filter_parts) if filter_parts else "the requested conditions"
         matching_row_count = int(row.get("matching_row_count", 0) or 0)
         if bool(row.get("exists")):
@@ -500,6 +500,18 @@ class SummaryFormatter:
             "lte": f"at most {threshold_value:.2f}",
         }
         return labels.get(operator, f"matching the threshold {threshold_value:.2f}")
+
+    def _format_filter_condition(self, column: str, value: object) -> str:
+        if isinstance(value, dict):
+            operator = value.get("op")
+            if operator == "neq":
+                return f"{column}!={value.get('value')}"
+            if operator == "year_eq":
+                return f"year({column})={value.get('value')}"
+            if operator == "month_eq":
+                label = value.get("label") or value.get("value")
+                return f"month({column})={label}"
+        return f"{column}={value}"
 
     def _describe_statistical_result(self, tables: list[TableArtifact]) -> str | None:
         statistical_tables = {

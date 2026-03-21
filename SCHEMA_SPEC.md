@@ -101,6 +101,16 @@ The current prototype also returns canonical verification result families for:
 
 These results are normalized as verification-style outputs in the same response contract.
 
+The current prototype also accepts richer canonical filter payloads for:
+
+- equality filters
+- exclusion filters
+- implied yes/no flag filters
+- simple year filters on datetime columns
+- simple month filters on datetime columns
+
+These filters are normalized before execution and reused across the same analytical response contract.
+
 ## Guiding Principle
 
 Schemas in SAIDA 0.2.0 are not just internal containers.

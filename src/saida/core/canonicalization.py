@@ -771,21 +771,44 @@ class InputCanonicalizer:
         question: str,
         profile: DatasetProfile,
         context: SourceContext | None,
-    ) -> dict[str, str] | None:
+    ) -> dict[str, object] | None:
         lowered = question.lower()
-        filters: dict[str, str] = {}
+        filters: dict[str, object] = {}
 
         for dimension in profile.dimension_columns:
-            pattern = rf"\b{re.escape(dimension.lower())}\s*=\s*([a-z0-9_\- ]+)"
-            match = re.search(pattern, lowered)
+            pattern = rf"\b{re.escape(dimension)}\s*=\s*([a-z0-9_\- ]+)"
+            match = re.search(pattern, question, flags=re.IGNORECASE)
             if match:
                 filters[dimension] = match.group(1).strip()
 
         candidate_values = self._candidate_filter_values(profile, context)
         for column_name, values in candidate_values.items():
             for value in values:
-                if value and re.search(rf"\b{re.escape(value.lower())}\b", lowered):
-                    filters[column_name] = value
+                if not value:
+                    continue
+                match = re.search(rf"\b{re.escape(value.lower())}\b", lowered)
+                if not match:
+                    continue
+                operator = self._contextual_filter_operator(lowered, match.start())
+                if column_name not in filters:
+                    filters[column_name] = self._build_filter_value(operator, value)
+
+        for column_name, implied_value in self._flag_filter_aliases(profile).items():
+            match = re.search(rf"\b{re.escape(column_name.lower())}\b", lowered)
+            if not match:
+                continue
+            profile_column = f"{column_name}_flag" if f"{column_name}_flag" in {column.name for column in profile.columns} else None
+            resolved_column = profile_column or next(
+                (
+                    column.name
+                    for column in profile.columns
+                    if column.name.lower() == column_name.lower() or column.name.lower() == f"{column_name.lower()}_flag"
+                ),
+                None,
+            )
+            if resolved_column and resolved_column not in filters:
+                operator = self._contextual_filter_operator(lowered, match.start())
+                filters[resolved_column] = self._build_filter_value(operator, implied_value)
 
         membership_match = re.search(
             r"\bis\s+([a-z0-9_\- ]+?)\s+in\s+the\s+([a-z0-9_ ]+?)\s+column\b",
@@ -799,6 +822,28 @@ class InputCanonicalizer:
             resolved_column = profile_columns.get(requested_column)
             if resolved_column and requested_value:
                 filters[resolved_column] = requested_value
+
+        time_column = profile.time_columns[0] if profile.time_columns else None
+        if time_column and self._should_extract_time_filter(lowered):
+            year_match = re.search(r"\b(?:in|for|during)\s+((?:19|20)\d{2})\b", lowered)
+            if year_match:
+                filters[time_column] = {"op": "year_eq", "value": int(year_match.group(1))}
+            else:
+                time_reference = self._extract_time_reference(question)
+                month_match = re.search(
+                    r"\b(?:in|for|during)\s+("
+                    + "|".join(re.escape(month_name[index].lower()) for index in range(1, 13))
+                    + r"|"
+                    + "|".join(re.escape(month_abbr[index].lower()) for index in range(1, 13))
+                    + r")\b",
+                    lowered,
+                )
+                if month_match and time_reference and time_reference.get("type") == "month_name":
+                    filters[time_column] = {
+                        "op": "month_eq",
+                        "value": int(time_reference["month"]),
+                        "label": time_reference["value"],
+                    }
 
         return filters or None
 
@@ -823,6 +868,38 @@ class InputCanonicalizer:
                 candidate_values.setdefault(field_name, [])
 
         return candidate_values
+
+    def _flag_filter_aliases(self, profile: DatasetProfile) -> dict[str, str]:
+        aliases: dict[str, str] = {}
+        for column in profile.columns:
+            if not column.is_dimension_candidate:
+                continue
+            if column.name.lower().endswith("_flag"):
+                sample_values = {str(value).lower() for value in column.sample_values if isinstance(value, str)}
+                if {"yes", "no"}.issubset(sample_values):
+                    aliases[column.name[:-5]] = "yes"
+        return aliases
+
+    def _contextual_filter_operator(self, lowered_question: str, value_start: int) -> str:
+        window_start = max(0, value_start - 24)
+        context_window = lowered_question[window_start:value_start]
+        if any(keyword in context_window for keyword in {"exclude ", "excluding ", "without ", "except ", "not "}):
+            return "neq"
+        return "eq"
+
+    def _build_filter_value(self, operator: str, value: str) -> object:
+        if operator == "neq":
+            return {"op": "neq", "value": value}
+        return value
+
+    def _should_extract_time_filter(self, lowered: str) -> bool:
+        if any(keyword in lowered for keyword in TIME_COMPARISON_KEYWORDS):
+            return False
+        if any(keyword in lowered for keyword in {"by month", "by year", "by quarter", "per month", "per year", "per quarter"}):
+            return False
+        if any(keyword in lowered for keyword in {"why", "drop", "decline", "decrease", "trend"}):
+            return False
+        return True
 
     def _validate_task_type(self, task_type_hint: str | None) -> str | None:
         if task_type_hint in TASK_LABELS:
@@ -1302,17 +1379,27 @@ class InputCanonicalizer:
 
     def _resolve_candidate_filters(
         self,
-        filters: dict[str, str] | None,
+        filters: dict[str, object] | None,
         profile: DatasetProfile,
-    ) -> dict[str, str] | None:
+    ) -> dict[str, object] | None:
         if not filters:
             return None
         profile_columns = {column.name.lower(): column.name for column in profile.columns}
-        resolved: dict[str, str] = {}
+        resolved: dict[str, object] = {}
         for column_name, value in filters.items():
             lowered_column = column_name.lower().strip()
-            if lowered_column in profile_columns and isinstance(value, str) and value.strip():
+            if lowered_column not in profile_columns:
+                continue
+            if isinstance(value, str) and value.strip():
                 resolved[profile_columns[lowered_column]] = value.strip()
+                continue
+            if isinstance(value, dict):
+                operator = value.get("op")
+                if operator in {"neq", "year_eq", "month_eq"} and value.get("value") is not None:
+                    resolved_value = {"op": operator, "value": value.get("value")}
+                    if value.get("label") is not None:
+                        resolved_value["label"] = str(value["label"])
+                    resolved[profile_columns[lowered_column]] = resolved_value
         return resolved or None
 
     def _resolve_candidate_time_reference(self, time_reference: dict[str, str] | None) -> dict[str, str] | None:

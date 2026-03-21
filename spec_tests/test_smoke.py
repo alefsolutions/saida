@@ -194,6 +194,81 @@ def test_analyze_applies_group_and_filter_detection() -> None:
     assert set(grouped["region"]) == {"West"}
 
 
+def test_analyze_applies_implied_flag_filter() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "resolution_hours": [2.1, 5.4, 6.8, 4.2],
+            "reopened_flag": ["yes", "no", "yes", "no"],
+            "priority": ["Low", "Low", "High", "High"],
+        }
+    )
+    dataset = Dataset(name="tickets", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "How many rows for reopened tickets?")
+
+    assert any(metric.name == "row_count" and metric.value == 2 for metric in result.metrics)
+
+
+def test_analyze_applies_exclusion_filter() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "resolution_hours": [2.1, 5.4, 6.8, 4.2],
+            "reopened_flag": ["yes", "no", "yes", "no"],
+            "priority": ["Low", "Low", "High", "High"],
+        }
+    )
+    dataset = Dataset(name="tickets", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "How many rows excluding reopened tickets?")
+
+    assert any(metric.name == "row_count" and metric.value == 2 for metric in result.metrics)
+
+
+def test_analyze_applies_year_filter() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "posted_at": ["2025-01-01", "2026-02-01", "2026-03-01"],
+            "revenue": [100.0, 120.0, 80.0],
+            "region": ["West", "West", "East"],
+        }
+    )
+    dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "What is the total revenue for West in 2026?")
+
+    assert any(metric.name == "revenue_sum" and metric.value == 120.0 for metric in result.metrics)
+
+
+def test_analyze_applies_month_filter() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "posted_at": ["2026-02-01", "2026-03-01", "2026-03-15"],
+            "revenue": [100.0, 120.0, 80.0],
+            "region": ["West", "West", "East"],
+        }
+    )
+    dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "What is the total revenue for West in March?")
+
+    assert any(metric.name == "revenue_sum" and metric.value == 120.0 for metric in result.metrics)
+
+
+def test_analyze_applies_multiple_natural_filters() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "revenue": [100.0, 120.0, 80.0, 70.0],
+            "region": ["West", "West", "East", "West"],
+            "segment": ["SMB", "Enterprise", "SMB", "SMB"],
+        }
+    )
+    dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "What is the total revenue for West SMB?")
+
+    assert any(metric.name == "revenue_sum" and metric.value == 170.0 for metric in result.metrics)
+
+
 def test_analyze_returns_ranked_breakdown_and_contribution_tables() -> None:
     dataframe = pd.DataFrame(
         {

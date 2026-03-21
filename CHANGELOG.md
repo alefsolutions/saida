@@ -20,6 +20,8 @@ Quick links: [Main README](./README.md) | [Architecture](./ARCHITECTURE.md) | [L
 - Added deterministic adjacent-period comparison support for month, quarter, and year prompts in the 0.2.0 prototype.
 - Added broader boolean verification support for null checks, completeness checks, threshold checks, range checks, and column-property checks.
 - Added canonical verification result tables and summaries for the expanded Phase 3 prompt family in the 0.2.0 prototype.
+- Added stronger natural-language filter extraction for multi-clause inclusion, exclusion, implied flag filters, and simple year/month time filters.
+- Added canonical filter handling for richer prompt-driven slicing in the 0.2.0 prototype.
 
 ### Planned
 

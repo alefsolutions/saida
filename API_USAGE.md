@@ -148,6 +148,14 @@ The current prototype also already supports boolean verification prompts such as
 - `Is created_at a datetime field?`
 - `Is ticket_id likely an identifier?`
 
+The current prototype also already supports stronger filter-oriented prompts such as:
+
+- `Show revenue for West SMB`
+- `Only reopened tickets`
+- `Exclude reopened tickets`
+- `What is the total revenue for West in 2026?`
+- `What is the total revenue for West in March?`
+
 ## Design Rule
 
 The API surface should stay thin.

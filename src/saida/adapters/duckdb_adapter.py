@@ -203,17 +203,10 @@ class DuckDBAdapter:
     def row_existence(
         self,
         dataframe: pd.DataFrame,
-        filters: dict[str, str],
+        filters: dict[str, object],
     ) -> TableArtifact:
         """Return whether any rows match the requested filters."""
-        prepared = dataframe.copy()
-        self._require_columns(prepared, list(filters))
-        for column_name, expected_value in filters.items():
-            series = prepared[column_name]
-            if pd.api.types.is_string_dtype(series):
-                prepared = prepared.loc[series.astype(str).str.lower() == expected_value.lower()]
-            else:
-                prepared = prepared.loc[series.astype(str) == str(expected_value)]
+        prepared = self._filter_dataframe(dataframe, filters, allow_empty=True)
 
         return TableArtifact(
             name="row_existence",
@@ -234,13 +227,13 @@ class DuckDBAdapter:
         time_column: str,
         expected_year: int | None = None,
         time_reference: dict[str, str] | None = None,
-        filters: dict[str, str] | None = None,
+        filters: dict[str, object] | None = None,
     ) -> TableArtifact:
         """Return whether a requested time value exists in a datetime column."""
         prepared = dataframe.copy()
         self._require_columns(prepared, [time_column])
         if filters:
-            prepared = self._apply_filters(prepared, filters)
+            prepared = self._filter_dataframe(prepared, filters, allow_empty=True)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=UserWarning)
             prepared[time_column] = pd.to_datetime(prepared[time_column], errors="coerce")
@@ -277,7 +270,7 @@ class DuckDBAdapter:
         dataframe: pd.DataFrame,
         target: str,
         null_expectation: str = "has_nulls",
-        filters: dict[str, str] | None = None,
+        filters: dict[str, object] | None = None,
     ) -> TableArtifact:
         """Return whether a column has nulls or is complete."""
         prepared = self._apply_filters(dataframe, filters)
@@ -311,7 +304,7 @@ class DuckDBAdapter:
         threshold_value: float | None = None,
         lower_bound: float | None = None,
         upper_bound: float | None = None,
-        filters: dict[str, str] | None = None,
+        filters: dict[str, object] | None = None,
     ) -> TableArtifact:
         """Return whether a numeric target satisfies a threshold condition."""
         prepared = self._apply_filters(dataframe, filters).copy()
@@ -810,7 +803,15 @@ class DuckDBAdapter:
             return None
         return current_period, previous_period
 
-    def _apply_filters(self, dataframe: pd.DataFrame, filters: dict[str, str] | None) -> pd.DataFrame:
+    def _apply_filters(self, dataframe: pd.DataFrame, filters: dict[str, object] | None) -> pd.DataFrame:
+        return self._filter_dataframe(dataframe, filters, allow_empty=False)
+
+    def _filter_dataframe(
+        self,
+        dataframe: pd.DataFrame,
+        filters: dict[str, object] | None,
+        allow_empty: bool,
+    ) -> pd.DataFrame:
         if not filters:
             return dataframe
 
@@ -818,16 +819,34 @@ class DuckDBAdapter:
         for column_name, expected_value in filters.items():
             if column_name not in prepared.columns:
                 raise ComputeError(f"Filter column '{column_name}' does not exist in the dataset.")
+            prepared = self._apply_single_filter(prepared, column_name, expected_value)
 
-            series = prepared[column_name]
-            if pd.api.types.is_string_dtype(series):
-                prepared = prepared.loc[series.astype(str).str.lower() == expected_value.lower()]
-            else:
-                prepared = prepared.loc[series.astype(str) == str(expected_value)]
-
-        if prepared.empty:
+        if prepared.empty and not allow_empty:
             raise ComputeError("Filters removed all rows from the dataset.")
         return prepared
+
+    def _apply_single_filter(self, dataframe: pd.DataFrame, column_name: str, expected_value: object) -> pd.DataFrame:
+        series = dataframe[column_name]
+        if isinstance(expected_value, dict):
+            operator = expected_value.get("op")
+            if operator == "neq":
+                value = expected_value.get("value")
+                if pd.api.types.is_string_dtype(series):
+                    return dataframe.loc[series.astype(str).str.lower() != str(value).lower()]
+                return dataframe.loc[series.astype(str) != str(value)]
+            if operator == "year_eq":
+                prepared = dataframe.copy()
+                prepared[column_name] = pd.to_datetime(prepared[column_name], errors="coerce")
+                return prepared.loc[prepared[column_name].dt.year == int(expected_value["value"])]
+            if operator == "month_eq":
+                prepared = dataframe.copy()
+                prepared[column_name] = pd.to_datetime(prepared[column_name], errors="coerce")
+                return prepared.loc[prepared[column_name].dt.month == int(expected_value["value"])]
+            raise ComputeError(f"Unsupported filter operator: {operator}")
+
+        if pd.api.types.is_string_dtype(series):
+            return dataframe.loc[series.astype(str).str.lower() == str(expected_value).lower()]
+        return dataframe.loc[series.astype(str) == str(expected_value)]
 
     def _require_columns(self, dataframe: pd.DataFrame, column_names: list[str]) -> None:
         missing_columns = [column_name for column_name in column_names if column_name not in dataframe.columns]

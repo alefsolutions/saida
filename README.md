@@ -102,6 +102,16 @@ The current 0.2.0 prototype also supports broader boolean verification prompts s
 
 These prompts now route into canonical verification results instead of falling back to generic descriptive analysis.
 
+The current 0.2.0 prototype also supports stronger natural-language filter extraction for prompts such as:
+
+- `Show revenue for West SMB`
+- `Only reopened tickets`
+- `Exclude reopened tickets`
+- `What is the total revenue for West in 2026?`
+- `What is the total revenue for West in March?`
+
+These prompts now support multi-clause inclusion filters, exclusion filters, implied flag filters, and simple year/month time filters through the canonical filter contract.
+
 ## Sources And Backends
 
 The architecture defines SAIDA as multi-source and multi-backend.
