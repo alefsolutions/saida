@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 import pandas as pd
 
 from saida.core import ResultBuilder
@@ -226,6 +228,65 @@ def test_build_analysis_result_indexes_multiple_tables() -> None:
     assert result.artifacts["warning_count"] == 2
     assert result.response["meta"]["warning_count"] == 2
     assert len(result.response["tables"]) == 2
+
+
+def test_build_analysis_result_converts_nan_table_values_to_null() -> None:
+    builder = ResultBuilder()
+    result = builder.build_analysis_result(
+        summary="NaN table values.",
+        deterministic_summary="NaN table values.",
+        llm_summary=None,
+        summary_source="deterministic",
+        metrics=[],
+        tables=[
+            TableArtifact(
+                name="time_trend",
+                description="Trend table.",
+                dataframe=pd.DataFrame(
+                    {
+                        "period_month": ["2025-01", "2025-02"],
+                        "target_total": [100.0, 120.0],
+                        "period_delta": [float("nan"), 20.0],
+                    }
+                ),
+            )
+        ],
+        warnings=[],
+        plan=AnalysisPlan(task_type="descriptive", rationale="NaN table values."),
+        request=AnalysisRequest(question="Show the trend"),
+        profile=build_profile(),
+        trace=[],
+    )
+
+    table_rows = result.response["tables"][0]["result"]["value"]
+    assert table_rows[0]["period_delta"] is None
+    assert table_rows[1]["period_delta"] == 20.0
+    assert json.dumps(result.to_response_dict(), allow_nan=False)
+
+
+def test_build_analysis_result_converts_nan_metric_values_to_null() -> None:
+    builder = ResultBuilder()
+    result = builder.build_analysis_result(
+        summary="NaN metric values.",
+        deterministic_summary="NaN metric values.",
+        llm_summary=None,
+        summary_source="deterministic",
+        metrics=[Metric(name="forecast_delta", value=float("nan"), description="Non-finite metric.")],
+        tables=[],
+        warnings=[],
+        plan=AnalysisPlan(task_type="descriptive", rationale="NaN metric values."),
+        request=AnalysisRequest(question="Show the metric"),
+        profile=build_profile(),
+        trace=[ExecutionTraceEvent(stage="results", message="packaged", payload={"delta": float("nan")})],
+    )
+
+    assert result.response["result"]["value"] is None
+    assert result.response["result"]["dtype"] == "null"
+    assert result.response["meta"]["metrics"][0]["value"] is None
+    assert result.response["meta"]["metric_lookup"]["forecast_delta"] is None
+    assert result.response["history"][0]["payload"]["delta"] is None
+    assert result.artifacts["metric_lookup"]["forecast_delta"] is None
+    assert json.dumps(result.to_response_dict(), allow_nan=False)
 
 
 import pytest

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+import math
 from typing import Any
 
 import pandas as pd
@@ -119,7 +120,8 @@ class ResultCanonicalizer:
         }
         trace_stages = [event.stage for event in trace]
 
-        return {
+        return self._json_safe(
+            {
             "request": asdict(request),
             "profile": {
                 "dataset_name": profile.dataset_name,
@@ -139,7 +141,8 @@ class ResultCanonicalizer:
             "deterministic_summary": deterministic_summary,
             "llm_summary": llm_summary,
             "summary_source": summary_source,
-        }
+            }
+        )
 
     def _build_analysis_response(
         self,
@@ -169,7 +172,8 @@ class ResultCanonicalizer:
         primary_result = self._select_primary_result(request, metrics, tables)
         table_entries = [self._table_entry(table) for table in tables]
 
-        return {
+        return self._json_safe(
+            {
             "schema_version": "saida.response.v2",
             "status": self._resolve_status(plan),
             "request": {
@@ -224,7 +228,8 @@ class ResultCanonicalizer:
                 "metric_lookup": metric_lookup,
                 "table_names": [table.name for table in tables],
             },
-        }
+            }
+        )
 
     def _resolve_status(self, plan: AnalysisPlan) -> str:
         if plan.task_type == "clarification":
@@ -469,23 +474,36 @@ class ResultCanonicalizer:
         if isinstance(value, int) and not isinstance(value, bool):
             return "integer"
         if isinstance(value, float):
+            if not math.isfinite(value):
+                return "null"
             return "float"
         if value is None:
             return "null"
         return "string"
 
     def _json_safe(self, value: Any) -> Any:
-        if value is None or isinstance(value, (str, int, float, bool)):
+        if value is None:
             return value
         if isinstance(value, dict):
             return {str(key): self._json_safe(item) for key, item in value.items()}
         if isinstance(value, (list, tuple)):
             return [self._json_safe(item) for item in value]
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, int):
+            return value
+        if isinstance(value, float):
+            return value if math.isfinite(value) else None
         if hasattr(value, "item"):
             try:
                 return self._json_safe(value.item())
             except Exception:
                 pass
+        try:
+            if pd.isna(value):
+                return None
+        except Exception:
+            pass
         if hasattr(value, "isoformat"):
             try:
                 return value.isoformat()

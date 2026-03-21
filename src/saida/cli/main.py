@@ -51,7 +51,7 @@ def main() -> int:
         dataset = _load_csv_dataset(args.csv, args.context)
         profile = Saida().profile(dataset)
         if args.json:
-            print(json.dumps(_profile_payload(profile), indent=2))
+            print(json.dumps(_profile_payload(profile), indent=2, allow_nan=False))
         else:
             print(f"Dataset: {profile.dataset_name}")
             print(f"Rows: {profile.row_count}")
@@ -66,7 +66,7 @@ def main() -> int:
         engine = Saida(config=_build_cli_config(args.llm_provider, args.llm_model, args.llm_base_url))
         result = engine.analyze(dataset, args.question)
         if args.json:
-            print(json.dumps(_analysis_payload(result), indent=2))
+            print(json.dumps(_analysis_payload(result), indent=2, allow_nan=False))
         else:
             print(result.summary)
             print("Tables:", ", ".join(table.name for table in result.tables))

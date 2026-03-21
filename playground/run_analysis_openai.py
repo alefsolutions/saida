@@ -68,7 +68,7 @@ def _colorize_json_value_blocks(formatted_json: str) -> str:
 
 def _render_json_output(result: object) -> str:
     payload = result.to_response_dict()
-    formatted_json = json.dumps(payload, indent=2, ensure_ascii=True)
+    formatted_json = json.dumps(payload, indent=2, ensure_ascii=True, allow_nan=False)
     return _colorize_json_value_blocks(formatted_json)
 
 

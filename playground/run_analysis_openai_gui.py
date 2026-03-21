@@ -443,7 +443,7 @@ class OpenAiPlaygroundApp:
             meta_label.pack(anchor="w")
 
     def _set_contract_view(self, payload: dict[str, object]) -> None:
-        formatted = json.dumps(payload, indent=2, ensure_ascii=True)
+        formatted = json.dumps(payload, indent=2, ensure_ascii=True, allow_nan=False)
         self.contract_view.configure(state="normal")
         self.contract_view.delete("1.0", "end")
         self.contract_view.insert("1.0", formatted)

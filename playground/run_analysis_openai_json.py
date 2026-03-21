@@ -85,7 +85,7 @@ def main() -> None:
             stop_event.set()
             loader_thread.join()
 
-        print(json.dumps(result.to_response_dict(), indent=2, ensure_ascii=True))
+        print(json.dumps(result.to_response_dict(), indent=2, ensure_ascii=True, allow_nan=False))
 
         if result.plan.task_type == "clarification":
             pending_prompt = question
