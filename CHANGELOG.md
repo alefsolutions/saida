@@ -10,6 +10,7 @@ Quick links: [Main README](./README.md) | [Architecture](./ARCHITECTURE.md) | [L
 
 ### Changed
 
+- The active root documentation set now explicitly identifies the SAIDA 0.2.0 direction.
 - SAIDA documentation has been realigned around the 0.2.0 architecture reset.
 - `ARCHITECTURE.md` is now treated as the primary source of truth for the framework direction.
 - Repo docs now describe SAIDA as a canonical analytics framework built around `AnalysisPlan` and `AnalyticalResult`.

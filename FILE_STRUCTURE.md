@@ -1,8 +1,8 @@
 ![SAIDA Banner](assets/github-banner.png)
 
-# SAIDA File Structure
+# SAIDA 0.2.0 File Structure
 
-This document reflects the target structure described in `ARCHITECTURE.md`.
+This document reflects the target **SAIDA 0.2.0** structure described in `ARCHITECTURE.md`.
 
 ## Target 0.2.0 Layout
 

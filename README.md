@@ -102,7 +102,7 @@ Core project docs:
 
 - [Architecture](ARCHITECTURE.md)
 - [Schema Spec](SCHEMA_SPEC.md)
-- [API Usage](API_USAGE.md)
+- [Planned API Usage](API_USAGE.md)
 - [File Structure](FILE_STRUCTURE.md)
 - [Coding Guidelines](CODING_GUIDELINES.md)
 - [Changelog](CHANGELOG.md)

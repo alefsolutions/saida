@@ -1,7 +1,9 @@
 
-# SAIDA Architecture (Canonical Analytics Framework)
+# SAIDA 0.2.0 Architecture (Canonical Analytics Framework)
 
 ## 1. Overview
+This document defines the architectural direction for **SAIDA 0.2.0**.
+
 SAIDA standardizes analysis:
 - Input → Canonical `AnalysisPlan`
 - Output → Canonical `AnalyticalResult`

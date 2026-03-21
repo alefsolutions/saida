@@ -1,8 +1,8 @@
 ![SAIDA Banner](assets/github-banner.png)
 
-# SAIDA Schema Spec
+# SAIDA 0.2.0 Schema Spec
 
-This document summarizes the canonical contracts defined by the 0.2.0 architecture.
+This document summarizes the canonical contracts defined for **SAIDA 0.2.0**.
 
 `ARCHITECTURE.md` is the source of truth.
 

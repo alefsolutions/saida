@@ -1,10 +1,16 @@
 ![SAIDA Banner](assets/github-banner.png)
 
-# SAIDA API Usage
+# SAIDA Planned API Usage
 
-This document describes how SAIDA 0.2.0 should be used at the contract level.
+This document describes the planned API usage direction for SAIDA 0.2.0.
 
 `ARCHITECTURE.md` is the source of truth.
+
+Important:
+
+- this file describes the intended public API direction
+- it does not guarantee that every example shown here is implemented yet
+- treat it as a planning document, not the current implementation contract
 
 ## Input Modes
 

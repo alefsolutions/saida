@@ -1,8 +1,10 @@
 ![SAIDA Banner](assets/github-banner.png)
 
-# SAIDA Coding Guidelines
+# SAIDA 0.2.0 Coding Guidelines
 
 ## Purpose
+
+These guidelines are intended specifically for **SAIDA 0.2.0**.
 
 These guidelines define how SAIDA code should be written so the library remains:
 
