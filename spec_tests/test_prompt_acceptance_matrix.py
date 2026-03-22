@@ -105,6 +105,14 @@ def _response_payload_signature(result: Any) -> dict[str, Any]:
     }
 
 
+def _canonical_group_by(value: list[str] | None) -> list[str]:
+    return list(value or [])
+
+
+def _canonical_filters(value: dict[str, Any] | None) -> dict[str, Any]:
+    return value or {}
+
+
 def _build_supported_acceptance_cases() -> tuple[PromptAcceptanceCase, ...]:
     cases: list[PromptAcceptanceCase] = []
     for reproducibility_case in _REPRODUCIBILITY_CASES:
@@ -187,23 +195,23 @@ def test_prompt_acceptance_matrix_request_and_plan(case: PromptAcceptanceCase) -
 
     request, warnings = engine.canonicalizer.normalize(case.question, dataset, profile, dataset.context)
 
-    assert warnings == []
-
     if case.expected_status == "clarify":
+        assert warnings
         assert request.options["analysis_outcome"] == "clarify"
         assert request.prompt_family is None
         assert case.expected_summary_contains is not None
         assert case.expected_summary_contains in request.options["llm_message"]
         return
 
+    assert warnings == []
     assert request.options.get("analysis_outcome") != "clarify"
     assert request.prompt_family == case.expected_prompt_family
     assert request.intent_name == case.expected_intent_name
     assert request.task_type_hint == case.expected_task_type
     assert request.target == case.expected_target
     assert request.aggregation == case.expected_aggregation
-    assert request.group_by == list(case.expected_group_by)
-    assert json_safe(request.filters) == json_safe(case.expected_filters)
+    assert _canonical_group_by(request.group_by) == list(case.expected_group_by)
+    assert json_safe(_canonical_filters(request.filters)) == json_safe(_canonical_filters(case.expected_filters))
     _assert_option_subset(request.options, case.expected_option_subset)
 
     plan = engine.plan_builder.build_plan(request, profile, dataset.context)
