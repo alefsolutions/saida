@@ -773,6 +773,10 @@ class PlanBuilder:
         prompt_family = request.prompt_family
         if not prompt_family:
             return None
+        family_spec = get_prompt_family_catalog().get(prompt_family)
+        if family_spec is not None and family_spec.plan_steps:
+            steps = family_spec.compile_steps(request, profile)
+            return self._finalize_plan(task_type, request, context, steps, warnings)
 
         if prompt_family in _STATISTICAL_PROMPT_FAMILIES:
             steps = [

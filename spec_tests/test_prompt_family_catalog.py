@@ -109,6 +109,27 @@ def test_prompt_family_catalog_markdown_snapshot_matches_live_catalog() -> None:
     assert catalog_path.read_text(encoding="utf-8") == catalog.to_markdown()
 
 
+@pytest.mark.parametrize(
+    "family_id",
+    [
+        "row_count",
+        "column_type_lookup",
+        "column_presence_check",
+        "distinct_value_listing",
+        "grouped_entity_count",
+        "representation_ranking",
+        "tabular_record_retrieval",
+    ],
+)
+def test_high_volume_prompt_families_use_template_plan_compilation(family_id: str) -> None:
+    catalog = build_default_prompt_family_catalog()
+    family_spec = catalog.get(family_id)
+
+    assert family_spec is not None
+    assert family_spec.plan_steps
+    assert family_spec.to_dict()["plan_compilation"] == "template"
+
+
 def test_prompt_capability_contract_exposes_prompt_family_and_family_spec() -> None:
     engine = Saida()
     dataset = build_support_dataset()
@@ -241,3 +262,24 @@ def test_planner_builds_column_presence_plan_from_contract_using_prompt_family()
 
     assert [step.action for step in plan.steps] == ["column_presence_check"]
     assert plan.steps[0].parameters == {"requested_column": "created_at"}
+
+
+def test_template_family_spec_can_compile_grouped_entity_count_steps() -> None:
+    catalog = build_default_prompt_family_catalog()
+    family_spec = catalog.get("grouped_entity_count")
+    request = AnalysisRequest(
+        question="Give me the total tickets per channel.",
+        prompt_family="grouped_entity_count",
+        task_type_hint="descriptive",
+        aggregation="count",
+        group_by=["channel"],
+        options={"sort_direction": "asc", "page": 1, "page_size": 50},
+    )
+    engine = Saida()
+    profile = engine.profile(build_support_dataset())
+
+    compiled_steps = family_spec.compile_steps(request, profile) if family_spec is not None else []
+
+    assert [step.action for step in compiled_steps] == ["grouped_tabular_query"]
+    assert compiled_steps[0].parameters["aggregation"] == "count"
+    assert compiled_steps[0].parameters["group_by"] == ["channel"]

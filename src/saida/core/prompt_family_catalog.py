@@ -5,9 +5,39 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from saida.core.contracts import AnalysisPlan, AnalysisRequest
+from saida.core.contracts import AnalysisPlan, AnalysisRequest, DatasetProfile, PlanStep
 
 PromptFamilyGovernance = Literal["governed", "partial", "legacy"]
+PromptFamilyValueSource = Literal[
+    "literal",
+    "request_attr",
+    "request_option",
+    "request_option_or_none",
+    "request_option_int",
+    "request_option_equals",
+    "wrapped_request_attr",
+]
+
+
+@dataclass(slots=True)
+class PromptFamilyValueSpec:
+    """Structured value binding for template-based family compilation."""
+
+    source: PromptFamilyValueSource
+    key: str | None = None
+    value: Any = None
+    default: Any = None
+
+
+@dataclass(slots=True)
+class PromptFamilyPlanStepSpec:
+    """Template step compiled into an executable plan step."""
+
+    step_id: str
+    tool_family: str
+    action: str
+    description: str
+    parameters: dict[str, PromptFamilyValueSpec] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -25,6 +55,7 @@ class PromptFamilySpec:
     forbidden_primary_results: tuple[str, ...] = ()
     governance: PromptFamilyGovernance = "governed"
     examples: tuple[str, ...] = ()
+    plan_steps: tuple[PromptFamilyPlanStepSpec, ...] = ()
 
     def request_invariant_issues(self, request: AnalysisRequest) -> list[str]:
         """Return request-level invariant mismatches for this family."""
@@ -91,7 +122,30 @@ class PromptFamilySpec:
             "forbidden_primary_results": list(self.forbidden_primary_results),
             "governance": self.governance,
             "examples": list(self.examples),
+            "plan_compilation": "template" if self.plan_steps else "manual",
+            "template_step_count": len(self.plan_steps),
         }
+
+    def compile_steps(self, request: AnalysisRequest, profile: DatasetProfile) -> list[PlanStep]:
+        """Compile template-backed plan steps for this family."""
+
+        if not self.plan_steps:
+            return []
+        compiled_steps: list[PlanStep] = []
+        for step_spec in self.plan_steps:
+            compiled_steps.append(
+                PlanStep(
+                    step_id=step_spec.step_id,
+                    tool_family=step_spec.tool_family,
+                    action=step_spec.action,
+                    parameters={
+                        key: _resolve_plan_value(value_spec, request, profile)
+                        for key, value_spec in step_spec.parameters.items()
+                    },
+                    description=step_spec.description,
+                )
+            )
+        return compiled_steps
 
 
 @dataclass(slots=True)
@@ -122,8 +176,8 @@ class PromptFamilyCatalog:
             "",
             "This file is a human-readable snapshot of the live prompt family catalog in `src/saida/core/prompt_family_catalog.py`.",
             "",
-            "| Family | Governance | Intents | Required Parameters | Primary Result Shapes | Plan Actions | Forbidden Primary Results |",
-            "| --- | --- | --- | --- | --- | --- | --- |",
+            "| Family | Governance | Plan Compilation | Intents | Required Parameters | Primary Result Shapes | Plan Actions | Forbidden Primary Results |",
+            "| --- | --- | --- | --- | --- | --- | --- | --- |",
         ]
         for spec in sorted(self.families.values(), key=lambda item: item.family_id):
             intents = ", ".join(spec.intent_names) or "-"
@@ -131,8 +185,9 @@ class PromptFamilyCatalog:
             result_shapes = ", ".join(spec.primary_result_shapes) or "-"
             plan_actions = ", ".join(spec.allowed_plan_actions) or "-"
             forbidden_results = ", ".join(spec.forbidden_primary_results) or "-"
+            plan_compilation = "template" if spec.plan_steps else "manual"
             lines.append(
-                f"| `{spec.family_id}` | `{spec.governance}` | {intents} | "
+                f"| `{spec.family_id}` | `{spec.governance}` | `{plan_compilation}` | {intents} | "
                 f"{required_parameters} | {result_shapes} | {plan_actions} | {forbidden_results} |"
             )
         lines.extend(
@@ -195,6 +250,17 @@ def build_default_prompt_family_catalog() -> PromptFamilyCatalog:
             primary_result_shapes=("count",),
             allowed_plan_actions=("row_count",),
             examples=("How many rows are there?",),
+            plan_steps=(
+                PromptFamilyPlanStepSpec(
+                    step_id="row_count",
+                    tool_family="duckdb",
+                    action="row_count",
+                    description="Count the number of rows in the requested dataset slice.",
+                    parameters={
+                        "filters": PromptFamilyValueSpec("request_attr", key="filters"),
+                    },
+                ),
+            ),
         ),
         PromptFamilySpec(
             family_id="distinct_value_listing",
@@ -206,6 +272,18 @@ def build_default_prompt_family_catalog() -> PromptFamilyCatalog:
             allowed_plan_actions=("distinct_values",),
             forbidden_primary_results=("numeric_summary",),
             examples=("List all channels.",),
+            plan_steps=(
+                PromptFamilyPlanStepSpec(
+                    step_id="distinct_values",
+                    tool_family="duckdb",
+                    action="distinct_values",
+                    description="List the distinct values for the requested dimension.",
+                    parameters={
+                        "target": PromptFamilyValueSpec("request_attr", key="target"),
+                        "filters": PromptFamilyValueSpec("request_attr", key="filters"),
+                    },
+                ),
+            ),
         ),
         PromptFamilySpec(
             family_id="grouped_entity_count",
@@ -218,6 +296,25 @@ def build_default_prompt_family_catalog() -> PromptFamilyCatalog:
             allowed_plan_actions=("grouped_tabular_query",),
             forbidden_primary_results=("numeric_summary",),
             examples=("Give me the total tickets per channel.",),
+            plan_steps=(
+                PromptFamilyPlanStepSpec(
+                    step_id="grouped_tabular_query",
+                    tool_family="duckdb",
+                    action="grouped_tabular_query",
+                    description="Return grouped row counts for the requested grouping dimensions.",
+                    parameters={
+                        "target": PromptFamilyValueSpec("literal", value=None),
+                        "group_by": PromptFamilyValueSpec("request_attr", key="group_by"),
+                        "aggregation": PromptFamilyValueSpec("literal", value="count"),
+                        "filters": PromptFamilyValueSpec("request_attr", key="filters"),
+                        "sort_by": PromptFamilyValueSpec("request_option", key="sort_by"),
+                        "sort_direction": PromptFamilyValueSpec("request_option", key="sort_direction", default="desc"),
+                        "limit": PromptFamilyValueSpec("request_option", key="limit"),
+                        "page": PromptFamilyValueSpec("request_option", key="page", default=1),
+                        "page_size": PromptFamilyValueSpec("request_option", key="page_size", default=50),
+                    },
+                ),
+            ),
         ),
         PromptFamilySpec(
             family_id="grouped_metric_table",
@@ -237,6 +334,23 @@ def build_default_prompt_family_catalog() -> PromptFamilyCatalog:
             primary_result_shapes=("table",),
             allowed_plan_actions=("tabular_query",),
             examples=("Show the latest 10 tickets with priority and channel.",),
+            plan_steps=(
+                PromptFamilyPlanStepSpec(
+                    step_id="tabular_query",
+                    tool_family="duckdb",
+                    action="tabular_query",
+                    description="Return a filtered, sorted, and paginated recordset for natural-language data discovery.",
+                    parameters={
+                        "selected_columns": PromptFamilyValueSpec("request_option_or_none", key="selected_columns"),
+                        "filters": PromptFamilyValueSpec("request_attr", key="filters"),
+                        "sort_by": PromptFamilyValueSpec("request_option", key="sort_by"),
+                        "sort_direction": PromptFamilyValueSpec("request_option", key="sort_direction", default="asc"),
+                        "limit": PromptFamilyValueSpec("request_option", key="limit"),
+                        "page": PromptFamilyValueSpec("request_option", key="page", default=1),
+                        "page_size": PromptFamilyValueSpec("request_option", key="page_size", default=50),
+                    },
+                ),
+            ),
         ),
         PromptFamilySpec(
             family_id="representation_ranking",
@@ -248,6 +362,20 @@ def build_default_prompt_family_catalog() -> PromptFamilyCatalog:
             allowed_plan_actions=("count_rows_by_group",),
             forbidden_primary_results=("numeric_summary",),
             examples=("Which channel has the most tickets?",),
+            plan_steps=(
+                PromptFamilyPlanStepSpec(
+                    step_id="count_rows_by_group",
+                    tool_family="duckdb",
+                    action="count_rows_by_group",
+                    description="Count rows by group and rank the representation of the requested dimension.",
+                    parameters={
+                        "group_by": PromptFamilyValueSpec("wrapped_request_attr", key="target"),
+                        "filters": PromptFamilyValueSpec("request_attr", key="filters"),
+                        "ascending": PromptFamilyValueSpec("request_option_equals", key="ranking_direction", value="asc"),
+                        "limit": PromptFamilyValueSpec("request_option_int", key="ranking_limit", default=5),
+                    },
+                ),
+            ),
         ),
         PromptFamilySpec(
             family_id="row_ranking",
@@ -287,6 +415,17 @@ def build_default_prompt_family_catalog() -> PromptFamilyCatalog:
             primary_result_shapes=("scalar",),
             allowed_plan_actions=("column_type_inventory",),
             examples=("What is the data type of created_at?",),
+            plan_steps=(
+                PromptFamilyPlanStepSpec(
+                    step_id="column_type_inventory",
+                    tool_family="metadata",
+                    action="column_type_inventory",
+                    description="Return the schema type for the requested column.",
+                    parameters={
+                        "target": PromptFamilyValueSpec("request_attr", key="target"),
+                    },
+                ),
+            ),
         ),
         PromptFamilySpec(
             family_id="column_type_inventory",
@@ -371,6 +510,17 @@ def build_default_prompt_family_catalog() -> PromptFamilyCatalog:
             primary_result_shapes=("verification",),
             allowed_plan_actions=("column_presence_check",),
             examples=("Does the dataset have a created_at column?",),
+            plan_steps=(
+                PromptFamilyPlanStepSpec(
+                    step_id="column_presence_check",
+                    tool_family="metadata",
+                    action="column_presence_check",
+                    description="Verify whether the requested column exists in the dataset schema.",
+                    parameters={
+                        "requested_column": PromptFamilyValueSpec("request_option", key="requested_column"),
+                    },
+                ),
+            ),
         ),
         PromptFamilySpec(
             family_id="column_property_check",
@@ -622,6 +772,30 @@ def derive_prompt_family(
     if request.target and not request.group_by and request.task_type_hint in {"descriptive", "diagnostic"}:
         return "legacy_metric_overview"
     return None
+
+
+def _resolve_plan_value(
+    value_spec: PromptFamilyValueSpec,
+    request: AnalysisRequest,
+    profile: DatasetProfile,
+) -> Any:
+    if value_spec.source == "literal":
+        return value_spec.value
+    if value_spec.source == "request_attr":
+        return getattr(request, value_spec.key or "", value_spec.default)
+    if value_spec.source == "request_option":
+        return request.options.get(value_spec.key, value_spec.default)
+    if value_spec.source == "request_option_or_none":
+        value = request.options.get(value_spec.key, value_spec.default)
+        return value or None
+    if value_spec.source == "request_option_int":
+        return int(request.options.get(value_spec.key, value_spec.default))
+    if value_spec.source == "request_option_equals":
+        return request.options.get(value_spec.key) == value_spec.value
+    if value_spec.source == "wrapped_request_attr":
+        value = getattr(request, value_spec.key or "", None)
+        return [value] if value is not None else []
+    raise ValueError(f"Unsupported prompt family value source: {value_spec.source}")
 
 
 def _request_parameter_is_resolved(request: AnalysisRequest, parameter_name: str) -> bool:

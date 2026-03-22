@@ -34,7 +34,9 @@ from saida.core.discovery import DatasetProfiler, SchemaDiscoveryService
 from saida.core.planning import AnalysisPlanner, PlanBuilder
 from saida.core.prompt_family_catalog import (
     PromptFamilyCatalog,
+    PromptFamilyPlanStepSpec,
     PromptFamilySpec,
+    PromptFamilyValueSpec,
     build_default_prompt_family_catalog,
     derive_prompt_family,
     get_prompt_family_catalog,
@@ -88,7 +90,9 @@ __all__ = [
     "PredictionResult",
     "PromptCapabilityContract",
     "PromptFamilyCatalog",
+    "PromptFamilyPlanStepSpec",
     "PromptFamilySpec",
+    "PromptFamilyValueSpec",
     "RequestNormalizer",
     "ResolvedParameter",
     "ResultBuilder",
