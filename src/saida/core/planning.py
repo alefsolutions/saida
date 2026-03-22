@@ -1208,6 +1208,7 @@ class PlanBuilder:
         if (
             request.group_by
             and effective_intent_name not in {"representation_ranking", "group_ranking", "time_bucket_breakdown", "time_period_comparison", "grouped_tabular_query"}
+            and effective_statistical_test != "chi_square"
             and request.target is not None
             and request.target not in set(profile.measure_columns)
         ):

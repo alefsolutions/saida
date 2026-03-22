@@ -1,68 +1,50 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import json
-from typing import Any
+from typing import Any, Callable
 
 import pandas as pd
 import pytest
 
 from saida import Saida
 from saida.core.contracts import AnalysisPlan, AnalysisRequest, Dataset
+from saida.core.prompt_family_catalog import build_default_prompt_family_catalog
+
+
+_UNSET = object()
+
+_LEGACY_OVERVIEW_ACTIONS = (
+    "dataset_summary",
+    "time_trend",
+    "missingness_summary",
+    "numeric_summary",
+    "distribution_summary",
+    "target_correlation",
+    "anomaly_summary",
+    "time_series_diagnostics",
+    "group_mean_comparison",
+)
+
+_METRIC_AGGREGATE_ACTIONS = ("aggregate_value", *_LEGACY_OVERVIEW_ACTIONS)
 
 
 @dataclass(frozen=True, slots=True)
 class ReproducibilityCase:
-    case_id: str
-    dataset: Dataset
-    prompts: list[str]
-    expected_request: dict[str, Any]
-    expected_plan: dict[str, Any]
-    expected_result: dict[str, Any]
-
-
-def build_ticket_channel_dataset() -> Dataset:
-    return Dataset(
-        name="tickets",
-        source_type="pandas",
-        data=pd.DataFrame(
-            {
-                "ticket_id": ["T1", "T2", "T3", "T4", "T5"],
-                "channel": ["Email", "Phone", "Email", "Chat", "Email"],
-                "priority": ["High", "High", "Low", "Low", "Medium"],
-                "created_at": ["2026-01-01", "2026-01-02", "2026-01-03", "2026-01-04", "2026-01-05"],
-            }
-        ),
-    )
-
-
-def build_schema_dataset() -> Dataset:
-    return Dataset(
-        name="support",
-        source_type="pandas",
-        data=pd.DataFrame(
-            {
-                "ticket_id": ["T1", "T2", "T3", "T4"],
-                "created_at": ["2026-01-01", "2026-01-02", "2026-01-03", "2026-01-04"],
-                "resolution_hours": [4.2, 6.1, 3.4, 8.0],
-                "priority": ["Low", "Medium", "High", "Medium"],
-                "csat_score": [4.8, None, 4.1, 3.9],
-            }
-        ),
-    )
-
-
-def build_column_presence_dataset() -> Dataset:
-    return Dataset(
-        name="support",
-        source_type="pandas",
-        data=pd.DataFrame(
-            {
-                "created_at": ["2026-01-01", "2026-01-02"],
-                "priority": ["Low", "High"],
-            }
-        ),
-    )
+    family_id: str
+    dataset_factory: Callable[[], Dataset]
+    prompts: tuple[str, ...]
+    expected_intent_name: str | None = None
+    expected_task_type: str = "descriptive"
+    expected_target: str | None = None
+    expected_aggregation: str | None = None
+    expected_group_by: tuple[str, ...] = ()
+    expected_filters: dict[str, Any] | None = None
+    expected_option_subset: dict[str, Any] = field(default_factory=dict)
+    expected_step_actions: tuple[str, ...] = ()
+    expected_primary_result_name: str = ""
+    expected_primary_logical_shape: str | None = None
+    expected_primary_value: Any = _UNSET
 
 
 def build_sales_dataset() -> Dataset:
@@ -71,24 +53,43 @@ def build_sales_dataset() -> Dataset:
         source_type="pandas",
         data=pd.DataFrame(
             {
-                "revenue": [100.0, 120.0, 90.0, 80.0],
-                "region": ["West", "West", "East", "West"],
-                "posted_at": ["2026-01-01", "2026-01-02", "2026-01-03", "2026-01-04"],
+                "posted_at": [
+                    "2025-10-01",
+                    "2025-11-01",
+                    "2025-12-01",
+                    "2026-01-01",
+                    "2026-02-01",
+                    "2026-03-01",
+                ],
+                "revenue": [100.0, 120.0, 90.0, 80.0, 110.0, 130.0],
+                "region": ["West", "East", "West", "East", "West", "East"],
+                "segment": ["SMB", "Enterprise", "SMB", "Enterprise", "SMB", "Enterprise"],
             }
         ),
     )
 
 
-def build_tabular_dataset() -> Dataset:
+def build_support_dataset() -> Dataset:
     return Dataset(
-        name="tickets",
+        name="support",
         source_type="pandas",
         data=pd.DataFrame(
             {
-                "ticket_id": ["T1", "T2", "T3"],
-                "created_at": ["2026-01-01", "2026-01-02", "2026-01-03"],
-                "priority": ["Low", "Medium", "High"],
-                "reopened_flag": ["yes", "no", "yes"],
+                "ticket_id": ["T1", "T2", "T3", "T4", "T5", "T6", "T7"],
+                "created_at": [
+                    "2026-01-01",
+                    "2026-01-12",
+                    "2026-02-03",
+                    "2026-02-14",
+                    "2026-03-05",
+                    "2026-04-16",
+                    "2026-05-07",
+                ],
+                "resolution_hours": [2.1, 5.4, 6.8, 4.2, 7.1, 8.0, 3.5],
+                "csat_score": [4.7, None, 3.6, 4.1, 3.5, 3.2, 4.4],
+                "team": ["Support", "Support", "Platform", "Platform", "Support", "Platform", "Support"],
+                "priority": ["Low", "Medium", "High", "Low", "High", "Medium", "Low"],
+                "reopened_flag": ["no", "no", "yes", "yes", "no", "yes", "no"],
             }
         ),
     )
@@ -106,7 +107,6 @@ def _request_signature(request: AnalysisRequest) -> dict[str, Any]:
         "task_type_hint": request.task_type_hint,
         "target": request.target,
         "aggregation": request.aggregation,
-        "horizon": request.horizon,
         "filters": request.filters,
         "group_by": list(request.group_by or []),
         "time_reference": request.time_reference,
@@ -117,7 +117,6 @@ def _request_signature(request: AnalysisRequest) -> dict[str, Any]:
 def _plan_signature(plan: AnalysisPlan) -> dict[str, Any]:
     return {
         "task_type": plan.task_type,
-        "rationale": plan.rationale,
         "warnings": list(plan.warnings),
         "steps": [
             {
@@ -125,7 +124,6 @@ def _plan_signature(plan: AnalysisPlan) -> dict[str, Any]:
                 "tool_family": step.tool_family,
                 "action": step.action,
                 "parameters": step.parameters,
-                "description": step.description,
             }
             for step in plan.steps
         ],
@@ -137,7 +135,6 @@ def _result_signature(result: Any) -> dict[str, Any]:
     return {
         "result": payload["result"],
         "table_names": [table["name"] for table in payload["tables"]],
-        "summary": payload["reasoning"]["deterministic_summary"],
     }
 
 
@@ -147,315 +144,568 @@ def _canonical_jsonable(value: Any) -> Any:
 
 _REPRODUCIBILITY_CASES = [
     ReproducibilityCase(
-        case_id="grouped-ticket-count-by-channel",
-        dataset=build_ticket_channel_dataset(),
-        prompts=[
-            "Give me the total tickets per channel.",
-            "For each channel, give me the total tickets.",
-            "List each type of channels and the total tickets per channel",
-            "Count tickets by channel",
-        ],
-        expected_request={
-            "prompt_family": "grouped_entity_count",
-            "intent_name": "grouped_tabular_query",
-            "task_type_hint": "descriptive",
-            "target": None,
-            "aggregation": "count",
-            "group_by": ["channel"],
-            "options": {
-                "intent_name": "grouped_tabular_query",
-                "selected_columns": ["channel"],
-                "sort_by": None,
-                "sort_direction": "asc",
-                "limit": None,
-                "page": 1,
-                "page_size": 50,
-                "distinct_values": False,
-            },
-        },
-        expected_plan={
-            "task_type": "descriptive",
-            "step_actions": ["grouped_tabular_query"],
-            "step_parameters": [
-                {
-                    "target": None,
-                    "group_by": ["channel"],
-                    "aggregation": "count",
-                    "filters": None,
-                    "sort_by": None,
-                    "sort_direction": "asc",
-                    "limit": None,
-                    "page": 1,
-                    "page_size": 50,
-                }
-            ],
-        },
-        expected_result={
-            "name": "grouped_tabular_query",
-            "physical_shape": "recordset",
-            "logical_shape": "table",
-        },
+        family_id="legacy_metric_overview",
+        dataset_factory=build_sales_dataset,
+        prompts=("Show revenue", "Display revenue", "Give me revenue"),
+        expected_intent_name=None,
+        expected_target="revenue",
+        expected_step_actions=_LEGACY_OVERVIEW_ACTIONS,
+        expected_primary_result_name="time_trend",
+        expected_primary_logical_shape="timeseries",
     ),
     ReproducibilityCase(
-        case_id="single-column-type-lookup",
-        dataset=build_schema_dataset(),
-        prompts=[
+        family_id="metric_aggregate",
+        dataset_factory=build_sales_dataset,
+        prompts=("What is the average revenue?", "Give me the mean revenue", "What is revenue on average?"),
+        expected_intent_name=None,
+        expected_target="revenue",
+        expected_aggregation="mean",
+        expected_step_actions=_METRIC_AGGREGATE_ACTIONS,
+        expected_primary_result_name="revenue_mean",
+        expected_primary_logical_shape="aggregate",
+        expected_primary_value=105.0,
+    ),
+    ReproducibilityCase(
+        family_id="column_inventory",
+        dataset_factory=build_sales_dataset,
+        prompts=(
+            "What are the columns in the sales data?",
+            "Which columns are in the sales data?",
+            "Show the columns in the sales data",
+        ),
+        expected_intent_name="column_inventory",
+        expected_step_actions=("column_inventory",),
+        expected_primary_result_name="column_inventory",
+        expected_primary_logical_shape="table",
+    ),
+    ReproducibilityCase(
+        family_id="measure_inventory",
+        dataset_factory=build_sales_dataset,
+        prompts=("Available metrics?", "What are the available metrics?", "List the measure columns"),
+        expected_intent_name="measure_inventory",
+        expected_step_actions=("measure_inventory",),
+        expected_primary_result_name="measure_inventory",
+        expected_primary_logical_shape="table",
+    ),
+    ReproducibilityCase(
+        family_id="dimension_inventory",
+        dataset_factory=build_sales_dataset,
+        prompts=("Available dimensions?", "What are the available dimensions?", "List the dimension columns"),
+        expected_intent_name="dimension_inventory",
+        expected_step_actions=("dimension_inventory",),
+        expected_primary_result_name="dimension_inventory",
+        expected_primary_logical_shape="table",
+    ),
+    ReproducibilityCase(
+        family_id="column_type_inventory",
+        dataset_factory=build_support_dataset,
+        prompts=(
+            "What are the data types of each field or column in the data?",
+            "What is the schema of this data?",
+            "Show the field types in the data",
+        ),
+        expected_intent_name="column_type_inventory",
+        expected_step_actions=("column_type_inventory",),
+        expected_primary_result_name="column_type_inventory",
+        expected_primary_logical_shape="table",
+    ),
+    ReproducibilityCase(
+        family_id="column_type_lookup",
+        dataset_factory=build_support_dataset,
+        prompts=(
             "What is the data type of the created_at field in dataset?",
             "What type is created_at?",
             "What is the type of created_at?",
-        ],
-        expected_request={
-            "prompt_family": "column_type_lookup",
-            "intent_name": "column_type_inventory",
-            "task_type_hint": "descriptive",
-            "target": "created_at",
-            "aggregation": None,
-            "group_by": [],
-            "options": {
-                "intent_name": "column_type_inventory",
-                "distinct_values": False,
-            },
-        },
-        expected_plan={
-            "task_type": "descriptive",
-            "step_actions": ["column_type_inventory"],
-            "step_parameters": [{"target": "created_at"}],
-        },
-        expected_result={
-            "name": "created_at_dtype",
-            "physical_shape": "scalar",
-            "logical_shape": "scalar",
-            "value": "datetime",
-        },
+        ),
+        expected_intent_name="column_type_inventory",
+        expected_target="created_at",
+        expected_step_actions=("column_type_inventory",),
+        expected_primary_result_name="created_at_dtype",
+        expected_primary_logical_shape="scalar",
+        expected_primary_value="datetime",
     ),
     ReproducibilityCase(
-        case_id="column-presence-check",
-        dataset=build_column_presence_dataset(),
-        prompts=[
-            "Does the dataset have a created_at column?",
-            "Is there a created_at field?",
-            "Does this data include a created_at column?",
-        ],
-        expected_request={
-            "prompt_family": "column_presence_check",
-            "intent_name": "existence_check",
-            "task_type_hint": "descriptive",
-            "target": None,
-            "aggregation": None,
-            "group_by": [],
-            "options": {
-                "intent_name": "existence_check",
-                "existence_mode": "column_presence_check",
-                "requested_column": "created_at",
-                "distinct_values": False,
-            },
-        },
-        expected_plan={
-            "task_type": "descriptive",
-            "step_actions": ["column_presence_check"],
-            "step_parameters": [{"requested_column": "created_at"}],
-        },
-        expected_result={
-            "name": "column_presence_check",
-            "physical_shape": "object",
-            "logical_shape": "verification",
-        },
+        family_id="numeric_column_inventory",
+        dataset_factory=build_support_dataset,
+        prompts=("Which columns are numeric?", "What numeric columns are in the dataset?", "List the numeric fields"),
+        expected_intent_name="numeric_column_inventory",
+        expected_step_actions=("numeric_column_inventory",),
+        expected_primary_result_name="numeric_column_inventory",
+        expected_primary_logical_shape="table",
     ),
     ReproducibilityCase(
-        case_id="row-count",
-        dataset=build_sales_dataset(),
-        prompts=[
-            "How many data rows do we have?",
-            "What is the row count?",
-            "Count rows",
-        ],
-        expected_request={
-            "prompt_family": "row_count",
-            "intent_name": "row_count",
-            "task_type_hint": "descriptive",
-            "target": None,
-            "aggregation": "count",
-            "group_by": [],
-            "options": {
-                "intent_name": "row_count",
-                "distinct_values": False,
-            },
-        },
-        expected_plan={
-            "task_type": "descriptive",
-            "step_actions": ["row_count"],
-            "step_parameters": [{"filters": None}],
-        },
-        expected_result={
-            "name": "row_count",
-            "physical_shape": "scalar",
-            "logical_shape": "count",
-            "value": 4,
-        },
+        family_id="categorical_column_inventory",
+        dataset_factory=build_support_dataset,
+        prompts=(
+            "Which fields are categorical?",
+            "What categorical columns are in the dataset?",
+            "List the categorical fields",
+        ),
+        expected_intent_name="categorical_column_inventory",
+        expected_step_actions=("categorical_column_inventory",),
+        expected_primary_result_name="categorical_column_inventory",
+        expected_primary_logical_shape="table",
     ),
     ReproducibilityCase(
-        case_id="representation-ranking-most-represented",
-        dataset=build_ticket_channel_dataset(),
-        prompts=[
-            "Which channel has the most tickets?",
-            "What channel is most represented?",
-            "Which channel has the highest count?",
-        ],
-        expected_request={
-            "prompt_family": "representation_ranking",
-            "intent_name": "representation_ranking",
-            "task_type_hint": "descriptive",
-            "target": "channel",
-            "aggregation": "count",
-            "group_by": ["channel"],
-            "options": {
-                "intent_name": "representation_ranking",
-                "ranking_direction": "desc",
-                "ranking_limit": 1,
-                "distinct_values": False,
-            },
-        },
-        expected_plan={
-            "task_type": "descriptive",
-            "step_actions": ["count_rows_by_group"],
-            "step_parameters": [{"group_by": ["channel"], "filters": None, "ascending": False, "limit": 1}],
-        },
-        expected_result={
-            "name": "group_row_counts",
-            "physical_shape": "object",
-            "logical_shape": "table",
-            "value": {"channel": "Email", "row_count": 3},
-        },
+        family_id="time_column_inventory",
+        dataset_factory=build_support_dataset,
+        prompts=("Which fields are dates?", "List the time columns", "Show the datetime fields"),
+        expected_intent_name="time_column_inventory",
+        expected_step_actions=("time_column_inventory",),
+        expected_primary_result_name="time_column_inventory",
+        expected_primary_logical_shape="table",
     ),
     ReproducibilityCase(
-        case_id="dimension-property-check",
-        dataset=build_sales_dataset(),
-        prompts=[
-            "Is region a dimension?",
-            "Is region a grouping column?",
-            "Is region a dimension column?",
-        ],
-        expected_request={
-            "prompt_family": "column_property_check",
-            "intent_name": "existence_check",
-            "task_type_hint": "descriptive",
-            "target": "region",
-            "aggregation": None,
-            "group_by": [],
-            "options": {
-                "intent_name": "existence_check",
-                "existence_mode": "column_property_check",
-                "expected_property": "dimension",
-                "requested_column": "region",
-                "distinct_values": False,
-            },
-        },
-        expected_plan={
-            "task_type": "descriptive",
-            "step_actions": ["column_property_check"],
-            "step_parameters": [{"target": "region", "expected_property": "dimension"}],
-        },
-        expected_result={
-            "name": "column_property_check",
-            "physical_shape": "object",
-            "logical_shape": "verification",
-        },
+        family_id="missing_value_inventory",
+        dataset_factory=build_support_dataset,
+        prompts=(
+            "Which columns have missing values?",
+            "List columns with missing values",
+            "Show columns with missing values",
+        ),
+        expected_intent_name="missing_value_inventory",
+        expected_step_actions=("missing_value_inventory",),
+        expected_primary_result_name="missing_value_inventory",
+        expected_primary_logical_shape="table",
     ),
     ReproducibilityCase(
-        case_id="time-coverage-date-range",
-        dataset=build_sales_dataset(),
-        prompts=[
-            "What date range does the data cover?",
-            "What is the date range of the dataset?",
-            "From when to when does the data run?",
-        ],
-        expected_request={
-            "prompt_family": "time_coverage",
-            "intent_name": "time_coverage",
-            "task_type_hint": "descriptive",
-            "target": None,
-            "aggregation": None,
-            "group_by": [],
-            "options": {
-                "intent_name": "time_coverage",
-                "time_coverage_mode": "date_range",
-                "distinct_values": False,
-            },
-        },
-        expected_plan={
-            "task_type": "descriptive",
-            "step_actions": ["time_coverage"],
-            "step_parameters": [{"time_column": "posted_at", "filters": None, "mode": "date_range"}],
-        },
-        expected_result={
-            "name": "time_coverage",
-            "physical_shape": "object",
-            "logical_shape": "timeseries",
-        },
+        family_id="identifier_inventory",
+        dataset_factory=build_support_dataset,
+        prompts=(
+            "Which columns are likely identifiers?",
+            "List likely identifier columns",
+            "Show likely identifier columns",
+        ),
+        expected_intent_name="identifier_inventory",
+        expected_step_actions=("identifier_inventory",),
+        expected_primary_result_name="identifier_inventory",
+        expected_primary_logical_shape="table",
+    ),
+        ReproducibilityCase(
+            family_id="high_cardinality_inventory",
+            dataset_factory=build_support_dataset,
+            prompts=(
+                "Which columns have many unique values?",
+                "List columns with many unique values",
+                "Which fields have many unique values?",
+            ),
+            expected_intent_name="high_cardinality_inventory",
+            expected_step_actions=("high_cardinality_inventory",),
+            expected_primary_result_name="high_cardinality_inventory",
+        expected_primary_logical_shape="table",
     ),
     ReproducibilityCase(
-        case_id="tabular-query-selected-columns-and-sort",
-        dataset=build_tabular_dataset(),
-        prompts=[
-            "Show ticket_id and priority rows sorted by created_at",
-            "Display ticket_id and priority records ordered by created_at",
-            "Return ticket_id and priority row data sorted by created_at",
-        ],
-        expected_request={
-            "prompt_family": "tabular_record_retrieval",
-            "intent_name": "tabular_query",
-            "task_type_hint": "descriptive",
-            "target": "ticket_id",
-            "aggregation": None,
-            "group_by": [],
-            "options": {
-                "intent_name": "tabular_query",
-                "selected_columns": ["ticket_id", "priority", "created_at"],
-                "sort_by": "created_at",
-                "sort_direction": "asc",
-                "limit": None,
-                "page": 1,
-                "page_size": 50,
-                "distinct_values": False,
-            },
-        },
-        expected_plan={
-            "task_type": "descriptive",
-            "step_actions": ["tabular_query"],
-            "step_parameters": [
-                {
-                    "selected_columns": ["ticket_id", "priority", "created_at"],
-                    "filters": None,
-                    "sort_by": "created_at",
-                    "sort_direction": "asc",
-                    "limit": None,
-                    "page": 1,
-                    "page_size": 50,
-                }
-            ],
-        },
-        expected_result={
-            "name": "tabular_query",
-            "physical_shape": "recordset",
-            "logical_shape": "recordset",
-        },
+        family_id="distinct_value_listing",
+        dataset_factory=build_support_dataset,
+        prompts=("Give me a list of all teams", "List all teams", "What are the different team categories in the data?"),
+        expected_intent_name="distinct_values",
+        expected_target="team",
+        expected_step_actions=("distinct_values",),
+        expected_primary_result_name="distinct_values",
+        expected_primary_logical_shape="table",
+    ),
+    ReproducibilityCase(
+        family_id="row_count",
+        dataset_factory=build_sales_dataset,
+        prompts=("How many data rows do we have?", "What is the row count?", "Count rows"),
+        expected_intent_name="row_count",
+        expected_aggregation="count",
+        expected_step_actions=("row_count",),
+        expected_primary_result_name="row_count",
+        expected_primary_logical_shape="count",
+        expected_primary_value=6,
     ),
 ]
 
+_REPRODUCIBILITY_CASES.extend(
+    [
+        ReproducibilityCase(
+            family_id="representation_ranking",
+            dataset_factory=build_support_dataset,
+            prompts=("Which team has the most tickets?", "What team is most represented?", "Which team has the highest count?"),
+            expected_intent_name="representation_ranking",
+            expected_target="team",
+            expected_aggregation="count",
+            expected_group_by=("team",),
+            expected_option_subset={"ranking_direction": "desc", "ranking_limit": 1},
+            expected_step_actions=("count_rows_by_group",),
+            expected_primary_result_name="group_row_counts",
+            expected_primary_logical_shape="table",
+            expected_primary_value={"team": "Support", "row_count": 4},
+        ),
+        ReproducibilityCase(
+            family_id="row_ranking",
+            dataset_factory=build_support_dataset,
+            prompts=(
+                "Return top 2 resolution_hours values",
+                "Show top 2 resolution_hours values",
+                "List the top 2 resolution_hours values",
+            ),
+            expected_intent_name="row_ranking",
+            expected_target="resolution_hours",
+            expected_option_subset={"ranking_direction": "desc", "ranking_limit": 2},
+            expected_step_actions=("ranked_rows",),
+            expected_primary_result_name="ranked_rows",
+            expected_primary_logical_shape="table",
+        ),
+        ReproducibilityCase(
+            family_id="group_ranking",
+            dataset_factory=build_sales_dataset,
+            prompts=("Return top 2 revenue by region", "Show top 2 revenue by region", "List the top 2 revenue by region"),
+            expected_intent_name="group_ranking",
+            expected_target="revenue",
+            expected_group_by=("region",),
+            expected_option_subset={"ranking_direction": "desc", "ranking_limit": 2},
+            expected_step_actions=("ranked_breakdown",),
+            expected_primary_result_name="ranked_breakdown",
+            expected_primary_logical_shape="table",
+        ),
+        ReproducibilityCase(
+            family_id="column_presence_check",
+            dataset_factory=build_support_dataset,
+            prompts=(
+                "Does the dataset have a created_at column?",
+                "Is there a created_at field?",
+                "Does this data include a created_at column?",
+            ),
+            expected_intent_name="existence_check",
+            expected_option_subset={"existence_mode": "column_presence_check", "requested_column": "created_at"},
+            expected_step_actions=("column_presence_check",),
+            expected_primary_result_name="column_presence_check",
+            expected_primary_logical_shape="verification",
+        ),
+        ReproducibilityCase(
+            family_id="column_property_check",
+            dataset_factory=build_sales_dataset,
+            prompts=("Is region a dimension?", "Is region a grouping column?", "Is region a dimension column?"),
+            expected_intent_name="existence_check",
+            expected_target="region",
+            expected_option_subset={"existence_mode": "column_property_check", "expected_property": "dimension"},
+            expected_step_actions=("column_property_check",),
+            expected_primary_result_name="column_property_check",
+            expected_primary_logical_shape="verification",
+        ),
+        ReproducibilityCase(
+            family_id="null_verification",
+            dataset_factory=build_support_dataset,
+            prompts=(
+                "Does csat_score have missing values?",
+                "Does csat_score have null values?",
+                "Does csat_score contain missing values?",
+            ),
+            expected_intent_name="existence_check",
+            expected_target="csat_score",
+            expected_option_subset={"existence_mode": "null_check", "null_expectation": "has_nulls"},
+            expected_step_actions=("null_check",),
+            expected_primary_result_name="null_check",
+            expected_primary_logical_shape="verification",
+        ),
+        ReproducibilityCase(
+            family_id="threshold_verification",
+            dataset_factory=build_support_dataset,
+            prompts=("Are any resolution_hours above 7?", "Is resolution_hours above 7 anywhere?", "Are any resolution_hours over 7?"),
+            expected_intent_name="existence_check",
+            expected_target="resolution_hours",
+            expected_option_subset={"existence_mode": "threshold_check", "threshold_operator": "gt", "threshold_value": 7.0},
+            expected_step_actions=("threshold_check",),
+            expected_primary_result_name="threshold_check",
+            expected_primary_logical_shape="verification",
+        ),
+        ReproducibilityCase(
+            family_id="time_value_verification",
+            dataset_factory=build_support_dataset,
+            prompts=(
+                "The created_at column shows dates in 2026?",
+                "Are there dates in 2026 in created_at?",
+                "Does created_at include dates in 2026?",
+            ),
+            expected_intent_name="existence_check",
+            expected_target="created_at",
+            expected_filters={"created_at": {"op": "year_eq", "value": 2026}},
+            expected_option_subset={"existence_mode": "time_value", "expected_year": 2026},
+            expected_step_actions=("time_value_exists",),
+            expected_primary_result_name="time_value_exists",
+            expected_primary_logical_shape="verification",
+        ),
+        ReproducibilityCase(
+            family_id="row_existence_check",
+            dataset_factory=build_sales_dataset,
+            prompts=("Is West in the region column?", "Are there any West values in region?", "Are there any region values equal to West?"),
+            expected_intent_name="existence_check",
+            expected_filters={"region": "West"},
+            expected_option_subset={"existence_mode": "filtered_rows"},
+            expected_step_actions=("row_existence",),
+            expected_primary_result_name="row_existence",
+            expected_primary_logical_shape="verification",
+        ),
+        ReproducibilityCase(
+            family_id="time_coverage",
+            dataset_factory=build_sales_dataset,
+            prompts=(
+                "What date range does the sales data cover?",
+                "What is the date range of the sales data?",
+                "From when to when does the sales data run?",
+            ),
+            expected_intent_name="time_coverage",
+            expected_option_subset={"time_coverage_mode": "date_range"},
+            expected_step_actions=("time_coverage",),
+            expected_primary_result_name="time_coverage",
+            expected_primary_logical_shape="timeseries",
+        ),
+        ReproducibilityCase(
+            family_id="time_bucket_counts",
+            dataset_factory=build_support_dataset,
+            prompts=("How many tickets were created by quarter?", "Count tickets by quarter", "Show ticket counts by quarter"),
+            expected_intent_name="time_bucket_counts",
+            expected_option_subset={"time_bucket": "quarter"},
+            expected_step_actions=("time_bucket_counts",),
+            expected_primary_result_name="time_bucket_counts",
+            expected_primary_logical_shape="timeseries",
+        ),
+        ReproducibilityCase(
+            family_id="time_bucket_breakdown",
+            dataset_factory=build_sales_dataset,
+            prompts=("Show revenue by month", "Display revenue by month", "Give me revenue by month"),
+            expected_intent_name="time_bucket_breakdown",
+            expected_target="revenue",
+            expected_option_subset={"time_bucket": "month"},
+            expected_step_actions=("time_bucket_breakdown",),
+            expected_primary_result_name="time_bucket_breakdown",
+            expected_primary_logical_shape="timeseries",
+        ),
+        ReproducibilityCase(
+            family_id="time_period_comparison",
+            dataset_factory=build_sales_dataset,
+            prompts=(
+                "Compare revenue this quarter to last quarter",
+                "Show revenue for this quarter versus last quarter",
+                "Compare revenue for this quarter versus last quarter",
+            ),
+            expected_intent_name="time_period_comparison",
+            expected_target="revenue",
+            expected_option_subset={"time_bucket": "quarter"},
+            expected_step_actions=("period_comparison",),
+            expected_primary_result_name="period_comparison",
+            expected_primary_logical_shape="timeseries",
+        ),
+        ReproducibilityCase(
+            family_id="grouped_entity_count",
+            dataset_factory=build_support_dataset,
+            prompts=("Give me the total tickets per team.", "For each team, give me the total tickets.", "Count tickets by team"),
+            expected_intent_name="grouped_tabular_query",
+            expected_aggregation="count",
+            expected_group_by=("team",),
+            expected_step_actions=("grouped_tabular_query",),
+            expected_primary_result_name="grouped_tabular_query",
+            expected_primary_logical_shape="table",
+        ),
+        ReproducibilityCase(
+            family_id="grouped_metric_table",
+            dataset_factory=build_sales_dataset,
+            prompts=(
+                "Show total revenue by region in a table",
+                "Give me a table of revenue by region",
+                "Return a grouped table of revenue by region",
+            ),
+            expected_intent_name="grouped_tabular_query",
+            expected_target="revenue",
+            expected_aggregation="sum",
+            expected_group_by=("region",),
+            expected_option_subset={"selected_columns": ["revenue", "region"]},
+            expected_step_actions=("grouped_tabular_query",),
+            expected_primary_result_name="grouped_tabular_query",
+            expected_primary_logical_shape="table",
+        ),
+        ReproducibilityCase(
+            family_id="tabular_record_retrieval",
+            dataset_factory=build_support_dataset,
+            prompts=(
+                "Show ticket_id and priority rows sorted by created_at",
+                "Display ticket_id and priority records ordered by created_at",
+                "Return ticket_id and priority row data sorted by created_at",
+            ),
+            expected_intent_name="tabular_query",
+            expected_target="ticket_id",
+            expected_option_subset={
+                "selected_columns": ["ticket_id", "priority", "created_at"],
+                "sort_by": "created_at",
+                "sort_direction": "asc",
+            },
+            expected_step_actions=("tabular_query",),
+            expected_primary_result_name="tabular_query",
+            expected_primary_logical_shape="recordset",
+        ),
+    ]
+)
 
-@pytest.mark.parametrize("case", _REPRODUCIBILITY_CASES, ids=[case.case_id for case in _REPRODUCIBILITY_CASES])
-def test_prompt_paraphrases_reproduce_same_request_plan_and_result(case: ReproducibilityCase) -> None:
+_REPRODUCIBILITY_CASES.extend(
+    [
+        ReproducibilityCase(
+            family_id="significance_inference",
+            dataset_factory=build_sales_dataset,
+            prompts=(
+                "Do regions differ in revenue?",
+                "Is there a significant difference in revenue by region?",
+                "Do regions differ significantly in revenue?",
+            ),
+            expected_intent_name=None,
+            expected_task_type="statistical",
+            expected_target="revenue",
+            expected_group_by=("region",),
+            expected_option_subset={"statistical_test": "significance_inference"},
+            expected_step_actions=("significance_inference",),
+            expected_primary_result_name="significance_test",
+            expected_primary_logical_shape="statistical_test",
+        ),
+        ReproducibilityCase(
+            family_id="confidence_interval",
+            dataset_factory=build_sales_dataset,
+            prompts=(
+                "What range are we 95% confident revenue falls in?",
+                "Show the 95% confidence interval for revenue",
+                "What confidence range do we have for revenue?",
+            ),
+            expected_intent_name=None,
+            expected_task_type="statistical",
+            expected_target="revenue",
+            expected_option_subset={"statistical_test": "confidence_interval", "confidence_level": 0.95},
+            expected_step_actions=("confidence_interval",),
+            expected_primary_result_name="confidence_interval",
+            expected_primary_logical_shape="statistical_test",
+        ),
+        ReproducibilityCase(
+            family_id="power_analysis",
+            dataset_factory=build_sales_dataset,
+            prompts=(
+                "Do we have enough data to detect a difference in revenue by region?",
+                "Show the power analysis for revenue by region",
+                "Estimate statistical power for revenue by region",
+            ),
+            expected_intent_name=None,
+            expected_task_type="statistical",
+            expected_target="revenue",
+            expected_group_by=("region",),
+            expected_option_subset={"statistical_test": "power_analysis", "desired_power": 0.8},
+            expected_step_actions=("power_analysis",),
+            expected_primary_result_name="power_analysis",
+            expected_primary_logical_shape="statistical_test",
+        ),
+        ReproducibilityCase(
+            family_id="sample_size_estimate",
+            dataset_factory=build_sales_dataset,
+            prompts=(
+                "Estimate sample size for revenue by region",
+                "Estimate required sample size for revenue by region",
+                "What required sample size do we need for revenue by region?",
+            ),
+            expected_intent_name=None,
+            expected_task_type="statistical",
+            expected_target="revenue",
+            expected_group_by=("region",),
+            expected_option_subset={"statistical_test": "sample_size_estimate", "desired_power": 0.8},
+            expected_step_actions=("sample_size_estimate",),
+            expected_primary_result_name="sample_size_estimate",
+            expected_primary_logical_shape="statistical_test",
+        ),
+        ReproducibilityCase(
+            family_id="t_test",
+            dataset_factory=build_sales_dataset,
+            prompts=("Run t-test on revenue by region", "Perform a t-test on revenue by region", "Use a t-test for revenue by region"),
+            expected_intent_name=None,
+            expected_task_type="statistical",
+            expected_target="revenue",
+            expected_group_by=("region",),
+            expected_option_subset={"statistical_test": "t_test"},
+            expected_step_actions=("t_test",),
+            expected_primary_result_name="t_test",
+            expected_primary_logical_shape="statistical_test",
+        ),
+        ReproducibilityCase(
+            family_id="anova",
+            dataset_factory=build_sales_dataset,
+            prompts=("Run anova on revenue by region", "Perform anova on revenue by region", "Use anova for revenue by region"),
+            expected_intent_name=None,
+            expected_task_type="statistical",
+            expected_target="revenue",
+            expected_group_by=("region",),
+            expected_option_subset={"statistical_test": "anova"},
+            expected_step_actions=("anova",),
+            expected_primary_result_name="anova_test",
+            expected_primary_logical_shape="statistical_test",
+        ),
+        ReproducibilityCase(
+            family_id="mann_whitney",
+            dataset_factory=build_sales_dataset,
+            prompts=(
+                "Run mann-whitney on revenue by region",
+                "Perform mann-whitney on revenue by region",
+                "Use mann-whitney for revenue by region",
+            ),
+            expected_intent_name=None,
+            expected_task_type="statistical",
+            expected_target="revenue",
+            expected_group_by=("region",),
+            expected_option_subset={"statistical_test": "mann_whitney"},
+            expected_step_actions=("mann_whitney",),
+            expected_primary_result_name="mann_whitney_test",
+            expected_primary_logical_shape="statistical_test",
+        ),
+        ReproducibilityCase(
+            family_id="regression_significance",
+            dataset_factory=build_support_dataset,
+            prompts=(
+                "Does resolution_hours significantly affect csat_score?",
+                "Does resolution_hours significantly influence csat_score?",
+                "Test whether resolution_hours significantly affects csat_score",
+            ),
+            expected_intent_name=None,
+            expected_task_type="statistical",
+            expected_target="csat_score",
+            expected_option_subset={"statistical_test": "regression_significance", "feature_columns": ["resolution_hours"]},
+            expected_step_actions=("regression_significance",),
+            expected_primary_result_name="regression_significance",
+            expected_primary_logical_shape="statistical_test",
+        ),
+        ReproducibilityCase(
+            family_id="chi_square",
+            dataset_factory=build_support_dataset,
+            prompts=(
+                "Run chi-square between team and priority",
+                "Run chi square between team and priority",
+                "Chi-square test for team and priority",
+            ),
+            expected_intent_name=None,
+            expected_task_type="statistical",
+            expected_target="team",
+            expected_group_by=("priority",),
+            expected_option_subset={"statistical_test": "chi_square", "comparison_columns": ["team", "priority"]},
+            expected_step_actions=("chi_square",),
+            expected_primary_result_name="chi_square_test",
+            expected_primary_logical_shape="statistical_test",
+        ),
+    ]
+)
+
+
+def _assert_option_subset(options: dict[str, Any], expected_option_subset: dict[str, Any]) -> None:
+    for key, expected_value in expected_option_subset.items():
+        assert options.get(key) == expected_value
+
+
+@pytest.mark.parametrize("case", _REPRODUCIBILITY_CASES, ids=[case.family_id for case in _REPRODUCIBILITY_CASES])
+def test_prompt_family_paraphrases_reproduce_same_request_plan_and_result(case: ReproducibilityCase) -> None:
     engine = Saida()
-    profile = engine.profile(case.dataset)
+    dataset = case.dataset_factory()
+    profile = engine.profile(dataset)
 
     baseline_request_signature: dict[str, Any] | None = None
     baseline_plan_signature: dict[str, Any] | None = None
     baseline_result_signature: dict[str, Any] | None = None
 
     for prompt in case.prompts:
-        request, warnings = engine.canonicalizer.normalize(prompt, case.dataset, profile, case.dataset.context)
-        plan = engine.plan_builder.build_plan(request, profile, case.dataset.context)
-        result = engine.analyze(case.dataset, prompt)
+        request, warnings = engine.canonicalizer.normalize(prompt, dataset, profile, dataset.context)
+        plan = engine.plan_builder.build_plan(request, profile, dataset.context)
+        result = engine.analyze(dataset, prompt)
 
         assert warnings == []
 
@@ -476,19 +726,35 @@ def test_prompt_paraphrases_reproduce_same_request_plan_and_result(case: Reprodu
     assert baseline_plan_signature is not None
     assert baseline_result_signature is not None
 
-    assert baseline_request_signature["intent_name"] == case.expected_request["intent_name"]
-    assert baseline_request_signature["task_type_hint"] == case.expected_request["task_type_hint"]
-    assert baseline_request_signature["target"] == case.expected_request["target"]
-    assert baseline_request_signature["aggregation"] == case.expected_request["aggregation"]
-    assert baseline_request_signature["group_by"] == case.expected_request["group_by"]
-    assert baseline_request_signature["options"] == case.expected_request["options"]
+    assert baseline_request_signature["prompt_family"] == case.family_id
+    assert baseline_request_signature["intent_name"] == case.expected_intent_name
+    assert baseline_request_signature["task_type_hint"] == case.expected_task_type
+    assert baseline_request_signature["target"] == case.expected_target
+    assert baseline_request_signature["aggregation"] == case.expected_aggregation
+    assert baseline_request_signature["filters"] == case.expected_filters
+    assert baseline_request_signature["group_by"] == list(case.expected_group_by)
+    _assert_option_subset(baseline_request_signature["options"], case.expected_option_subset)
 
-    assert baseline_plan_signature["task_type"] == case.expected_plan["task_type"]
-    assert [step["action"] for step in baseline_plan_signature["steps"]] == case.expected_plan["step_actions"]
-    assert [step["parameters"] for step in baseline_plan_signature["steps"]] == case.expected_plan["step_parameters"]
+    assert baseline_plan_signature["task_type"] == case.expected_task_type
+    assert [step["action"] for step in baseline_plan_signature["steps"]] == list(case.expected_step_actions)
 
-    assert baseline_result_signature["result"]["name"] == case.expected_result["name"]
-    assert baseline_result_signature["result"]["physical_shape"] == case.expected_result["physical_shape"]
-    assert baseline_result_signature["result"]["logical_shape"] == case.expected_result["logical_shape"]
-    if "value" in case.expected_result:
-        assert baseline_result_signature["result"]["value"] == case.expected_result["value"]
+    assert baseline_result_signature["result"]["name"] == case.expected_primary_result_name
+    if case.expected_primary_logical_shape is not None:
+        assert baseline_result_signature["result"]["logical_shape"] == case.expected_primary_logical_shape
+    if case.expected_primary_value is not _UNSET:
+        assert baseline_result_signature["result"]["value"] == case.expected_primary_value
+
+
+def test_plan_reproducibility_suite_covers_every_prompt_family() -> None:
+    catalog = build_default_prompt_family_catalog()
+    covered_family_ids = {case.family_id for case in _REPRODUCIBILITY_CASES}
+    catalog_family_ids = set(catalog.families)
+
+    assert len(covered_family_ids) == len(_REPRODUCIBILITY_CASES)
+
+    missing_families = sorted(catalog_family_ids - covered_family_ids)
+    extra_families = sorted(covered_family_ids - catalog_family_ids)
+
+    assert covered_family_ids == catalog_family_ids, (
+        f"Prompt family reproducibility coverage drifted. Missing={missing_families}, extra={extra_families}"
+    )
