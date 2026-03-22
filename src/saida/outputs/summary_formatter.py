@@ -324,6 +324,10 @@ class SummaryFormatter:
             inventory_table = self._table(tables, "column_type_inventory")
             if inventory_table is None or inventory_table.dataframe.empty:
                 return "No column type information is available."
+            if request.target:
+                row = inventory_table.dataframe.iloc[0]
+                nullable_label = "nullable" if bool(row.get("nullable")) else "non-null"
+                return f"Data type for {row['column_name']} is {row['dtype']} ({nullable_label})."
             entries = []
             for _, row in inventory_table.dataframe.iterrows():
                 nullable_label = "nullable" if bool(row.get("nullable")) else "non-null"

@@ -252,7 +252,7 @@ class Saida:
                 if step.action == "column_property_check":
                     tables.append(self._column_property_check_table(step.parameters, profile))
                 else:
-                    tables.append(self._metadata_table(step.action, profile))
+                    tables.append(self._metadata_table(step.action, profile, step.parameters))
                 trace.append(self._trace("compute", f"executed {step.action}", step.parameters))
                 continue
 
@@ -825,7 +825,8 @@ class Saida:
                 return first_message
         return fallback_message or "We need clarification or better data support before running this analysis."
 
-    def _metadata_table(self, action: str, profile: DatasetProfile) -> TableArtifact:
+    def _metadata_table(self, action: str, profile: DatasetProfile, parameters: dict[str, object] | None = None) -> TableArtifact:
+        parameters = parameters or {}
         if action == "column_inventory":
             dataframe = pd.DataFrame({"column_name": [column.name for column in profile.columns]})
             return TableArtifact(name="column_inventory", description="Available dataset columns.", dataframe=dataframe)
@@ -844,10 +845,17 @@ class Saida:
                         "semantic_role": self._semantic_role(column.name, profile),
                     }
                 )
+            target = parameters.get("target")
+            if isinstance(target, str):
+                rows = [row for row in rows if row["column_name"] == target]
             dataframe = pd.DataFrame(rows)
             return TableArtifact(
                 name="column_type_inventory",
-                description="Detected data types and schema properties for all columns.",
+                description=(
+                    f"Detected data type and schema properties for column '{target}'."
+                    if isinstance(target, str)
+                    else "Detected data types and schema properties for all columns."
+                ),
                 dataframe=dataframe,
             )
         if action == "numeric_column_inventory":

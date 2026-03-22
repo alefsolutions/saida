@@ -702,6 +702,9 @@ class InputCanonicalizer:
         time_aliases = {column_name.lower(): column_name for column_name in profile.time_columns}
         all_column_aliases = {column.name.lower(): column.name for column in profile.columns}
 
+        if intent_name == "column_type_inventory":
+            return self._resolve_single_column_type_target(question, profile)
+
         for alias, resolved_name in measure_aliases.items():
             if alias in lowered:
                 return resolved_name
@@ -1245,6 +1248,8 @@ class InputCanonicalizer:
 
     def _detect_intent_name(self, question: str, profile: DatasetProfile) -> str | None:
         lowered = question.lower()
+        if self._looks_like_single_column_type_lookup(question, profile):
+            return "column_type_inventory"
         if self._looks_like_column_type_inventory_request(lowered):
             return "column_type_inventory"
         if self._looks_like_numeric_column_inventory_request(lowered):
@@ -1291,6 +1296,31 @@ class InputCanonicalizer:
         if not any(keyword in lowered for keyword in COLUMN_TYPE_INVENTORY_KEYWORDS):
             return False
         return any(keyword in lowered for keyword in {"column", "columns", "field", "fields", "data"})
+
+    def _looks_like_single_column_type_lookup(self, question: str, profile: DatasetProfile) -> bool:
+        lowered = question.lower()
+        named_columns = self._extract_named_columns(question, profile)
+        if len(named_columns) != 1:
+            return False
+        if "schema" in lowered:
+            return False
+        if any(keyword in lowered for keyword in {"all fields", "all columns", "each field", "each column"}):
+            return False
+        singular_markers = {
+            "what is the data type of",
+            "what's the data type of",
+            "data type of",
+            "dtype of",
+            "what is the type of",
+            "what's the type of",
+            "type of",
+            "what type is",
+        }
+        if any(marker in lowered for marker in singular_markers):
+            return True
+        if any(keyword in lowered for keyword in COLUMN_TYPE_INVENTORY_KEYWORDS):
+            return any(keyword in lowered for keyword in {" column ", " field ", " column?", " field?", " column.", " field."})
+        return False
 
     def _looks_like_numeric_column_inventory_request(self, lowered: str) -> bool:
         if any(keyword in lowered for keyword in NUMERIC_COLUMN_INVENTORY_KEYWORDS):
@@ -1422,6 +1452,18 @@ class InputCanonicalizer:
             return True
         filters = self._extract_filters(question, profile, None)
         return bool(filters)
+
+    def _resolve_single_column_type_target(
+        self,
+        question: str,
+        profile: DatasetProfile,
+    ) -> str | None:
+        if not self._looks_like_single_column_type_lookup(question, profile):
+            return None
+        named_columns = self._extract_named_columns(question, profile)
+        if len(named_columns) != 1:
+            return None
+        return named_columns[0]
 
     def _looks_like_column_specific_null_check(self, question: str, profile: DatasetProfile) -> bool:
         lowered = question.lower()

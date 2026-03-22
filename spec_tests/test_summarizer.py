@@ -600,6 +600,41 @@ def test_summarizer_describes_column_type_inventory() -> None:
     assert "Column types: ticket_id (string, non-null); created_at (datetime, non-null); csat_score (float, nullable)." in summary
 
 
+def test_summarizer_describes_single_column_type_lookup() -> None:
+    summarizer = ResultSummarizer()
+    plan = AnalysisPlan(task_type="descriptive", rationale="Test.")
+    request = AnalysisRequest(
+        question="What is the data type of created_at?",
+        intent_name="column_type_inventory",
+        task_type_hint="descriptive",
+        target="created_at",
+    )
+
+    summary = summarizer.summarize(
+        plan,
+        metrics=[],
+        tables=[
+            TableArtifact(
+                name="column_type_inventory",
+                description="Created_at type.",
+                dataframe=pd.DataFrame(
+                    {
+                        "column_name": ["created_at"],
+                        "dtype": ["datetime"],
+                        "nullable": [False],
+                    }
+                ),
+            )
+        ],
+        warnings=[],
+        request=request,
+        profile=build_schema_profile(),
+        context=None,
+    )
+
+    assert "Data type for created_at is datetime (non-null)." in summary
+
+
 def test_summarizer_describes_missing_value_inventory() -> None:
     summarizer = ResultSummarizer()
     plan = AnalysisPlan(task_type="descriptive", rationale="Test.")

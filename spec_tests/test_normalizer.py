@@ -648,6 +648,43 @@ def test_normalizer_detects_column_type_inventory_intent() -> None:
     assert request.target is None
 
 
+@pytest.mark.parametrize(
+    "question",
+    [
+        "What is the data type of the created_at field in dataset?",
+        "What type is created_at?",
+    ],
+)
+def test_normalizer_detects_single_column_type_lookup(question: str) -> None:
+    normalizer = RequestNormalizer()
+
+    request, warnings = normalizer.normalize(
+        question,
+        build_schema_dataset(),
+        build_schema_profile(),
+        None,
+    )
+
+    assert warnings == []
+    assert request.intent_name == "column_type_inventory"
+    assert request.target == "created_at"
+
+
+def test_normalizer_keeps_multi_column_type_request_out_of_single_column_lookup() -> None:
+    normalizer = RequestNormalizer()
+
+    request, warnings = normalizer.normalize(
+        "What are the data types of created_at and csat_score?",
+        build_schema_dataset(),
+        build_schema_profile(),
+        None,
+    )
+
+    assert warnings == []
+    assert request.intent_name == "column_type_inventory"
+    assert request.target is None
+
+
 def test_normalizer_detects_schema_prompt_as_column_type_inventory() -> None:
     normalizer = RequestNormalizer()
 

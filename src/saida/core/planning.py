@@ -105,7 +105,7 @@ class PlanBuilder:
                         step_id=request.intent_name,
                         tool_family="metadata",
                         action=request.intent_name,
-                        parameters={},
+                        parameters={"target": request.target},
                         description="Return dataset inventory information for the requested metadata view.",
                     )
                 )

@@ -567,6 +567,9 @@ def test_analyze_returns_column_inventory() -> None:
 
     assert "Available columns: posted_at, revenue, segment." in result.summary
     assert result.response["interpretation"]["intent_name"] == "column_inventory"
+    assert result.response["result"]["name"] == "column_inventory"
+    assert result.response["result"]["logical_shape"] == "table"
+    assert result.response["result"]["row_count"] == 3
     assert any(table.name == "column_inventory" for table in result.tables)
 
 
@@ -587,6 +590,60 @@ def test_analyze_returns_column_type_inventory() -> None:
     assert result.response["interpretation"]["intent_name"] == "column_type_inventory"
     assert "Column types:" in result.summary
     assert any(table.name == "column_type_inventory" for table in result.tables)
+
+
+@pytest.mark.parametrize(
+    ("question", "expected_target"),
+    [
+        ("What is the data type of the created_at field in dataset?", "created_at"),
+        ("What type is created_at?", "created_at"),
+    ],
+)
+def test_analyze_returns_single_column_type_lookup(question: str, expected_target: str) -> None:
+    dataframe = pd.DataFrame(
+        {
+            "ticket_id": ["T1", "T2", "T3", "T4"],
+            "created_at": ["2026-01-01", "2026-01-02", "2026-01-03", "2026-01-04"],
+            "resolution_hours": [4.2, 6.1, 3.4, 8.0],
+            "priority": ["Low", "Medium", "High", "Medium"],
+            "csat_score": [4.8, None, 4.1, 3.9],
+        }
+    )
+    dataset = Dataset(name="support", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, question)
+
+    assert result.response["interpretation"]["intent_name"] == "column_type_inventory"
+    assert result.response["interpretation"]["target"] == expected_target
+    assert result.response["result"]["name"] == f"{expected_target}_dtype"
+    assert result.response["result"]["physical_shape"] == "scalar"
+    assert result.response["result"]["dtype"] == "string"
+    assert result.response["result"]["value"] == "datetime"
+    assert "Data type for created_at is datetime (non-null)." in result.summary
+    table = next(table for table in result.tables if table.name == "column_type_inventory")
+    assert len(table.dataframe) == 1
+    assert list(table.dataframe["column_name"]) == ["created_at"]
+
+
+def test_analyze_keeps_multi_column_type_request_as_inventory_table() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "ticket_id": ["T1", "T2", "T3", "T4"],
+            "created_at": ["2026-01-01", "2026-01-02", "2026-01-03", "2026-01-04"],
+            "resolution_hours": [4.2, 6.1, 3.4, 8.0],
+            "priority": ["Low", "Medium", "High", "Medium"],
+            "csat_score": [4.8, None, 4.1, 3.9],
+        }
+    )
+    dataset = Dataset(name="support", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "What are the data types of created_at and csat_score?")
+
+    assert result.response["interpretation"]["intent_name"] == "column_type_inventory"
+    assert result.response["interpretation"]["target"] is None
+    assert result.response["result"]["name"] == "column_type_inventory"
+    table = next(table for table in result.tables if table.name == "column_type_inventory")
+    assert len(table.dataframe) == 5
 
 
 def test_analyze_returns_numeric_column_inventory() -> None:

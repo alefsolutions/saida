@@ -274,12 +274,33 @@ class ResultCanonicalizer:
                 }.get(request.aggregation, "scalar")
                 return self._metric_result_payload(aggregate_metric, logical_shape=logical_shape)
 
+        if request.intent_name == "column_type_inventory" and request.target:
+            column_type_table = self._table_by_name(tables, "column_type_inventory")
+            if column_type_table is not None and not column_type_table.dataframe.empty:
+                row = column_type_table.dataframe.iloc[0]
+                return {
+                    "name": f"{request.target}_dtype",
+                    "description": f"Detected data type for {request.target}.",
+                    "physical_shape": "scalar",
+                    "logical_shape": "scalar",
+                    "dtype": "string",
+                    "schema": [],
+                    "dimensions": [],
+                    "row_count": None,
+                    "labels": [],
+                    "value": self._json_safe(row.get("dtype")),
+                }
+
         table_priority = [
             "grouped_tabular_query",
             "tabular_query",
+            "column_inventory",
             "column_type_inventory",
             "numeric_column_inventory",
             "categorical_column_inventory",
+            "measure_inventory",
+            "dimension_inventory",
+            "time_column_inventory",
             "missing_value_inventory",
             "identifier_inventory",
             "high_cardinality_inventory",
