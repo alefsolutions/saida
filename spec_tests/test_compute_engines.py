@@ -154,6 +154,20 @@ def test_duckdb_row_count_supports_month_filter() -> None:
     assert metrics[0].value == 2
 
 
+def test_duckdb_row_count_supports_year_month_filter() -> None:
+    engine = DuckDBComputeEngine()
+    dataframe = pd.DataFrame(
+        {
+            "posted_at": ["2025-01-01", "2025-01-15", "2025-02-01", "2026-01-01"],
+            "revenue": [1, 2, 3, 4],
+        }
+    )
+
+    metrics = engine.row_count(dataframe, filters={"posted_at": {"op": "year_month_eq", "value": "2025-01"}})
+
+    assert metrics[0].value == 2
+
+
 def test_duckdb_count_rows_by_group_supports_ranking() -> None:
     engine = DuckDBComputeEngine()
     dataframe = pd.DataFrame({"segment": ["Retail", "Retail", "Wholesale", "Online"], "revenue": [1, 2, 3, 4]})

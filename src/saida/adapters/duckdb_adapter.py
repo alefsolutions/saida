@@ -971,6 +971,11 @@ class DuckDBAdapter:
                 prepared = dataframe.copy()
                 prepared[column_name] = pd.to_datetime(prepared[column_name], errors="coerce")
                 return prepared.loc[prepared[column_name].dt.month == int(expected_value["value"])]
+            if operator == "year_month_eq":
+                prepared = dataframe.copy()
+                prepared[column_name] = pd.to_datetime(prepared[column_name], errors="coerce")
+                expected_period = str(expected_value["value"])
+                return prepared.loc[prepared[column_name].dt.strftime("%Y-%m") == expected_period]
             raise ComputeError(f"Unsupported filter operator: {operator}")
 
         if pd.api.types.is_string_dtype(series):

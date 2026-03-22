@@ -590,6 +590,22 @@ def test_normalizer_extracts_month_filter() -> None:
     assert request.filters == {"region": "West", "posted_at": {"op": "month_eq", "value": 3, "label": "march"}}
 
 
+def test_normalizer_extracts_year_month_filter() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize("List all rows for January 2025", build_dataset(), build_profile(), None)
+
+    assert request.filters == {
+        "posted_at": {
+            "op": "year_month_eq",
+            "value": "2025-01",
+            "year": 2025,
+            "month": 1,
+            "label": "january 2025",
+        }
+    }
+
+
 def test_normalizer_does_not_convert_diagnostic_month_prompt_into_time_filter() -> None:
     normalizer = RequestNormalizer()
 

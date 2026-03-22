@@ -93,6 +93,31 @@ class RefusingLlmProvider(BaseLlmProvider):
         return ResponseProposal(status="ready", summary=response_context.deterministic_summary)
 
 
+class YearMonthFilterLlmProvider(BaseLlmProvider):
+    """Provider that proposes a raw YYYY-MM filter on a time column."""
+
+    def interpret_prompt(
+        self,
+        question: str,
+        dataset_name: str,
+        profile_summary: str,
+        context_summary: str | None,
+    ) -> IntentProposal | None:
+        _ = question
+        _ = dataset_name
+        _ = profile_summary
+        _ = context_summary
+        return IntentProposal(
+            status="ready",
+            task_type_hint="descriptive",
+            filters={"created_at": "2025-01"},
+            warnings=["llm prompt path used"],
+        )
+
+    def generate_response(self, response_context: ResponseContext) -> ResponseProposal | None:
+        return ResponseProposal(status="ready", summary=response_context.deterministic_summary)
+
+
 def test_engine_load_context_parses_markdown() -> None:
     engine = Saida()
 
@@ -321,6 +346,39 @@ def test_engine_analysis_response_contract_records_intent_and_operations() -> No
     }
     assert result.deterministic_summary is not None
     assert result.response["reasoning"]["deterministic_summary"] == result.deterministic_summary
+
+
+def test_engine_coerces_llm_year_month_filter_on_time_column() -> None:
+    engine = Saida(llm_provider=YearMonthFilterLlmProvider())
+    engine.config.llm.enabled = True
+    dataset = Dataset(
+        name="support",
+        source_type="pandas",
+        data=pd.DataFrame(
+            {
+                "created_at": ["2025-01-01", "2025-01-15", "2025-02-01", "2026-01-01"],
+                "team": ["Support", "Platform", "Support", "Payments"],
+                "priority": ["High", "Low", "Medium", "High"],
+            }
+        ),
+    )
+
+    result = engine.analyze(dataset, "List all rows for January 2025")
+
+    assert result.response["status"] == "ok"
+    assert result.response["interpretation"]["filters"] == {
+        "created_at": {
+            "op": "year_month_eq",
+            "value": "2025-01",
+            "year": 2025,
+            "month": 1,
+            "label": "2025-01",
+        }
+    }
+    assert result.response["result"]["name"] == "tabular_query"
+    assert result.response["result"]["row_count"] == 2
+    assert result.response["result"]["pagination"]["total_rows"] == 2
+    assert result.artifacts["request"]["options"]["nlp_backend"] == "llm+validation"
 
 
 def test_engine_passes_context_summary_into_llm_response_stage() -> None:

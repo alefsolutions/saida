@@ -1312,12 +1312,28 @@ class InputCanonicalizer:
 
         time_column = profile.time_columns[0] if profile.time_columns else None
         if time_column and self._should_extract_time_filter(lowered):
-            year_match = re.search(r"\b(?:in|for|during)\s+((?:19|20)\d{2})\b", lowered)
-            if year_match:
-                filters[time_column] = {"op": "year_eq", "value": int(year_match.group(1))}
+            time_reference = self._extract_time_reference(question)
+            year_value = self._extract_year_value(question)
+            month_match = re.search(
+                r"\b(?:in|for|during)\s+("
+                + "|".join(re.escape(month_name[index].lower()) for index in range(1, 13))
+                + r"|"
+                + "|".join(re.escape(month_abbr[index].lower()) for index in range(1, 13))
+                + r")\s+((?:19|20)\d{2})\b",
+                lowered,
+            )
+            if month_match and time_reference and time_reference.get("type") == "month_name" and year_value is not None:
+                filters[time_column] = {
+                    "op": "year_month_eq",
+                    "value": f"{year_value:04d}-{int(time_reference['month']):02d}",
+                    "year": year_value,
+                    "month": int(time_reference["month"]),
+                    "label": f"{time_reference['value']} {year_value}",
+                }
+            elif year_value is not None and re.search(r"\b(?:in|for|during)\s+((?:19|20)\d{2})\b", lowered):
+                filters[time_column] = {"op": "year_eq", "value": year_value}
             else:
-                time_reference = self._extract_time_reference(question)
-                month_match = re.search(
+                month_only_match = re.search(
                     r"\b(?:in|for|during)\s+("
                     + "|".join(re.escape(month_name[index].lower()) for index in range(1, 13))
                     + r"|"
@@ -1325,7 +1341,7 @@ class InputCanonicalizer:
                     + r")\b",
                     lowered,
                 )
-                if month_match and time_reference and time_reference.get("type") == "month_name":
+                if month_only_match and time_reference and time_reference.get("type") == "month_name":
                     filters[time_column] = {
                         "op": "month_eq",
                         "value": int(time_reference["month"]),
@@ -2073,17 +2089,43 @@ class InputCanonicalizer:
             lowered_column = column_name.lower().strip()
             if lowered_column not in profile_columns:
                 continue
+            resolved_column = profile_columns[lowered_column]
             if isinstance(value, str) and value.strip():
-                resolved[profile_columns[lowered_column]] = value.strip()
+                resolved_value = value.strip()
+                coerced_filter = self._coerce_time_filter_string(resolved_column, resolved_value, profile)
+                resolved[resolved_column] = coerced_filter if coerced_filter is not None else resolved_value
                 continue
             if isinstance(value, dict):
                 operator = value.get("op")
-                if operator in {"neq", "year_eq", "month_eq"} and value.get("value") is not None:
+                if operator in {"neq", "year_eq", "month_eq", "year_month_eq"} and value.get("value") is not None:
                     resolved_value = {"op": operator, "value": value.get("value")}
                     if value.get("label") is not None:
                         resolved_value["label"] = str(value["label"])
-                    resolved[profile_columns[lowered_column]] = resolved_value
+                    if value.get("year") is not None:
+                        resolved_value["year"] = int(value["year"])
+                    if value.get("month") is not None:
+                        resolved_value["month"] = int(value["month"])
+                    resolved[resolved_column] = resolved_value
         return resolved or None
+
+    def _coerce_time_filter_string(
+        self,
+        column_name: str,
+        value: str,
+        profile: DatasetProfile,
+    ) -> dict[str, object] | None:
+        if column_name not in set(profile.time_columns):
+            return None
+        if re.fullmatch(r"(?:19|20)\d{2}-\d{2}", value):
+            year_part, month_part = value.split("-", 1)
+            return {
+                "op": "year_month_eq",
+                "value": value,
+                "year": int(year_part),
+                "month": int(month_part),
+                "label": value,
+            }
+        return None
 
     def _resolve_candidate_time_reference(self, time_reference: dict[str, str] | None) -> dict[str, str] | None:
         if not time_reference:
