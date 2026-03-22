@@ -606,6 +606,83 @@ def test_normalizer_extracts_year_month_filter() -> None:
     }
 
 
+@pytest.mark.parametrize(
+    ("question", "expected_filter"),
+    [
+        (
+            "List all rows on the 15th day of every month",
+            {"posted_at": {"op": "day_of_month_eq", "value": 15, "label": "day 15 of every month"}},
+        ),
+        (
+            "List all rows on Mondays",
+            {"posted_at": {"op": "weekday_eq", "value": 0, "label": "monday"}},
+        ),
+        (
+            "List all rows on weekdays",
+            {"posted_at": {"op": "weekday_in", "values": [0, 1, 2, 3, 4], "label": "weekdays"}},
+        ),
+        (
+            "List all rows on weekends",
+            {"posted_at": {"op": "weekday_in", "values": [5, 6], "label": "weekends"}},
+        ),
+        (
+            "List all rows on the first day of every month",
+            {"posted_at": {"op": "month_start", "label": "first day of every month"}},
+        ),
+        (
+            "List all rows on the last day of every month",
+            {"posted_at": {"op": "month_end", "label": "last day of every month"}},
+        ),
+        (
+            "List all rows for Q1",
+            {"posted_at": {"op": "quarter_eq", "value": 1, "label": "q1"}},
+        ),
+        (
+            "List all rows from the last 7 days",
+            {"posted_at": {"op": "recent_window", "value": 7, "unit": "day", "label": "last 7 days"}},
+        ),
+        (
+            "List all rows on the first Monday of every month",
+            {"posted_at": {"op": "nth_weekday_of_month", "weekday": 0, "occurrence": 1, "label": "first monday of every month"}},
+        ),
+        (
+            "List all rows on the last Friday of every month",
+            {"posted_at": {"op": "nth_weekday_of_month", "weekday": 4, "occurrence": "last", "label": "last friday of every month"}},
+        ),
+    ],
+)
+def test_normalizer_extracts_extended_time_filters(
+    question: str,
+    expected_filter: dict[str, object],
+) -> None:
+    normalizer = RequestNormalizer()
+
+    request, warnings = normalizer.normalize(question, build_dataset(), build_profile(), None)
+
+    assert request.intent_name == "tabular_query"
+    assert request.prompt_family == "tabular_record_retrieval"
+    assert request.filters == expected_filter
+    assert request.options.get("analysis_outcome") is None
+    assert warnings == []
+
+
+def test_normalizer_routes_all_tickets_with_recurring_time_filter_to_tabular_query() -> None:
+    normalizer = RequestNormalizer()
+
+    request, warnings = normalizer.normalize(
+        "Show all tickets created on the 1st of each month",
+        build_statistical_dataset(),
+        build_statistical_profile(),
+        None,
+    )
+
+    assert request.intent_name == "tabular_query"
+    assert request.prompt_family == "tabular_record_retrieval"
+    assert request.filters == {"created_at": {"op": "month_start", "label": "first day of every month"}}
+    assert request.options.get("analysis_outcome") is None
+    assert warnings == []
+
+
 def test_normalizer_does_not_convert_diagnostic_month_prompt_into_time_filter() -> None:
     normalizer = RequestNormalizer()
 

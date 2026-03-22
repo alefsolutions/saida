@@ -976,6 +976,62 @@ class DuckDBAdapter:
                 prepared[column_name] = pd.to_datetime(prepared[column_name], errors="coerce")
                 expected_period = str(expected_value["value"])
                 return prepared.loc[prepared[column_name].dt.strftime("%Y-%m") == expected_period]
+            if operator == "day_of_month_eq":
+                prepared = dataframe.copy()
+                prepared[column_name] = pd.to_datetime(prepared[column_name], errors="coerce")
+                return prepared.loc[prepared[column_name].dt.day == int(expected_value["value"])]
+            if operator == "weekday_eq":
+                prepared = dataframe.copy()
+                prepared[column_name] = pd.to_datetime(prepared[column_name], errors="coerce")
+                return prepared.loc[prepared[column_name].dt.dayofweek == int(expected_value["value"])]
+            if operator == "weekday_in":
+                prepared = dataframe.copy()
+                prepared[column_name] = pd.to_datetime(prepared[column_name], errors="coerce")
+                weekday_values = [int(value) for value in expected_value.get("values", [])]
+                return prepared.loc[prepared[column_name].dt.dayofweek.isin(weekday_values)]
+            if operator == "month_start":
+                prepared = dataframe.copy()
+                prepared[column_name] = pd.to_datetime(prepared[column_name], errors="coerce")
+                return prepared.loc[prepared[column_name].dt.is_month_start]
+            if operator == "month_end":
+                prepared = dataframe.copy()
+                prepared[column_name] = pd.to_datetime(prepared[column_name], errors="coerce")
+                return prepared.loc[prepared[column_name].dt.is_month_end]
+            if operator == "quarter_eq":
+                prepared = dataframe.copy()
+                prepared[column_name] = pd.to_datetime(prepared[column_name], errors="coerce")
+                return prepared.loc[prepared[column_name].dt.quarter == int(expected_value["value"])]
+            if operator == "recent_window":
+                prepared = dataframe.copy()
+                prepared[column_name] = pd.to_datetime(prepared[column_name], errors="coerce")
+                datetime_series = prepared[column_name].dropna()
+                if datetime_series.empty:
+                    return prepared.iloc[0:0]
+                anchor = datetime_series.max()
+                window_value = int(expected_value["value"])
+                window_unit = str(expected_value["unit"])
+                if window_unit == "day":
+                    start = anchor - pd.Timedelta(days=window_value)
+                elif window_unit == "week":
+                    start = anchor - pd.Timedelta(weeks=window_value)
+                elif window_unit == "month":
+                    start = anchor - pd.DateOffset(months=window_value)
+                else:  # pragma: no cover
+                    raise ComputeError(f"Unsupported recent window unit: {window_unit}")
+                return prepared.loc[(prepared[column_name] >= start) & (prepared[column_name] <= anchor)]
+            if operator == "nth_weekday_of_month":
+                prepared = dataframe.copy()
+                prepared[column_name] = pd.to_datetime(prepared[column_name], errors="coerce")
+                weekday = int(expected_value["weekday"])
+                occurrence = expected_value["occurrence"]
+                weekday_mask = prepared[column_name].dt.dayofweek == weekday
+                if occurrence == "last":
+                    next_week = prepared[column_name] + pd.Timedelta(days=7)
+                    month_mask = next_week.dt.month != prepared[column_name].dt.month
+                    return prepared.loc[weekday_mask & month_mask]
+                occurrence_value = int(occurrence)
+                occurrence_mask = ((prepared[column_name].dt.day - 1) // 7 + 1) == occurrence_value
+                return prepared.loc[weekday_mask & occurrence_mask]
             raise ComputeError(f"Unsupported filter operator: {operator}")
 
         if pd.api.types.is_string_dtype(series):

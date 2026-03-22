@@ -133,6 +133,59 @@ TABULAR_VERBS = {"show", "list", "return", "give me", "display"}
 TABULAR_LIMIT_KEYWORDS = {"first", "last", "return", "show", "list"}
 TABULAR_SORT_KEYWORDS = {"sort by", "sorted by", "order by", "ordered by", "ascending", "descending", "latest", "earliest"}
 DATASET_SLICE_KEYWORDS = {"dataset", "data set", "data", "table"}
+WEEKDAY_NAME_TO_INT = {
+    "monday": 0,
+    "tuesday": 1,
+    "wednesday": 2,
+    "thursday": 3,
+    "friday": 4,
+    "saturday": 5,
+    "sunday": 6,
+}
+ORDINAL_WORD_TO_INT = {
+    "first": 1,
+    "second": 2,
+    "third": 3,
+    "fourth": 4,
+    "fifth": 5,
+    "sixth": 6,
+    "seventh": 7,
+    "eighth": 8,
+    "ninth": 9,
+    "tenth": 10,
+    "eleventh": 11,
+    "twelfth": 12,
+    "thirteenth": 13,
+    "fourteenth": 14,
+    "fifteenth": 15,
+    "sixteenth": 16,
+    "seventeenth": 17,
+    "eighteenth": 18,
+    "nineteenth": 19,
+    "twentieth": 20,
+    "twenty first": 21,
+    "twenty-first": 21,
+    "twenty second": 22,
+    "twenty-second": 22,
+    "twenty third": 23,
+    "twenty-third": 23,
+    "twenty fourth": 24,
+    "twenty-fourth": 24,
+    "twenty fifth": 25,
+    "twenty-fifth": 25,
+    "twenty sixth": 26,
+    "twenty-sixth": 26,
+    "twenty seventh": 27,
+    "twenty-seventh": 27,
+    "twenty eighth": 28,
+    "twenty-eighth": 28,
+    "twenty ninth": 29,
+    "twenty-ninth": 29,
+    "thirtieth": 30,
+    "thirty first": 31,
+    "thirty-first": 31,
+}
+QUARTER_WORD_TO_INT = {"first": 1, "second": 2, "third": 3, "fourth": 4}
 EXISTENCE_REQUEST_KEYWORDS = {
     "is there",
     "are there",
@@ -449,6 +502,8 @@ class InputCanonicalizer:
         distinct_values = self._should_list_distinct_values(question, target, profile)
         if intent_name == "distinct_value_count":
             distinct_values = False
+        if intent_name == "tabular_query" and self._should_clear_time_reference_for_filters(filters):
+            time_reference = None
 
         request = AnalysisRequest(
             question=question,
@@ -674,6 +729,8 @@ class InputCanonicalizer:
         distinct_values = self._should_list_distinct_values(question, target, profile)
         if rule_intent_name == "distinct_value_count":
             distinct_values = False
+        if rule_intent_name == "tabular_query" and self._should_clear_time_reference_for_filters(filters):
+            time_reference = None
 
         request = AnalysisRequest(
             question=question,
@@ -1312,43 +1369,190 @@ class InputCanonicalizer:
 
         time_column = profile.time_columns[0] if profile.time_columns else None
         if time_column and self._should_extract_time_filter(lowered):
-            time_reference = self._extract_time_reference(question)
-            year_value = self._extract_year_value(question)
-            month_match = re.search(
-                r"\b(?:in|for|during)\s+("
-                + "|".join(re.escape(month_name[index].lower()) for index in range(1, 13))
-                + r"|"
-                + "|".join(re.escape(month_abbr[index].lower()) for index in range(1, 13))
-                + r")\s+((?:19|20)\d{2})\b",
-                lowered,
-            )
-            if month_match and time_reference and time_reference.get("type") == "month_name" and year_value is not None:
-                filters[time_column] = {
-                    "op": "year_month_eq",
-                    "value": f"{year_value:04d}-{int(time_reference['month']):02d}",
-                    "year": year_value,
-                    "month": int(time_reference["month"]),
-                    "label": f"{time_reference['value']} {year_value}",
-                }
-            elif year_value is not None and re.search(r"\b(?:in|for|during)\s+((?:19|20)\d{2})\b", lowered):
-                filters[time_column] = {"op": "year_eq", "value": year_value}
-            else:
-                month_only_match = re.search(
-                    r"\b(?:in|for|during)\s+("
-                    + "|".join(re.escape(month_name[index].lower()) for index in range(1, 13))
-                    + r"|"
-                    + "|".join(re.escape(month_abbr[index].lower()) for index in range(1, 13))
-                    + r")\b",
-                    lowered,
-                )
-                if month_only_match and time_reference and time_reference.get("type") == "month_name":
-                    filters[time_column] = {
-                        "op": "month_eq",
-                        "value": int(time_reference["month"]),
-                        "label": time_reference["value"],
-                    }
+            time_filter = self._extract_time_filter_spec(question)
+            if time_filter is not None:
+                filters[time_column] = time_filter
 
         return filters or None
+
+    def _extract_time_filter_spec(self, question: str) -> dict[str, object] | None:
+        lowered = question.lower()
+        recurring_month_filter = self._extract_recurring_month_filter(lowered)
+        if recurring_month_filter is not None:
+            return recurring_month_filter
+
+        weekday_filter = self._extract_weekday_filter(lowered)
+        if weekday_filter is not None:
+            return weekday_filter
+
+        recent_window_filter = self._extract_recent_window_filter(lowered)
+        if recent_window_filter is not None:
+            return recent_window_filter
+
+        quarter_filter = self._extract_quarter_filter(lowered)
+        if quarter_filter is not None:
+            return quarter_filter
+
+        time_reference = self._extract_time_reference(question)
+        year_value = self._extract_year_value(question)
+        month_match = re.search(
+            r"\b(?:in|for|during)\s+("
+            + "|".join(re.escape(month_name[index].lower()) for index in range(1, 13))
+            + r"|"
+            + "|".join(re.escape(month_abbr[index].lower()) for index in range(1, 13))
+            + r")\s+((?:19|20)\d{2})\b",
+            lowered,
+        )
+        if month_match and time_reference and time_reference.get("type") == "month_name" and year_value is not None:
+            return {
+                "op": "year_month_eq",
+                "value": f"{year_value:04d}-{int(time_reference['month']):02d}",
+                "year": year_value,
+                "month": int(time_reference["month"]),
+                "label": f"{time_reference['value']} {year_value}",
+            }
+        if year_value is not None and re.search(r"\b(?:in|for|during)\s+((?:19|20)\d{2})\b", lowered):
+            return {"op": "year_eq", "value": year_value}
+
+        month_only_match = re.search(
+            r"\b(?:in|for|during)\s+("
+            + "|".join(re.escape(month_name[index].lower()) for index in range(1, 13))
+            + r"|"
+            + "|".join(re.escape(month_abbr[index].lower()) for index in range(1, 13))
+            + r")\b",
+            lowered,
+        )
+        if month_only_match and time_reference and time_reference.get("type") == "month_name":
+            return {
+                "op": "month_eq",
+                "value": int(time_reference["month"]),
+                "label": time_reference["value"],
+            }
+        return None
+
+    def _extract_recurring_month_filter(self, lowered: str) -> dict[str, object] | None:
+        ordinal_token_pattern = self._ordinal_token_pattern()
+        if re.search(r"\b(?:the\s+)?(?:1st|first)\s+(?:day\s+of|of)\s+(?:every|each)\s+month\b", lowered):
+            return {"op": "month_start", "label": "first day of every month"}
+        if re.search(
+            r"\b(?:start|beginning)\s+of\s+(?:every|each)\s+month\b|\b(?:every|each)\s+month\s+start\b",
+            lowered,
+        ):
+            return {"op": "month_start", "label": "month start"}
+        if re.search(r"\b(?:the\s+)?last\s+day\s+of\s+(?:every|each)\s+month\b", lowered):
+            return {"op": "month_end", "label": "last day of every month"}
+        if re.search(r"\b(?:end|month end)\s+of\s+(?:every|each)\s+month\b|\b(?:every|each)\s+month\s+end\b", lowered):
+            return {"op": "month_end", "label": "month end"}
+
+        nth_weekday_match = re.search(
+            rf"\b(?:on\s+)?(?:the\s+)?((?:1st|2nd|3rd|4th)|first|second|third|fourth|last)\s+("
+            + "|".join(WEEKDAY_NAME_TO_INT)
+            + r")\s+of\s+(?:every|each)\s+month\b",
+            lowered,
+        )
+        if nth_weekday_match:
+            occurrence_token = nth_weekday_match.group(1)
+            weekday_name = nth_weekday_match.group(2)
+            occurrence = "last" if occurrence_token == "last" else self._parse_ordinal_number(occurrence_token)
+            if occurrence in {"last", 1, 2, 3, 4}:
+                return {
+                    "op": "nth_weekday_of_month",
+                    "weekday": WEEKDAY_NAME_TO_INT[weekday_name],
+                    "occurrence": occurrence,
+                    "label": f"{occurrence_token} {weekday_name} of every month",
+                }
+
+        day_of_month_match = re.search(
+            rf"\b(?:on\s+)?(?:the\s+)?({ordinal_token_pattern})\s+(?:day\s+of|of)\s+(?:every|each)\s+month\b",
+            lowered,
+        )
+        if day_of_month_match:
+            day_value = self._parse_ordinal_number(day_of_month_match.group(1))
+            if day_value is not None:
+                return {
+                    "op": "day_of_month_eq",
+                    "value": day_value,
+                    "label": f"day {day_value} of every month",
+                }
+        return None
+
+    def _extract_weekday_filter(self, lowered: str) -> dict[str, object] | None:
+        if re.search(r"\bweekdays\b|\bweekday only\b", lowered):
+            return {"op": "weekday_in", "values": [0, 1, 2, 3, 4], "label": "weekdays"}
+        if re.search(r"\bweekends\b|\bweekend only\b", lowered):
+            return {"op": "weekday_in", "values": [5, 6], "label": "weekends"}
+        for weekday_name, weekday_index in WEEKDAY_NAME_TO_INT.items():
+            if re.search(rf"\b(?:on|every|each)\s+{weekday_name}s?\b", lowered):
+                return {"op": "weekday_eq", "value": weekday_index, "label": weekday_name}
+        return None
+
+    def _extract_quarter_filter(self, lowered: str) -> dict[str, object] | None:
+        quarter_match = re.search(r"\b(?:in|for|during)\s+q([1-4])\b", lowered)
+        if quarter_match:
+            return {"op": "quarter_eq", "value": int(quarter_match.group(1)), "label": f"q{quarter_match.group(1)}"}
+        quarter_number_match = re.search(r"\b(?:in|for|during)\s+quarter\s+([1-4])\b", lowered)
+        if quarter_number_match:
+            return {"op": "quarter_eq", "value": int(quarter_number_match.group(1)), "label": f"quarter {quarter_number_match.group(1)}"}
+        quarter_word_match = re.search(r"\b(?:in|for|during)\s+(first|second|third|fourth)\s+quarter\b", lowered)
+        if quarter_word_match:
+            quarter_value = QUARTER_WORD_TO_INT[quarter_word_match.group(1)]
+            return {"op": "quarter_eq", "value": quarter_value, "label": f"{quarter_word_match.group(1)} quarter"}
+        return None
+
+    def _extract_recent_window_filter(self, lowered: str) -> dict[str, object] | None:
+        recent_match = re.search(
+            r"\b(?:in|for|during|from)?\s*(?:the\s+)?(?:last|past)\s+(\d+)\s+(day|days|week|weeks|month|months)\b",
+            lowered,
+        )
+        if not recent_match:
+            return None
+        value = int(recent_match.group(1))
+        unit_token = recent_match.group(2)
+        if value <= 0:
+            return None
+        unit = unit_token[:-1] if unit_token.endswith("s") else unit_token
+        return {
+            "op": "recent_window",
+            "value": value,
+            "unit": unit,
+            "label": f"last {value} {unit_token}",
+        }
+
+    def _parse_ordinal_number(self, token: str) -> int | None:
+        lowered = re.sub(r"\s+", " ", token.lower().strip())
+        if lowered in ORDINAL_WORD_TO_INT:
+            return ORDINAL_WORD_TO_INT[lowered]
+        match = re.fullmatch(r"(\d{1,2})(?:st|nd|rd|th)?", lowered)
+        if not match:
+            return None
+        value = int(match.group(1))
+        return value if 1 <= value <= 31 else None
+
+    def _ordinal_token_pattern(self) -> str:
+        word_tokens = sorted((re.escape(token) for token in ORDINAL_WORD_TO_INT), key=len, reverse=True)
+        return r"(?:\d{1,2}(?:st|nd|rd|th)?|" + "|".join(word_tokens) + r")"
+
+    def _should_clear_time_reference_for_filters(self, filters: dict[str, object] | None) -> bool:
+        if not filters:
+            return False
+        filter_ops = {
+            value.get("op")
+            for value in filters.values()
+            if isinstance(value, dict) and value.get("op") is not None
+        }
+        return bool(
+            filter_ops
+            & {
+                "quarter_eq",
+                "recent_window",
+                "month_start",
+                "month_end",
+                "day_of_month_eq",
+                "weekday_eq",
+                "weekday_in",
+                "nth_weekday_of_month",
+            }
+        )
 
     def _candidate_filter_values(
         self,
@@ -1653,6 +1857,7 @@ class InputCanonicalizer:
         has_tabular_surface = any(keyword in lowered for keyword in TABULAR_ROW_KEYWORDS | TABULAR_SURFACE_KEYWORDS)
         has_sort_or_limit = any(keyword in lowered for keyword in TABULAR_SORT_KEYWORDS) or self._extract_tabular_limit(question) is not None
         has_tabular_verb = any(re.search(rf"\b{re.escape(keyword)}\b", lowered) for keyword in TABULAR_VERBS)
+        has_filters = bool(self._extract_filters(question, profile, None))
         has_dataset_slice_language = (
             self._extract_tabular_limit(question) is not None
             and has_tabular_verb
@@ -1669,6 +1874,8 @@ class InputCanonicalizer:
         if has_group_by and "table" in lowered:
             return True
         if not has_group_by and has_tabular_verb and len(named_columns) >= 2:
+            return True
+        if not has_group_by and has_tabular_verb and "all" in lowered and has_filters:
             return True
         return False
 
@@ -2097,7 +2304,7 @@ class InputCanonicalizer:
                 continue
             if isinstance(value, dict):
                 operator = value.get("op")
-                if operator in {"neq", "year_eq", "month_eq", "year_month_eq"} and value.get("value") is not None:
+                if operator in {"neq", "year_eq", "month_eq", "year_month_eq", "day_of_month_eq", "weekday_eq", "quarter_eq"} and value.get("value") is not None:
                     resolved_value = {"op": operator, "value": value.get("value")}
                     if value.get("label") is not None:
                         resolved_value["label"] = str(value["label"])
@@ -2105,6 +2312,34 @@ class InputCanonicalizer:
                         resolved_value["year"] = int(value["year"])
                     if value.get("month") is not None:
                         resolved_value["month"] = int(value["month"])
+                    resolved[resolved_column] = resolved_value
+                    continue
+                if operator in {"month_start", "month_end"}:
+                    resolved_value = {"op": operator}
+                    if value.get("label") is not None:
+                        resolved_value["label"] = str(value["label"])
+                    resolved[resolved_column] = resolved_value
+                    continue
+                if operator == "weekday_in" and value.get("values") is not None:
+                    resolved_value = {"op": operator, "values": [int(item) for item in value.get("values", [])]}
+                    if value.get("label") is not None:
+                        resolved_value["label"] = str(value["label"])
+                    resolved[resolved_column] = resolved_value
+                    continue
+                if operator == "recent_window" and value.get("value") is not None and value.get("unit") is not None:
+                    resolved_value = {"op": operator, "value": int(value["value"]), "unit": str(value["unit"])}
+                    if value.get("label") is not None:
+                        resolved_value["label"] = str(value["label"])
+                    resolved[resolved_column] = resolved_value
+                    continue
+                if operator == "nth_weekday_of_month" and value.get("weekday") is not None and value.get("occurrence") is not None:
+                    resolved_value = {
+                        "op": operator,
+                        "weekday": int(value["weekday"]),
+                        "occurrence": value["occurrence"],
+                    }
+                    if value.get("label") is not None:
+                        resolved_value["label"] = str(value["label"])
                     resolved[resolved_column] = resolved_value
         return resolved or None
 

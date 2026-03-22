@@ -63,6 +63,41 @@ def build_tabular_dataframe() -> pd.DataFrame:
     )
 
 
+def build_recurring_calendar_dataframe() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "posted_at": [
+                "2026-01-01",
+                "2026-01-03",
+                "2026-01-05",
+                "2026-01-15",
+                "2026-01-30",
+                "2026-01-31",
+                "2026-02-01",
+                "2026-02-02",
+                "2026-02-15",
+                "2026-02-27",
+                "2026-02-28",
+                "2026-03-01",
+                "2026-03-02",
+                "2026-03-15",
+                "2026-03-27",
+                "2026-03-31",
+            ],
+            "revenue": list(range(1, 17)),
+        }
+    )
+
+
+def build_recent_window_dataframe() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "posted_at": ["2026-03-01", "2026-03-31", "2026-04-24", "2026-04-30"],
+            "revenue": [1, 2, 3, 4],
+        }
+    )
+
+
 def test_duckdb_period_and_contribution_breakdown() -> None:
     engine = DuckDBComputeEngine()
     dataframe = build_dataframe()
@@ -164,6 +199,49 @@ def test_duckdb_row_count_supports_year_month_filter() -> None:
     )
 
     metrics = engine.row_count(dataframe, filters={"posted_at": {"op": "year_month_eq", "value": "2025-01"}})
+
+    assert metrics[0].value == 2
+
+
+@pytest.mark.parametrize(
+    ("filters", "expected_value"),
+    [
+        ({"posted_at": {"op": "day_of_month_eq", "value": 15}}, 3),
+        ({"posted_at": {"op": "weekday_eq", "value": 0}}, 3),
+        ({"posted_at": {"op": "weekday_in", "values": [0, 1, 2, 3, 4]}}, 9),
+        ({"posted_at": {"op": "weekday_in", "values": [5, 6]}}, 7),
+        ({"posted_at": {"op": "month_start"}}, 3),
+        ({"posted_at": {"op": "month_end"}}, 3),
+        ({"posted_at": {"op": "nth_weekday_of_month", "weekday": 0, "occurrence": 1}}, 3),
+        ({"posted_at": {"op": "nth_weekday_of_month", "weekday": 4, "occurrence": "last"}}, 3),
+    ],
+)
+def test_duckdb_row_count_supports_recurring_calendar_filters(
+    filters: dict[str, object],
+    expected_value: int,
+) -> None:
+    engine = DuckDBComputeEngine()
+    dataframe = build_recurring_calendar_dataframe()
+
+    metrics = engine.row_count(dataframe, filters=filters)
+
+    assert metrics[0].value == expected_value
+
+
+def test_duckdb_row_count_supports_quarter_filter() -> None:
+    engine = DuckDBComputeEngine()
+    dataframe = build_time_bucket_dataframe()
+
+    metrics = engine.row_count(dataframe, filters={"posted_at": {"op": "quarter_eq", "value": 1}})
+
+    assert metrics[0].value == 3
+
+
+def test_duckdb_row_count_supports_recent_window_filter() -> None:
+    engine = DuckDBComputeEngine()
+    dataframe = build_recent_window_dataframe()
+
+    metrics = engine.row_count(dataframe, filters={"posted_at": {"op": "recent_window", "value": 7, "unit": "day"}})
 
     assert metrics[0].value == 2
 

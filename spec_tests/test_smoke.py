@@ -1614,6 +1614,105 @@ def test_analyze_returns_paginated_tabular_query() -> None:
     assert result.response["result"]["pagination"]["total_rows"] == 3
 
 
+def _build_recurring_time_filter_dataset() -> Dataset:
+    dataframe = pd.DataFrame(
+        {
+            "ticket_id": [f"T{index}" for index in range(1, 17)],
+            "created_at": [
+                "2026-01-01",
+                "2026-01-03",
+                "2026-01-05",
+                "2026-01-15",
+                "2026-01-30",
+                "2026-01-31",
+                "2026-02-01",
+                "2026-02-02",
+                "2026-02-15",
+                "2026-02-27",
+                "2026-02-28",
+                "2026-03-01",
+                "2026-03-02",
+                "2026-03-15",
+                "2026-03-27",
+                "2026-03-31",
+            ],
+            "priority": [
+                "Low",
+                "Low",
+                "Medium",
+                "High",
+                "Medium",
+                "Low",
+                "Low",
+                "Medium",
+                "High",
+                "Medium",
+                "Low",
+                "Low",
+                "Medium",
+                "High",
+                "Medium",
+                "Low",
+            ],
+        }
+    )
+    return Dataset(name="tickets", source_type="pandas", data=dataframe)
+
+
+def _build_recent_window_dataset() -> Dataset:
+    dataframe = pd.DataFrame(
+        {
+            "ticket_id": ["T1", "T2", "T3", "T4"],
+            "created_at": ["2026-03-01", "2026-03-31", "2026-04-24", "2026-04-30"],
+            "priority": ["Low", "Medium", "High", "Low"],
+        }
+    )
+    return Dataset(name="tickets", source_type="pandas", data=dataframe)
+
+
+@pytest.mark.parametrize(
+    ("question", "expected_total_rows"),
+    [
+        ("List all rows on the 15th day of every month", 3),
+        ("List all rows on Mondays", 3),
+        ("List all rows on weekdays", 9),
+        ("List all rows on the first day of every month", 3),
+        ("List all rows on the last day of every month", 3),
+        ("List all rows on the first Monday of every month", 3),
+        ("List all rows on the last Friday of every month", 3),
+        ("List all rows for Q1", 16),
+        ("Show all tickets created on the 1st of each month", 3),
+    ],
+)
+def test_analyze_supports_extended_recurring_time_filters(
+    question: str,
+    expected_total_rows: int,
+) -> None:
+    dataset = _build_recurring_time_filter_dataset()
+
+    result = Saida().analyze(dataset, question)
+
+    table = next(table for table in result.tables if table.name == "tabular_query")
+    assert result.response["status"] == "ok"
+    assert result.response["interpretation"]["intent_name"] == "tabular_query"
+    assert result.response["interpretation"]["prompt_family"] == "tabular_record_retrieval"
+    assert result.response["result"]["pagination"]["total_rows"] == expected_total_rows
+    assert len(table.dataframe) == expected_total_rows
+
+
+def test_analyze_supports_recent_window_time_filter() -> None:
+    dataset = _build_recent_window_dataset()
+
+    result = Saida().analyze(dataset, "List all rows from the last 7 days")
+
+    table = next(table for table in result.tables if table.name == "tabular_query")
+    assert result.response["status"] == "ok"
+    assert result.response["interpretation"]["intent_name"] == "tabular_query"
+    assert result.response["interpretation"]["prompt_family"] == "tabular_record_retrieval"
+    assert result.response["result"]["pagination"]["total_rows"] == 2
+    assert list(table.dataframe["ticket_id"]) == ["T3", "T4"]
+
+
 def test_analyze_keeps_distinct_values_for_dimension_listing_prompt() -> None:
     dataframe = pd.DataFrame(
         {
