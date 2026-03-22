@@ -130,6 +130,27 @@ def test_high_volume_prompt_families_use_template_plan_compilation(family_id: st
     assert family_spec.to_dict()["plan_compilation"] == "template"
 
 
+@pytest.mark.parametrize(
+    "family_id",
+    [
+        "row_count",
+        "column_type_lookup",
+        "column_presence_check",
+        "distinct_value_listing",
+        "grouped_entity_count",
+        "representation_ranking",
+        "tabular_record_retrieval",
+    ],
+)
+def test_high_volume_prompt_families_use_template_result_shaping(family_id: str) -> None:
+    catalog = build_default_prompt_family_catalog()
+    family_spec = catalog.get(family_id)
+
+    assert family_spec is not None
+    assert family_spec.primary_result is not None
+    assert family_spec.to_dict()["result_compilation"] == "template"
+
+
 def test_prompt_capability_contract_exposes_prompt_family_and_family_spec() -> None:
     engine = Saida()
     dataset = build_support_dataset()

@@ -17,6 +17,12 @@ PromptFamilyValueSource = Literal[
     "request_option_equals",
     "wrapped_request_attr",
 ]
+PromptFamilyResultSource = Literal[
+    "metric",
+    "table",
+    "table_head",
+    "table_scalar_field",
+]
 
 
 @dataclass(slots=True)
@@ -41,6 +47,20 @@ class PromptFamilyPlanStepSpec:
 
 
 @dataclass(slots=True)
+class PromptFamilyResultSpec:
+    """Template primary-result specification for a prompt family."""
+
+    source: PromptFamilyResultSource
+    metric_name_template: str | None = None
+    table_name: str | None = None
+    logical_shape: str | None = None
+    result_name_template: str | None = None
+    description_template: str | None = None
+    value_field: str | None = None
+    head_rows: int = 1
+
+
+@dataclass(slots=True)
 class PromptFamilySpec:
     """Describe one supported prompt family and its expected invariants."""
 
@@ -56,6 +76,7 @@ class PromptFamilySpec:
     governance: PromptFamilyGovernance = "governed"
     examples: tuple[str, ...] = ()
     plan_steps: tuple[PromptFamilyPlanStepSpec, ...] = ()
+    primary_result: PromptFamilyResultSpec | None = None
 
     def request_invariant_issues(self, request: AnalysisRequest) -> list[str]:
         """Return request-level invariant mismatches for this family."""
@@ -124,6 +145,8 @@ class PromptFamilySpec:
             "examples": list(self.examples),
             "plan_compilation": "template" if self.plan_steps else "manual",
             "template_step_count": len(self.plan_steps),
+            "result_compilation": "template" if self.primary_result is not None else "manual",
+            "primary_result_source": self.primary_result.source if self.primary_result is not None else None,
         }
 
     def compile_steps(self, request: AnalysisRequest, profile: DatasetProfile) -> list[PlanStep]:
@@ -176,8 +199,8 @@ class PromptFamilyCatalog:
             "",
             "This file is a human-readable snapshot of the live prompt family catalog in `src/saida/core/prompt_family_catalog.py`.",
             "",
-            "| Family | Governance | Plan Compilation | Intents | Required Parameters | Primary Result Shapes | Plan Actions | Forbidden Primary Results |",
-            "| --- | --- | --- | --- | --- | --- | --- | --- |",
+            "| Family | Governance | Plan Compilation | Result Shaping | Intents | Required Parameters | Primary Result Shapes | Plan Actions | Forbidden Primary Results |",
+            "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
         ]
         for spec in sorted(self.families.values(), key=lambda item: item.family_id):
             intents = ", ".join(spec.intent_names) or "-"
@@ -186,8 +209,9 @@ class PromptFamilyCatalog:
             plan_actions = ", ".join(spec.allowed_plan_actions) or "-"
             forbidden_results = ", ".join(spec.forbidden_primary_results) or "-"
             plan_compilation = "template" if spec.plan_steps else "manual"
+            result_compilation = "template" if spec.primary_result is not None else "manual"
             lines.append(
-                f"| `{spec.family_id}` | `{spec.governance}` | `{plan_compilation}` | {intents} | "
+                f"| `{spec.family_id}` | `{spec.governance}` | `{plan_compilation}` | `{result_compilation}` | {intents} | "
                 f"{required_parameters} | {result_shapes} | {plan_actions} | {forbidden_results} |"
             )
         lines.extend(
@@ -261,6 +285,11 @@ def build_default_prompt_family_catalog() -> PromptFamilyCatalog:
                     },
                 ),
             ),
+            primary_result=PromptFamilyResultSpec(
+                source="metric",
+                metric_name_template="row_count",
+                logical_shape="count",
+            ),
         ),
         PromptFamilySpec(
             family_id="distinct_value_listing",
@@ -283,6 +312,10 @@ def build_default_prompt_family_catalog() -> PromptFamilyCatalog:
                         "filters": PromptFamilyValueSpec("request_attr", key="filters"),
                     },
                 ),
+            ),
+            primary_result=PromptFamilyResultSpec(
+                source="table",
+                table_name="distinct_values",
             ),
         ),
         PromptFamilySpec(
@@ -315,6 +348,10 @@ def build_default_prompt_family_catalog() -> PromptFamilyCatalog:
                     },
                 ),
             ),
+            primary_result=PromptFamilyResultSpec(
+                source="table",
+                table_name="grouped_tabular_query",
+            ),
         ),
         PromptFamilySpec(
             family_id="grouped_metric_table",
@@ -331,7 +368,7 @@ def build_default_prompt_family_catalog() -> PromptFamilyCatalog:
             label="Tabular Record Retrieval",
             description="Return rows with selected columns, sorting, and pagination.",
             intent_names=("tabular_query",),
-            primary_result_shapes=("table",),
+            primary_result_shapes=("recordset",),
             allowed_plan_actions=("tabular_query",),
             examples=("Show the latest 10 tickets with priority and channel.",),
             plan_steps=(
@@ -350,6 +387,10 @@ def build_default_prompt_family_catalog() -> PromptFamilyCatalog:
                         "page_size": PromptFamilyValueSpec("request_option", key="page_size", default=50),
                     },
                 ),
+            ),
+            primary_result=PromptFamilyResultSpec(
+                source="table",
+                table_name="tabular_query",
             ),
         ),
         PromptFamilySpec(
@@ -375,6 +416,11 @@ def build_default_prompt_family_catalog() -> PromptFamilyCatalog:
                         "limit": PromptFamilyValueSpec("request_option_int", key="ranking_limit", default=5),
                     },
                 ),
+            ),
+            primary_result=PromptFamilyResultSpec(
+                source="table_head",
+                table_name="group_row_counts",
+                head_rows=1,
             ),
         ),
         PromptFamilySpec(
@@ -425,6 +471,14 @@ def build_default_prompt_family_catalog() -> PromptFamilyCatalog:
                         "target": PromptFamilyValueSpec("request_attr", key="target"),
                     },
                 ),
+            ),
+            primary_result=PromptFamilyResultSpec(
+                source="table_scalar_field",
+                table_name="column_type_inventory",
+                value_field="dtype",
+                result_name_template="{target}_dtype",
+                description_template="Detected data type for {target}.",
+                logical_shape="scalar",
             ),
         ),
         PromptFamilySpec(
@@ -520,6 +574,10 @@ def build_default_prompt_family_catalog() -> PromptFamilyCatalog:
                         "requested_column": PromptFamilyValueSpec("request_option", key="requested_column"),
                     },
                 ),
+            ),
+            primary_result=PromptFamilyResultSpec(
+                source="table",
+                table_name="column_presence_check",
             ),
         ),
         PromptFamilySpec(

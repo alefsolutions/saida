@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 
 import pandas as pd
+import pytest
 
 from saida.core import ResultBuilder
 from saida.core.contracts import (
@@ -202,6 +203,142 @@ def test_build_analysis_result_uses_last_metric_value_for_lookup() -> None:
     assert result.response["result"]["value"] == 2
 
 
+def test_build_analysis_result_uses_row_count_family_template() -> None:
+    builder = ResultBuilder()
+
+    result = builder.build_analysis_result(
+        summary="Row count.",
+        deterministic_summary="Row count.",
+        llm_summary=None,
+        summary_source="deterministic",
+        metrics=[Metric(name="row_count", value=7)],
+        tables=[
+            TableArtifact(
+                name="numeric_summary",
+                description="Numeric summary.",
+                dataframe=pd.DataFrame({"column": ["revenue"], "count": [7.0]}),
+            )
+        ],
+        warnings=[],
+        plan=AnalysisPlan(task_type="descriptive", rationale="Row count."),
+        request=AnalysisRequest(question="How many rows?", prompt_family="row_count"),
+        profile=build_profile(),
+        trace=[],
+    )
+
+    assert result.response["result"]["name"] == "row_count"
+    assert result.response["result"]["logical_shape"] == "count"
+    assert result.response["result"]["value"] == 7
+
+
+def test_build_analysis_result_uses_column_type_lookup_family_template() -> None:
+    builder = ResultBuilder()
+
+    result = builder.build_analysis_result(
+        summary="Type lookup.",
+        deterministic_summary="Type lookup.",
+        llm_summary=None,
+        summary_source="deterministic",
+        metrics=[],
+        tables=[
+            TableArtifact(
+                name="column_type_inventory",
+                description="Column types.",
+                dataframe=pd.DataFrame(
+                    {
+                        "column_name": ["posted_at"],
+                        "dtype": ["datetime"],
+                        "nullable": [False],
+                    }
+                ),
+            )
+        ],
+        warnings=[],
+        plan=AnalysisPlan(task_type="descriptive", rationale="Type lookup."),
+        request=AnalysisRequest(question="What type is posted_at?", prompt_family="column_type_lookup", target="posted_at"),
+        profile=build_profile(),
+        trace=[],
+    )
+
+    assert result.response["result"]["name"] == "posted_at_dtype"
+    assert result.response["result"]["logical_shape"] == "scalar"
+    assert result.response["result"]["value"] == "datetime"
+
+
+@pytest.mark.parametrize(
+    ("prompt_family", "table_name", "expected_logical_shape"),
+    [
+        ("distinct_value_listing", "distinct_values", "table"),
+        ("grouped_entity_count", "grouped_tabular_query", "table"),
+        ("tabular_record_retrieval", "tabular_query", "recordset"),
+        ("column_presence_check", "column_presence_check", "verification"),
+    ],
+)
+def test_build_analysis_result_uses_table_backed_family_result_templates(
+    prompt_family: str,
+    table_name: str,
+    expected_logical_shape: str,
+) -> None:
+    builder = ResultBuilder()
+    table_frame = {
+        "distinct_values": pd.DataFrame({"team": ["Payments", "Platform"], "row_count": [1, 2]}),
+        "grouped_tabular_query": pd.DataFrame({"channel": ["Email", "Phone"], "row_count": [3, 1]}),
+        "tabular_query": pd.DataFrame({"ticket_id": ["T1", "T2"], "priority": ["High", "Low"]}),
+        "column_presence_check": pd.DataFrame({"requested_column": ["created_at"], "column_exists": [True]}),
+    }[table_name]
+
+    result = builder.build_analysis_result(
+        summary="Family result.",
+        deterministic_summary="Family result.",
+        llm_summary=None,
+        summary_source="deterministic",
+        metrics=[],
+        tables=[TableArtifact(name=table_name, description="Template-backed table.", dataframe=table_frame)],
+        warnings=[],
+        plan=AnalysisPlan(task_type="descriptive", rationale="Family result."),
+        request=AnalysisRequest(question="Test", prompt_family=prompt_family),
+        profile=build_profile(),
+        trace=[],
+    )
+
+    assert result.response["result"]["name"] == table_name
+    assert result.response["result"]["logical_shape"] == expected_logical_shape
+
+
+def test_build_analysis_result_uses_representation_ranking_family_template() -> None:
+    builder = ResultBuilder()
+
+    result = builder.build_analysis_result(
+        summary="Representation ranking.",
+        deterministic_summary="Representation ranking.",
+        llm_summary=None,
+        summary_source="deterministic",
+        metrics=[],
+        tables=[
+            TableArtifact(
+                name="group_row_counts",
+                description="Grouped row counts.",
+                dataframe=pd.DataFrame(
+                    {
+                        "channel": ["Email", "Phone"],
+                        "row_count": [3, 1],
+                    }
+                ),
+            )
+        ],
+        warnings=[],
+        plan=AnalysisPlan(task_type="descriptive", rationale="Representation ranking."),
+        request=AnalysisRequest(question="Which channel has the most tickets?", prompt_family="representation_ranking", target="channel"),
+        profile=build_profile(),
+        trace=[],
+    )
+
+    assert result.response["result"]["name"] == "group_row_counts"
+    assert result.response["result"]["physical_shape"] == "object"
+    assert result.response["result"]["logical_shape"] == "table"
+    assert result.response["result"]["value"] == {"channel": "Email", "row_count": 3}
+
+
 def test_build_analysis_result_indexes_multiple_tables() -> None:
     builder = ResultBuilder()
     tables = [
@@ -287,10 +424,6 @@ def test_build_analysis_result_converts_nan_metric_values_to_null() -> None:
     assert result.response["history"][0]["payload"]["delta"] is None
     assert result.artifacts["metric_lookup"]["forecast_delta"] is None
     assert json.dumps(result.to_response_dict(), allow_nan=False)
-
-
-import pytest
-
 
 _RESULT_BUILDER_CASES = [
     (

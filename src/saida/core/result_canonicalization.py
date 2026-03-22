@@ -22,7 +22,11 @@ from saida.core.contracts import (
     TableArtifact,
     TrainResult,
 )
-from saida.core.prompt_family_catalog import derive_prompt_family
+from saida.core.prompt_family_catalog import (
+    PromptFamilyResultSpec,
+    derive_prompt_family,
+    get_prompt_family_catalog,
+)
 
 if TYPE_CHECKING:
     from saida.core.prompt_capability_contract import PromptCapabilityContract
@@ -260,11 +264,21 @@ class ResultCanonicalizer:
         tables: list[TableArtifact],
     ) -> dict[str, object]:
         prompt_family = request.prompt_family or derive_prompt_family(request)
-
-        if prompt_family == "row_count":
-            row_count_metric = self._metric_by_name(metrics, "row_count")
-            if row_count_metric is not None:
-                return self._metric_result_payload(row_count_metric, logical_shape="count")
+        family_spec = get_prompt_family_catalog().get(prompt_family)
+        if family_spec is not None and family_spec.primary_result is not None:
+            primary_result = self._compile_family_primary_result(
+                family_spec.primary_result,
+                request,
+                metrics,
+                tables,
+            )
+            if primary_result is not None:
+                issues = family_spec.result_invariant_issues(primary_result)
+                if issues:
+                    raise ValueError(
+                        f"Prompt family {family_spec.family_id!r} produced an invalid primary result: {' '.join(issues)}"
+                    )
+                return primary_result
 
         if prompt_family == "metric_aggregate" or (request.target and request.aggregation and not request.group_by):
             metric_name = f"{request.target}_{request.aggregation}"
@@ -278,35 +292,6 @@ class ResultCanonicalizer:
                     "count": "count",
                 }.get(request.aggregation, "scalar")
                 return self._metric_result_payload(aggregate_metric, logical_shape=logical_shape)
-
-        if prompt_family == "column_type_lookup" or (request.intent_name == "column_type_inventory" and request.target):
-            column_type_table = self._table_by_name(tables, "column_type_inventory")
-            if column_type_table is not None and not column_type_table.dataframe.empty:
-                row = column_type_table.dataframe.iloc[0]
-                return {
-                    "name": f"{request.target}_dtype",
-                    "description": f"Detected data type for {request.target}.",
-                    "physical_shape": "scalar",
-                    "logical_shape": "scalar",
-                    "dtype": "string",
-                    "schema": [],
-                    "dimensions": [],
-                    "row_count": None,
-                    "labels": [],
-                    "value": self._json_safe(row.get("dtype")),
-                }
-
-        if prompt_family == "representation_ranking" or request.intent_name == "representation_ranking":
-            count_table = self._table_by_name(tables, "group_row_counts")
-            if count_table is not None and not count_table.dataframe.empty:
-                return self._table_result_payload(
-                    TableArtifact(
-                        name="group_row_counts",
-                        description=count_table.description,
-                        dataframe=count_table.dataframe.head(1).copy(),
-                        metadata=dict(count_table.metadata),
-                    )
-                )
 
         table_priority = [
             "grouped_tabular_query",
@@ -378,6 +363,72 @@ class ResultCanonicalizer:
             "labels": [],
             "value": None,
         }
+
+    def _compile_family_primary_result(
+        self,
+        result_spec: PromptFamilyResultSpec,
+        request: AnalysisRequest,
+        metrics: list[Metric],
+        tables: list[TableArtifact],
+    ) -> dict[str, object] | None:
+        if result_spec.source == "metric":
+            metric_name = self._render_result_template(result_spec.metric_name_template, request)
+            if metric_name is None:
+                return None
+            metric = self._metric_by_name(metrics, metric_name)
+            if metric is None:
+                return None
+            return self._metric_result_payload(metric, logical_shape=result_spec.logical_shape or "scalar")
+
+        if result_spec.source == "table":
+            table = self._table_by_name(tables, result_spec.table_name)
+            if table is None:
+                return None
+            return self._table_result_payload(table)
+
+        if result_spec.source == "table_head":
+            table = self._table_by_name(tables, result_spec.table_name)
+            if table is None or table.dataframe.empty:
+                return None
+            return self._table_result_payload(
+                TableArtifact(
+                    name=table.name,
+                    description=table.description,
+                    dataframe=table.dataframe.head(result_spec.head_rows).copy(),
+                    metadata=dict(table.metadata),
+                )
+            )
+
+        if result_spec.source == "table_scalar_field":
+            table = self._table_by_name(tables, result_spec.table_name)
+            if table is None or table.dataframe.empty or result_spec.value_field is None:
+                return None
+            row = table.dataframe.iloc[0]
+            value = row.get(result_spec.value_field)
+            return {
+                "name": self._render_result_template(result_spec.result_name_template, request) or "scalar_result",
+                "description": self._render_result_template(result_spec.description_template, request),
+                "physical_shape": "scalar",
+                "logical_shape": result_spec.logical_shape or "scalar",
+                "dtype": self._dtype_from_value(value),
+                "schema": [],
+                "dimensions": [],
+                "row_count": None,
+                "labels": [],
+                "value": self._json_safe(value),
+            }
+
+        return None
+
+    def _render_result_template(self, template: str | None, request: AnalysisRequest) -> str | None:
+        if template is None:
+            return None
+        values = {
+            "target": request.target or "",
+            "aggregation": request.aggregation or "",
+            "prompt_family": request.prompt_family or "",
+        }
+        return template.format(**values)
 
     def _metric_result_payload(self, metric: Metric, logical_shape: str) -> dict[str, object]:
         return {

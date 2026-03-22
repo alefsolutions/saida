@@ -35,6 +35,7 @@ from saida.core.planning import AnalysisPlanner, PlanBuilder
 from saida.core.prompt_family_catalog import (
     PromptFamilyCatalog,
     PromptFamilyPlanStepSpec,
+    PromptFamilyResultSpec,
     PromptFamilySpec,
     PromptFamilyValueSpec,
     build_default_prompt_family_catalog,
@@ -91,6 +92,7 @@ __all__ = [
     "PromptCapabilityContract",
     "PromptFamilyCatalog",
     "PromptFamilyPlanStepSpec",
+    "PromptFamilyResultSpec",
     "PromptFamilySpec",
     "PromptFamilyValueSpec",
     "RequestNormalizer",
