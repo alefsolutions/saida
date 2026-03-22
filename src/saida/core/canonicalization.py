@@ -166,6 +166,9 @@ NUMERIC_PROPERTY_KEYWORDS = {"numeric", "numerical", "number field", "number col
 DATETIME_PROPERTY_KEYWORDS = {"datetime", "date/time", "date field", "date column", "time field", "time column"}
 IDENTIFIER_PROPERTY_KEYWORDS = {"identifier", "identifiers", "primary key", "primary keys", "id field", "id column"}
 CATEGORICAL_PROPERTY_KEYWORDS = {"categorical", "category", "text field", "text column", "string field", "string column"}
+DIMENSION_PROPERTY_KEYWORDS = {"dimension", "dimensions", "grouping column", "grouping field", "group by column"}
+MEASURE_PROPERTY_KEYWORDS = {"measure", "measures", "metric", "metrics", "measure column", "metric column"}
+HIGH_CARDINALITY_PROPERTY_KEYWORDS = {"high cardinality", "high-cardinality", "many unique values"}
 STATISTICAL_TEST_KEYWORDS = {
     "t_test": {"t-test", "t test", "ttest"},
     "chi_square": {"chi-square", "chi square", "chisquare"},
@@ -355,6 +358,8 @@ class InputCanonicalizer:
             group_by = [target]
             aggregation = "count"
             options["ranking_direction"] = self._representation_direction(question)
+            if question.lower().strip().startswith(("which ", "what ")):
+                options["ranking_limit"] = 1
         if intent_name in {"tabular_query", "grouped_tabular_query"}:
             options["selected_columns"] = selected_columns or []
             options["sort_by"] = sort_by
@@ -451,6 +456,9 @@ class InputCanonicalizer:
 
         aggregation = None
         group_by = None
+        if existence_mode == "column_presence_check":
+            options["requested_column"] = self._extract_column_presence_target(question, profile)
+            return None, aggregation, group_by
         if existence_mode == "null_check":
             options["null_expectation"] = self._extract_null_expectation(question)
             return target, aggregation, group_by
@@ -460,9 +468,12 @@ class InputCanonicalizer:
                 options.update(threshold_spec)
             return target, aggregation, group_by
         if existence_mode == "column_property_check":
+            target = target or self._extract_property_check_target(question, profile)
             expected_property = self._extract_expected_property(question)
             if expected_property is not None:
                 options["expected_property"] = expected_property
+            if target is not None:
+                options["requested_column"] = target
             return target, aggregation, group_by
 
         return None, aggregation, group_by
@@ -571,6 +582,8 @@ class InputCanonicalizer:
             group_by = [target]
             aggregation = "count"
             options["ranking_direction"] = self._representation_direction(question)
+            if question.lower().strip().startswith(("which ", "what ")):
+                options["ranking_limit"] = 1
         if rule_intent_name in {"tabular_query", "grouped_tabular_query"}:
             options["selected_columns"] = rule_selected_columns or []
             options["sort_by"] = rule_sort_by
@@ -1252,6 +1265,12 @@ class InputCanonicalizer:
             return "column_type_inventory"
         if self._looks_like_column_type_inventory_request(lowered):
             return "column_type_inventory"
+        if any(keyword in lowered for keyword in ROW_COUNT_KEYWORDS):
+            return "row_count"
+        if self._looks_like_tabular_query_request(question, profile):
+            return "tabular_query"
+        if self._looks_like_existence_request(question, profile):
+            return "existence_check"
         if self._looks_like_numeric_column_inventory_request(lowered):
             return "numeric_column_inventory"
         if self._looks_like_categorical_column_inventory_request(lowered):
@@ -1262,12 +1281,6 @@ class InputCanonicalizer:
             return "identifier_inventory"
         if any(keyword in lowered for keyword in HIGH_CARDINALITY_INVENTORY_KEYWORDS):
             return "high_cardinality_inventory"
-        if any(keyword in lowered for keyword in ROW_COUNT_KEYWORDS):
-            return "row_count"
-        if self._looks_like_tabular_query_request(question, profile):
-            return "tabular_query"
-        if self._looks_like_existence_request(question, profile):
-            return "existence_check"
         if "columns" in lowered and any(keyword in lowered for keyword in {"available", "what are", "which", "show"}):
             return "column_inventory"
         if any(keyword in lowered for keyword in {"measure columns", "metrics available", "available metrics"}):
@@ -1370,15 +1383,84 @@ class InputCanonicalizer:
     def _looks_like_representation_request(self, question: str, profile: DatasetProfile) -> bool:
         lowered = question.lower()
         has_representation_language = any(keyword in lowered for keyword in REPRESENTATION_LOW_KEYWORDS | REPRESENTATION_HIGH_KEYWORDS)
+        if not has_representation_language and lowered.strip().startswith(("which ", "what ")):
+            has_representation_language = any(
+                phrase in lowered
+                for phrase in {
+                    "has the most",
+                    "has most",
+                    "has the fewest",
+                    "has the least",
+                    "has highest count",
+                    "has lowest count",
+                }
+            )
         if not has_representation_language:
+            return False
+        if any(column.lower() in lowered for column in profile.measure_columns):
             return False
         return any(column.lower() in lowered for column in profile.dimension_columns)
 
     def _representation_direction(self, question: str) -> str:
         lowered = question.lower()
-        if any(keyword in lowered for keyword in REPRESENTATION_LOW_KEYWORDS):
+        if any(
+            keyword in lowered
+            for keyword in REPRESENTATION_LOW_KEYWORDS | {"has the fewest", "has the least", "fewest", "least"}
+        ):
             return "asc"
         return "desc"
+
+    def _extract_column_presence_target(self, question: str, profile: DatasetProfile) -> str | None:
+        lowered = question.lower()
+        if "column" not in lowered and "field" not in lowered:
+            return None
+        if not any(
+            phrase in lowered
+            for phrase in {"have", "has", "contains", "contain", "include", "includes", "is there", "are there"}
+        ):
+            return None
+
+        named_columns = self._extract_named_columns(question, profile)
+        if len(named_columns) == 1:
+            return named_columns[0]
+
+        patterns = [
+            r"\b(?:have|has|contains|contain|include|includes)\s+(?:an?\s+|the\s+)?([a-z0-9_ ]+?)\s+(?:column|field)\b",
+            r"\b(?:is there|are there)\s+(?:an?\s+|the\s+)?([a-z0-9_ ]+?)\s+(?:column|field)\b",
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, lowered)
+            if not match:
+                continue
+            candidate = match.group(1).strip()
+            if not candidate:
+                continue
+            return self._resolve_requested_column_name(candidate, profile)
+        return None
+
+    def _extract_property_check_target(self, question: str, profile: DatasetProfile) -> str | None:
+        expected_property = self._extract_expected_property(question)
+        if expected_property is None:
+            return None
+
+        resolved_target = self._resolve_target(question, profile, None, "existence_check")
+        if resolved_target is not None:
+            return resolved_target
+
+        lowered = question.lower().strip()
+        patterns = [
+            r"^is\s+([a-z0-9_ ]+?)\s+(?:a|an)\s+(?:datetime|numeric|categorical|identifier|dimension|measure)\b",
+            r"^is\s+([a-z0-9_ ]+?)\s+high\s+cardinality\b",
+            r"^is\s+([a-z0-9_ ]+?)\s+likely\s+an\s+identifier\b",
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, lowered)
+            if not match:
+                continue
+            candidate = match.group(1).strip()
+            if candidate:
+                return self._resolve_requested_column_name(candidate, profile)
+        return None
 
     def _looks_like_distinct_values_request(self, question: str) -> bool:
         lowered = question.lower()
@@ -1439,6 +1521,8 @@ class InputCanonicalizer:
         starts_like_boolean_check = lowered.strip().startswith(("is ", "are ", "does ", "do "))
         if not starts_like_boolean_check and not any(keyword in lowered for keyword in EXISTENCE_REQUEST_KEYWORDS):
             return False
+        if self._extract_column_presence_target(question, profile) is not None:
+            return True
         target = self._resolve_target(question, profile, None, "existence_check")
         year_value = self._extract_year_value(question)
         if year_value is not None and profile.time_columns:
@@ -1448,7 +1532,7 @@ class InputCanonicalizer:
             return True
         if self._extract_threshold_check_spec(question) is not None and target is not None:
             return True
-        if self._extract_expected_property(question) is not None and target is not None:
+        if self._extract_property_check_target(question, profile) is not None:
             return True
         filters = self._extract_filters(question, profile, None)
         return bool(filters)
@@ -1508,11 +1592,13 @@ class InputCanonicalizer:
         if self._extract_year_value(question) is not None and profile.time_columns:
             if target in set(profile.time_columns) or "date" in lowered or "dates" in lowered:
                 return "time_value"
+        if self._extract_column_presence_target(question, profile) is not None:
+            return "column_presence_check"
         if self._extract_null_expectation(question) is not None and target is not None:
             return "null_check"
         if self._extract_threshold_check_spec(question) is not None and target is not None:
             return "threshold_check"
-        if self._extract_expected_property(question) is not None and target is not None:
+        if self._extract_property_check_target(question, profile) is not None:
             return "column_property_check"
         return "filtered_rows"
 
@@ -1548,6 +1634,12 @@ class InputCanonicalizer:
 
     def _extract_expected_property(self, question: str) -> str | None:
         lowered = question.lower()
+        if any(keyword in lowered for keyword in HIGH_CARDINALITY_PROPERTY_KEYWORDS):
+            return "high_cardinality"
+        if any(keyword in lowered for keyword in DIMENSION_PROPERTY_KEYWORDS):
+            return "dimension"
+        if any(keyword in lowered for keyword in MEASURE_PROPERTY_KEYWORDS):
+            return "measure"
         if any(keyword in lowered for keyword in IDENTIFIER_PROPERTY_KEYWORDS):
             return "identifier"
         if any(keyword in lowered for keyword in DATETIME_PROPERTY_KEYWORDS):
@@ -1583,6 +1675,16 @@ class InputCanonicalizer:
             "dataset": dataset_name,
             "intent_name": intent_name,
         }
+
+    def _resolve_requested_column_name(self, candidate_name: str, profile: DatasetProfile) -> str:
+        normalized = candidate_name.strip().lower()
+        profile_columns = {column.name.lower(): column.name for column in profile.columns}
+        if normalized in profile_columns:
+            return profile_columns[normalized]
+        underscored = normalized.replace(" ", "_")
+        if underscored in profile_columns:
+            return profile_columns[underscored]
+        return underscored
 
     def _resolve_ranking_intent(
         self,

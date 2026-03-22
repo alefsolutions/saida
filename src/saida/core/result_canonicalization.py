@@ -291,6 +291,18 @@ class ResultCanonicalizer:
                     "value": self._json_safe(row.get("dtype")),
                 }
 
+        if request.intent_name == "representation_ranking":
+            count_table = self._table_by_name(tables, "group_row_counts")
+            if count_table is not None and not count_table.dataframe.empty:
+                return self._table_result_payload(
+                    TableArtifact(
+                        name="group_row_counts",
+                        description=count_table.description,
+                        dataframe=count_table.dataframe.head(1).copy(),
+                        metadata=dict(count_table.metadata),
+                    )
+                )
+
         table_priority = [
             "grouped_tabular_query",
             "tabular_query",
@@ -306,6 +318,7 @@ class ResultCanonicalizer:
             "high_cardinality_inventory",
             "time_value_exists",
             "row_existence",
+            "column_presence_check",
             "null_check",
             "threshold_check",
             "column_property_check",
@@ -427,6 +440,7 @@ class ResultCanonicalizer:
             "grouped_tabular_query": "table",
             "time_value_exists": "verification",
             "row_existence": "verification",
+            "column_presence_check": "verification",
             "null_check": "verification",
             "threshold_check": "verification",
             "column_property_check": "verification",

@@ -251,6 +251,8 @@ class Saida:
             if step.tool_family == "metadata":
                 if step.action == "column_property_check":
                     tables.append(self._column_property_check_table(step.parameters, profile))
+                elif step.action == "column_presence_check":
+                    tables.append(self._column_presence_check_table(step.parameters, profile))
                 else:
                     tables.append(self._metadata_table(step.action, profile, step.parameters))
                 trace.append(self._trace("compute", f"executed {step.action}", step.parameters))
@@ -961,8 +963,8 @@ class Saida:
     def _column_property_check_table(self, parameters: dict[str, object], profile: DatasetProfile) -> TableArtifact:
         target = str(parameters["target"])
         expected_property = str(parameters["expected_property"])
-        column = next(column for column in profile.columns if column.name == target)
-        matches = self._column_matches_property(column, profile, expected_property)
+        column = next((column for column in profile.columns if column.name == target), None)
+        matches = self._column_matches_property(column, profile, expected_property) if column is not None else False
         return TableArtifact(
             name="column_property_check",
             description="Verification of a requested schema property for a column.",
@@ -972,9 +974,32 @@ class Saida:
                         "column_name": target,
                         "expected_property": expected_property,
                         "matches": bool(matches),
-                        "dtype": column.inferred_type,
-                        "semantic_role": self._semantic_role(target, profile),
-                        "is_identifier_candidate": bool(column.is_identifier_candidate),
+                        "column_exists": bool(column is not None),
+                        "dtype": column.inferred_type if column is not None else None,
+                        "semantic_role": self._semantic_role(target, profile) if column is not None else None,
+                        "is_identifier_candidate": bool(column.is_identifier_candidate) if column is not None else False,
+                        "distinct_ratio": column.distinct_ratio if column is not None else None,
+                    }
+                ]
+            ),
+        )
+
+    def _column_presence_check_table(self, parameters: dict[str, object], profile: DatasetProfile) -> TableArtifact:
+        requested_column = str(parameters["requested_column"])
+        profile_columns = {column.name.lower(): column.name for column in profile.columns}
+        matched_column = profile_columns.get(requested_column.lower())
+        column = next((item for item in profile.columns if item.name == matched_column), None)
+        return TableArtifact(
+            name="column_presence_check",
+            description="Verification of whether a requested column exists in the dataset schema.",
+            dataframe=pd.DataFrame(
+                [
+                    {
+                        "requested_column": requested_column,
+                        "matched_column": matched_column,
+                        "exists": bool(matched_column is not None),
+                        "dtype": column.inferred_type if column is not None else None,
+                        "semantic_role": self._semantic_role(matched_column, profile) if matched_column is not None else None,
                     }
                 ]
             ),
@@ -989,6 +1014,12 @@ class Saida:
             return column.name in set(profile.dimension_columns) or column.inferred_type in {"category", "string", "boolean"}
         if expected_property == "identifier":
             return column.name in set(profile.identifier_columns) or bool(column.is_identifier_candidate)
+        if expected_property == "dimension":
+            return column.name in set(profile.dimension_columns)
+        if expected_property == "measure":
+            return column.name in set(profile.measure_columns)
+        if expected_property == "high_cardinality":
+            return bool(column.distinct_ratio is not None and column.distinct_ratio >= self.HIGH_CARDINALITY_DISTINCT_RATIO)
         return False
 
     def _semantic_role(self, column_name: str, profile: DatasetProfile) -> str:

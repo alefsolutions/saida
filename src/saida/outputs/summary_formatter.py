@@ -485,15 +485,36 @@ class SummaryFormatter:
             row = table.dataframe.iloc[0]
             column_name = str(row.get("column_name", request.target or "the requested column"))
             expected_property = str(row.get("expected_property", request.options.get("expected_property", "requested")))
+            property_label = expected_property.replace("_", " ")
+            if not bool(row.get("column_exists", True)):
+                return f"No, the dataset does not contain a column named {column_name}."
             if bool(row.get("matches")):
                 if expected_property == "identifier":
                     return f"Yes, {column_name} is likely an identifier."
-                article = "an" if expected_property[:1] in {"a", "e", "i", "o", "u"} else "a"
-                return f"Yes, {column_name} is {article} {expected_property} column."
+                article = "an" if property_label[:1] in {"a", "e", "i", "o", "u"} else "a"
+                return f"Yes, {column_name} is {article} {property_label} column."
             if expected_property == "identifier":
                 return f"No, {column_name} is not marked as an identifier."
+            if expected_property in {"dimension", "measure"}:
+                semantic_role = str(row.get("semantic_role", "unknown")).replace("_", " ")
+                return f"No, {column_name} is not a {property_label} column; detected semantic role is {semantic_role}."
+            if expected_property == "high_cardinality":
+                distinct_ratio = row.get("distinct_ratio")
+                if distinct_ratio is not None:
+                    return f"No, {column_name} is not high cardinality; detected distinct ratio is {float(distinct_ratio):.1%}."
+                return f"No, {column_name} is not high cardinality."
             actual_dtype = str(row.get("dtype", "unknown"))
-            return f"No, {column_name} is not a {expected_property} column; detected type is {actual_dtype}."
+            return f"No, {column_name} is not a {property_label} column; detected type is {actual_dtype}."
+        if existence_mode == "column_presence_check":
+            table = self._table(tables, "column_presence_check")
+            if table is None or table.dataframe.empty:
+                return None
+            row = table.dataframe.iloc[0]
+            requested_column = str(row.get("requested_column", request.options.get("requested_column", "the requested column")))
+            if bool(row.get("exists")):
+                matched_column = str(row.get("matched_column", requested_column))
+                return f"Yes, the dataset contains the {matched_column} column."
+            return f"No, the dataset does not contain a column named {requested_column}."
 
         table = self._table(tables, "row_existence")
         if table is None or table.dataframe.empty:

@@ -414,7 +414,12 @@ def _evaluate_feasibility(
     measure_columns = set(profile.measure_columns)
     dimension_columns = set(profile.dimension_columns)
 
-    if request.target is not None and request.target not in profile_columns:
+    existence_mode = request.options.get("existence_mode", "filtered_rows")
+    allows_missing_target_lookup = (
+        request.intent_name == "existence_check"
+        and existence_mode in {"column_property_check", "column_presence_check"}
+    )
+    if request.target is not None and request.target not in profile_columns and not allows_missing_target_lookup:
         issues.append(
             ValidationIssue(
                 code="unknown_target",
@@ -516,6 +521,14 @@ def _evaluate_requirement(
         return "missing", "A reference period is required but was not resolved.", []
 
     if constraint_id == "requires_target_column":
+        existence_mode = request.options.get("existence_mode", "filtered_rows")
+        if (
+            request.intent_name == "existence_check"
+            and existence_mode in {"column_property_check", "column_presence_check"}
+            and request.options.get("requested_column")
+        ):
+            requested_column = str(request.options["requested_column"])
+            return "satisfied", f"Requested column lookup '{requested_column}' was resolved from the prompt.", [requested_column]
         if request.target and request.target in {column.name for column in profile.columns}:
             return "satisfied", f"Target column '{request.target}' is available.", [request.target]
         return "missing", "A target column is required but was not resolved.", []
@@ -551,6 +564,8 @@ def _derive_ambiguity_flags(request: AnalysisRequest) -> list[str]:
 def _capabilities_for_existence_mode(existence_mode: object) -> list[str]:
     if existence_mode == "time_value":
         return ["verification", "time_value_existence_check"]
+    if existence_mode == "column_presence_check":
+        return ["verification"]
     if existence_mode == "null_check":
         return ["verification", "null_verification"]
     if existence_mode == "threshold_check":

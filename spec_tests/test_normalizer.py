@@ -1163,6 +1163,109 @@ def test_normalizer_detects_identifier_property_check() -> None:
     assert request.options["expected_property"] == "identifier"
 
 
+def test_normalizer_detects_dimension_property_check() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Is region a dimension?",
+        build_dataset(),
+        build_profile(),
+        None,
+    )
+
+    assert request.intent_name == "existence_check"
+    assert request.target == "region"
+    assert request.options["existence_mode"] == "column_property_check"
+    assert request.options["expected_property"] == "dimension"
+
+
+def test_normalizer_detects_missing_column_dimension_property_check() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Is territory a dimension?",
+        build_dataset(),
+        build_profile(),
+        None,
+    )
+
+    assert request.intent_name == "existence_check"
+    assert request.target == "territory"
+    assert request.options["existence_mode"] == "column_property_check"
+    assert request.options["expected_property"] == "dimension"
+
+
+def test_normalizer_detects_measure_property_check() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Is revenue a measure?",
+        build_dataset(),
+        build_profile(),
+        None,
+    )
+
+    assert request.intent_name == "existence_check"
+    assert request.target == "revenue"
+    assert request.options["existence_mode"] == "column_property_check"
+    assert request.options["expected_property"] == "measure"
+
+
+def test_normalizer_detects_high_cardinality_property_check() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Is ticket_id high cardinality?",
+        build_schema_dataset(),
+        build_schema_profile(),
+        None,
+    )
+
+    assert request.intent_name == "existence_check"
+    assert request.target == "ticket_id"
+    assert request.options["existence_mode"] == "column_property_check"
+    assert request.options["expected_property"] == "high_cardinality"
+
+
+@pytest.mark.parametrize(
+    ("question", "expected_requested_column"),
+    [
+        ("Does the dataset have a created_at column?", "created_at"),
+        ("Is there a missing_field column?", "missing_field"),
+    ],
+)
+def test_normalizer_detects_column_presence_check(question: str, expected_requested_column: str) -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        question,
+        build_schema_dataset(),
+        build_schema_profile(),
+        None,
+    )
+
+    assert request.intent_name == "existence_check"
+    assert request.target is None
+    assert request.options["existence_mode"] == "column_presence_check"
+    assert request.options["requested_column"] == expected_requested_column
+
+
+def test_normalizer_detects_representation_ranking_for_most_entity_prompt() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Which region has the most sales?",
+        build_dataset(),
+        build_profile(),
+        None,
+    )
+
+    assert request.intent_name == "representation_ranking"
+    assert request.target == "region"
+    assert request.options["ranking_direction"] == "desc"
+    assert request.options["ranking_limit"] == 1
+
+
 def test_normalizer_detects_natural_significance_prompt() -> None:
     normalizer = RequestNormalizer()
 

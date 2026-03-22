@@ -553,6 +553,27 @@ def test_analyze_identifies_least_represented_group() -> None:
     assert any(table.name == "group_row_counts" for table in result.tables)
 
 
+def test_analyze_identifies_most_represented_group_with_singular_result() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "channel": ["Email", "Phone", "Email", "Chat", "Email"],
+            "priority": ["High", "High", "Low", "Low", "Medium"],
+        }
+    )
+    dataset = Dataset(name="tickets", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "Which channel has the most tickets?")
+
+    assert "The most represented channel is channel=Email with 3 rows." in result.summary
+    assert result.response["interpretation"]["intent_name"] == "representation_ranking"
+    assert result.response["interpretation"]["target"] == "channel"
+    assert result.response["result"]["physical_shape"] == "object"
+    assert result.response["result"]["logical_shape"] == "table"
+    assert result.response["result"]["value"]["channel"] == "Email"
+    assert result.response["result"]["value"]["row_count"] == 3
+    assert any(table.name == "group_row_counts" for table in result.tables)
+
+
 def test_analyze_returns_column_inventory() -> None:
     dataframe = pd.DataFrame(
         {
@@ -1060,6 +1081,108 @@ def test_analyze_returns_yes_for_identifier_property_check() -> None:
 
     assert "Yes, ticket_id is likely an identifier." in result.summary
     assert result.response["interpretation"]["options"]["existence_mode"] == "column_property_check"
+    assert any(table.name == "column_property_check" for table in result.tables)
+
+
+def test_analyze_returns_yes_for_dimension_property_check() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "revenue": [100.0, 120.0],
+            "region": ["West", "East"],
+        }
+    )
+    dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "Is region a dimension?")
+
+    assert "Yes, region is a dimension column." in result.summary
+    assert result.response["interpretation"]["options"]["existence_mode"] == "column_property_check"
+    assert result.response["interpretation"]["options"]["expected_property"] == "dimension"
+    assert any(table.name == "column_property_check" for table in result.tables)
+
+
+def test_analyze_returns_no_for_missing_dimension_property_check() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "created_at": ["2026-01-01", "2026-01-02"],
+            "priority": ["Low", "High"],
+        }
+    )
+    dataset = Dataset(name="support", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "Is region a dimension?")
+
+    assert "No, the dataset does not contain a column named region." in result.summary
+    assert result.response["interpretation"]["options"]["existence_mode"] == "column_property_check"
+    assert result.response["interpretation"]["options"]["expected_property"] == "dimension"
+    assert any(table.name == "column_property_check" for table in result.tables)
+
+
+def test_analyze_returns_yes_for_measure_property_check() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "revenue": [100.0, 120.0],
+            "region": ["West", "East"],
+        }
+    )
+    dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "Is revenue a measure?")
+
+    assert "Yes, revenue is a measure column." in result.summary
+    assert result.response["interpretation"]["options"]["existence_mode"] == "column_property_check"
+    assert result.response["interpretation"]["options"]["expected_property"] == "measure"
+    assert any(table.name == "column_property_check" for table in result.tables)
+
+
+def test_analyze_returns_yes_for_column_presence_check() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "created_at": ["2026-01-01", "2026-01-02"],
+            "priority": ["Low", "High"],
+        }
+    )
+    dataset = Dataset(name="support", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "Does the dataset have a created_at column?")
+
+    assert "Yes, the dataset contains the created_at column." in result.summary
+    assert result.response["interpretation"]["options"]["existence_mode"] == "column_presence_check"
+    assert result.response["interpretation"]["options"]["requested_column"] == "created_at"
+    assert any(table.name == "column_presence_check" for table in result.tables)
+
+
+def test_analyze_returns_no_for_missing_column_presence_check() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "created_at": ["2026-01-01", "2026-01-02"],
+            "priority": ["Low", "High"],
+        }
+    )
+    dataset = Dataset(name="support", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "Does the dataset have a ticket_id column?")
+
+    assert "No, the dataset does not contain a column named ticket_id." in result.summary
+    assert result.response["interpretation"]["options"]["existence_mode"] == "column_presence_check"
+    assert result.response["interpretation"]["options"]["requested_column"] == "ticket_id"
+    assert any(table.name == "column_presence_check" for table in result.tables)
+
+
+def test_analyze_returns_no_for_high_cardinality_property_check() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "region": ["West", "West", "East", "East"],
+            "revenue": [100.0, 120.0, 90.0, 80.0],
+        }
+    )
+    dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "Is region high cardinality?")
+
+    assert "No, region is not high cardinality" in result.summary
+    assert result.response["interpretation"]["options"]["existence_mode"] == "column_property_check"
+    assert result.response["interpretation"]["options"]["expected_property"] == "high_cardinality"
     assert any(table.name == "column_property_check" for table in result.tables)
 
 

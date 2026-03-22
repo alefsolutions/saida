@@ -38,6 +38,7 @@ SUPPORTED_FILTER_OPERATORS = (
 SUPPORTED_EXISTENCE_MODES = (
     "filtered_rows",
     "time_value",
+    "column_presence_check",
     "null_check",
     "threshold_check",
     "column_property_check",
@@ -48,6 +49,9 @@ SUPPORTED_COLUMN_PROPERTIES = (
     "numeric",
     "categorical",
     "identifier",
+    "dimension",
+    "measure",
+    "high_cardinality",
 )
 
 SUPPORTED_STATISTICAL_TESTS = (
@@ -217,6 +221,7 @@ INTENT_FAMILIES = {
             "identifier_inventory",
             "high_cardinality_inventory",
             "column_property_check",
+            "column_presence_check",
         ],
         "accepted_inputs": {
             "target": "optional for inventory requests; required for column_property_check",
@@ -266,12 +271,13 @@ INTENT_FAMILIES = {
         "planner_actions": [
             "time_value_exists",
             "row_existence",
+            "column_presence_check",
             "null_check",
             "threshold_check",
             "column_property_check",
         ],
         "accepted_inputs": {
-            "target": "required except for filtered row existence",
+            "target": "required except for filtered row existence and column_presence_check",
             "group_by": "not used",
             "filters": "supported",
             "aggregation": "not used",

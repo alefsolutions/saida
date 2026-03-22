@@ -244,6 +244,18 @@ class PlanBuilder:
                             description="Verify whether the requested column has the expected schema property.",
                         )
                     )
+                elif existence_mode == "column_presence_check":
+                    steps.append(
+                        PlanStep(
+                            step_id="column_presence_check",
+                            tool_family="metadata",
+                            action="column_presence_check",
+                            parameters={
+                                "requested_column": request.options.get("requested_column"),
+                            },
+                            description="Verify whether the requested column exists in the dataset schema.",
+                        )
+                    )
                 else:
                     steps.append(
                         PlanStep(
@@ -320,7 +332,7 @@ class PlanBuilder:
                             "group_by": [request.target],
                             "filters": request.filters,
                             "ascending": request.options.get("ranking_direction") == "asc",
-                            "limit": 5,
+                            "limit": int(request.options.get("ranking_limit", 5)),
                         },
                         description="Count rows by group and rank the representation of the requested dimension.",
                     )
@@ -686,7 +698,12 @@ class PlanBuilder:
         if not profile_columns:
             raise PlanningError("Dataset profile contains no columns.")
 
-        if request.target is not None and request.target not in profile_columns:
+        existence_mode = request.options.get("existence_mode", "filtered_rows")
+        allows_missing_target_lookup = (
+            request.intent_name == "existence_check"
+            and existence_mode in {"column_property_check", "column_presence_check"}
+        )
+        if request.target is not None and request.target not in profile_columns and not allows_missing_target_lookup:
             raise PlanningError(f"Target column '{request.target}' does not exist in the dataset profile.")
         if request.options.get("distinct_values") and request.target not in set(profile.dimension_columns):
             raise PlanningError("Distinct value listing requires a dimension target.")
@@ -752,7 +769,6 @@ class PlanBuilder:
             if not request.time_reference:
                 raise PlanningError("Time period comparison requires an explicit time reference.")
         if request.intent_name == "existence_check":
-            existence_mode = request.options.get("existence_mode", "filtered_rows")
             if existence_mode == "time_value":
                 if not profile.time_columns:
                     raise PlanningError("Time existence verification requires a datetime column.")
@@ -777,8 +793,19 @@ class PlanBuilder:
             elif existence_mode == "column_property_check":
                 if request.target is None:
                     raise PlanningError("Column property verification requires a target column.")
-                if request.options.get("expected_property") not in {"datetime", "numeric", "categorical", "identifier"}:
+                if request.options.get("expected_property") not in {
+                    "datetime",
+                    "numeric",
+                    "categorical",
+                    "identifier",
+                    "dimension",
+                    "measure",
+                    "high_cardinality",
+                }:
                     raise PlanningError("Column property verification requires a supported expected property.")
+            elif existence_mode == "column_presence_check":
+                if not request.options.get("requested_column"):
+                    raise PlanningError("Column presence verification requires a requested column name.")
             elif not request.filters:
                 raise PlanningError("Existence verification requires filters or a time-value check.")
         if request.intent_name in {"tabular_query", "grouped_tabular_query"}:
