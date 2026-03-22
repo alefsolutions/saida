@@ -7,7 +7,7 @@ from typing import Any, Literal
 
 from saida.core.contracts import AnalysisPlan, AnalysisRequest, DatasetProfile, PlanStep
 
-PromptFamilyGovernance = Literal["governed", "partial", "legacy"]
+PromptFamilyGovernance = Literal["governed", "partial"]
 PromptFamilyValueSource = Literal[
     "literal",
     "request_attr",
@@ -220,8 +220,7 @@ class PromptFamilyCatalog:
                 "## Notes",
                 "",
                 "- `governed`: family has a stable explicit intent surface and defined invariants.",
-                "- `partial`: family is explicit, but some plan or result behavior still relies on legacy branching.",
-                "- `legacy`: family exists mainly to expose non-governed fallback behavior while migration continues.",
+                "- `partial`: family is explicit, but some plan or result behavior still relies on dynamic compiler logic or heuristic entry criteria.",
             ]
         )
         return "\n".join(lines) + "\n"
@@ -757,13 +756,34 @@ def build_default_prompt_family_catalog() -> PromptFamilyCatalog:
             examples=("What is the average resolution_hours?",),
         ),
         PromptFamilySpec(
-            family_id="legacy_metric_overview",
-            label="Legacy Metric Overview",
-            description="Legacy descriptive fallback for metric-oriented prompts without a governed family.",
+            family_id="exploratory_metric_overview",
+            label="Exploratory Metric Overview",
+            description="Run an open-ended descriptive or diagnostic metric overview with explicit exploratory guardrails.",
             intent_names=(),
             required_parameters=("target",),
-            governance="legacy",
-            examples=("Show revenue.",),
+            primary_result_shapes=("table", "timeseries"),
+            allowed_plan_actions=(
+                "dataset_summary",
+                "time_trend",
+                "period_comparison",
+                "grouped_period_comparison",
+                "group_breakdown",
+                "ranked_breakdown",
+                "top_movers",
+                "top_dimension_breakdown",
+                "top_dimension_ranking",
+                "top_dimension_movers",
+                "contribution_breakdown",
+                "missingness_summary",
+                "numeric_summary",
+                "distribution_summary",
+                "target_correlation",
+                "anomaly_summary",
+                "time_series_diagnostics",
+                "group_mean_comparison",
+            ),
+            governance="partial",
+            examples=("Show revenue.", "Why did revenue drop in March?", "Show revenue by region."),
         ),
     ]
 
@@ -825,10 +845,17 @@ def derive_prompt_family(
         if isinstance(existence_mode, str):
             return _EXISTENCE_MODE_TO_FAMILY.get(existence_mode, "row_existence_check")
         return "row_existence_check"
+    if (
+        request.target
+        and request.intent_name is None
+        and request.task_type_hint in {"descriptive", "diagnostic"}
+        and not request.options.get("statistical_test")
+    ):
+        if request.aggregation and not request.group_by:
+            return "metric_aggregate"
+        return "exploratory_metric_overview"
     if request.target and request.aggregation and not request.group_by:
         return "metric_aggregate"
-    if request.target and not request.group_by and request.task_type_hint in {"descriptive", "diagnostic"}:
-        return "legacy_metric_overview"
     return None
 
 

@@ -131,9 +131,9 @@ However, it does not yet provide a separate first-class feasibility stage with s
 
 ### 5. Silent fallback remains risky
 
-The current normalization path can still default to the first measure when the prompt is underspecified.
+The normalization path now allows first-measure fallback only for clearly exploratory metric prompts.
 
-That behavior keeps the pipeline moving, but it can create prompt-to-capability mismatch and plan mismatch.
+For unresolved schema, metadata, or ambiguous metric prompts, SAIDA now stops safely with clarification instead of guessing a metric target.
 
 ## Recommended Architectural Direction
 

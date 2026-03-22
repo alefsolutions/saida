@@ -372,13 +372,46 @@ def test_normalizer_rejects_missing_target_when_no_measure_columns_exist() -> No
         normalizer.normalize("Show something interesting", build_dataset(), profile, None)
 
 
-def test_normalizer_falls_back_to_first_measure_with_warning() -> None:
+def test_normalizer_uses_first_measure_only_for_clear_exploratory_prompt() -> None:
+    normalizer = RequestNormalizer()
+
+    request, warnings = normalizer.normalize("Show data", build_dataset(), build_profile(), None)
+
+    assert request.target == "revenue"
+    assert request.options["target_resolution_source"] == "first_measure_fallback"
+    assert request.options.get("analysis_outcome") is None
+    assert any("inside exploratory metric overview" in warning for warning in warnings)
+
+
+def test_normalizer_clarifies_grouped_prompt_without_metric_target() -> None:
     normalizer = RequestNormalizer()
 
     request, warnings = normalizer.normalize("Show data by region", build_dataset(), build_profile(), None)
 
-    assert request.target == "revenue"
-    assert any("No explicit metric matched the prompt" in warning for warning in warnings)
+    assert request.target is None
+    assert request.group_by == ["region"]
+    assert request.options["analysis_outcome"] == "clarify"
+    assert "Please clarify which metric you want to analyze by region." in request.options["llm_message"]
+    assert any("held for clarification" in warning for warning in warnings)
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Total number of columns in the dataset",
+        "How many columns in the dataset?",
+        "How many fields does the dataset have?",
+    ],
+)
+def test_normalizer_clarifies_unsupported_metadata_count_prompts(question: str) -> None:
+    normalizer = RequestNormalizer()
+
+    request, warnings = normalizer.normalize(question, build_schema_dataset(), build_schema_profile(), None)
+
+    assert request.target is None
+    assert request.options["analysis_outcome"] == "clarify"
+    assert "schema or metadata count request" in request.options["llm_message"]
+    assert any("supported metadata or metric request" in warning for warning in warnings)
 
 
 def test_normalizer_extracts_relative_time_reference() -> None:
@@ -1418,7 +1451,9 @@ def test_normalizer_does_not_force_statistical_mode_for_open_ended_factor_prompt
 
     assert request.task_type_hint == "statistical"
     assert request.options.get("statistical_test") is None
-    assert any("No explicit metric matched the prompt" in warning for warning in warnings)
+    assert request.options["analysis_outcome"] == "clarify"
+    assert "Please clarify which metric you want to analyze." in request.options["llm_message"]
+    assert any("held for clarification" in warning for warning in warnings)
 
 
 def test_normalizer_detects_top_n_row_ranking_intent() -> None:

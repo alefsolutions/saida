@@ -280,6 +280,11 @@ class ResultCanonicalizer:
                     )
                 return primary_result
 
+        if prompt_family == "exploratory_metric_overview":
+            primary_result = self._select_exploratory_metric_primary_result(request, tables)
+            if primary_result is not None:
+                return primary_result
+
         if prompt_family == "metric_aggregate" or (request.target and request.aggregation and not request.group_by):
             metric_name = f"{request.target}_{request.aggregation}"
             aggregate_metric = self._metric_by_name(metrics, metric_name)
@@ -363,6 +368,54 @@ class ResultCanonicalizer:
             "labels": [],
             "value": None,
         }
+
+    def _select_exploratory_metric_primary_result(
+        self,
+        request: AnalysisRequest,
+        tables: list[TableArtifact],
+    ) -> dict[str, object] | None:
+        table_priority: list[str]
+        if request.group_by and request.time_reference:
+            table_priority = [
+                "grouped_period_comparison",
+                "top_movers",
+                "contribution_breakdown",
+                "group_breakdown",
+                "period_comparison",
+                "time_trend",
+                "ranked_breakdown",
+                "distribution_summary",
+                "numeric_summary",
+            ]
+        elif request.group_by:
+            table_priority = [
+                "group_breakdown",
+                "ranked_breakdown",
+                "time_trend",
+                "distribution_summary",
+                "numeric_summary",
+            ]
+        elif request.time_reference:
+            table_priority = [
+                "period_comparison",
+                "time_trend",
+                "contribution_breakdown",
+                "distribution_summary",
+                "numeric_summary",
+            ]
+        else:
+            table_priority = [
+                "time_trend",
+                "distribution_summary",
+                "numeric_summary",
+                "anomaly_summary",
+                "target_correlation",
+            ]
+        for table_name in table_priority:
+            table = self._table_by_name(tables, table_name)
+            if table is not None:
+                return self._table_result_payload(table)
+        return None
 
     def _compile_family_primary_result(
         self,

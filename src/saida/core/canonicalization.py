@@ -256,6 +256,54 @@ RANKING_NUMBER_WORDS = {
     "nine": 9,
     "ten": 10,
 }
+EXPLORATORY_METRIC_FALLBACK_KEYWORDS = {
+    "show",
+    "summarize",
+    "summary",
+    "overview",
+    "explore",
+    "analyze",
+    "analysis",
+    "trend",
+    "describe",
+}
+METADATA_COUNT_OBJECT_KEYWORDS = {
+    "column",
+    "columns",
+    "field",
+    "fields",
+    "metric",
+    "metrics",
+    "measure",
+    "measures",
+    "dimension",
+    "dimensions",
+    "date field",
+    "date fields",
+    "time field",
+    "time fields",
+    "date column",
+    "date columns",
+    "time column",
+    "time columns",
+}
+METADATA_SURFACE_KEYWORDS = {
+    "column",
+    "columns",
+    "field",
+    "fields",
+    "schema",
+    "data type",
+    "data types",
+    "dtype",
+    "metric",
+    "metrics",
+    "measure",
+    "measures",
+    "dimension",
+    "dimensions",
+}
+UNSAFE_COUNT_KEYWORDS = {"how many", "number of", "count of", "total number", "total count", "total"}
 
 
 class InputCanonicalizer:
@@ -361,6 +409,8 @@ class InputCanonicalizer:
             options["ranking_direction"] = self._representation_direction(question)
             if question.lower().strip().startswith(("which ", "what ")):
                 options["ranking_limit"] = 1
+        if intent_name is None and target in set(profile.dimension_columns) and aggregation is None and not group_by:
+            intent_name = "distinct_values"
         if intent_name in {"tabular_query", "grouped_tabular_query"}:
             options["selected_columns"] = selected_columns or []
             options["sort_by"] = sort_by
@@ -371,50 +421,19 @@ class InputCanonicalizer:
             if intent_name == "grouped_tabular_query" and aggregation is None:
                 aggregation = "count" if target is None else "sum"
         options["intent_name"] = intent_name
-
-        if target is None and profile.measure_columns and intent_name not in {
-            "row_count",
-            "column_inventory",
-            "column_type_inventory",
-            "numeric_column_inventory",
-            "categorical_column_inventory",
-            "measure_inventory",
-            "dimension_inventory",
-            "time_column_inventory",
-            "missing_value_inventory",
-            "identifier_inventory",
-            "high_cardinality_inventory",
-            "time_coverage",
-            "time_bucket_counts",
-            "time_bucket_breakdown",
-            "time_period_comparison",
-            "existence_check",
-            "tabular_query",
-            "grouped_tabular_query",
-        }:
-            warnings.append("No explicit metric matched the prompt; using the first measure candidate.")
-            target = profile.measure_columns[0]
-        if target is None and not profile.measure_columns and intent_name not in {
-            "row_count",
-            "column_inventory",
-            "column_type_inventory",
-            "numeric_column_inventory",
-            "categorical_column_inventory",
-            "measure_inventory",
-            "dimension_inventory",
-            "time_column_inventory",
-            "missing_value_inventory",
-            "identifier_inventory",
-            "high_cardinality_inventory",
-            "time_coverage",
-            "time_bucket_counts",
-            "time_bucket_breakdown",
-            "time_period_comparison",
-            "existence_check",
-            "tabular_query",
-            "grouped_tabular_query",
-        }:
-            raise ValidationError("No target metric could be resolved from the question or dataset profile.")
+        target = self._resolve_safe_target(
+            question=question,
+            profile=profile,
+            task_type_hint=task_type_hint,
+            intent_name=intent_name,
+            target=target,
+            target_source="prompt" if target is not None else None,
+            aggregation=aggregation,
+            group_by=group_by,
+            filters=filters,
+            options=options,
+            warnings=warnings,
+        )
         distinct_values = self._should_list_distinct_values(question, target, profile)
 
         request = AnalysisRequest(
@@ -586,6 +605,8 @@ class InputCanonicalizer:
             options["ranking_direction"] = self._representation_direction(question)
             if question.lower().strip().startswith(("which ", "what ")):
                 options["ranking_limit"] = 1
+        if rule_intent_name is None and target in set(profile.dimension_columns) and aggregation is None and not group_by:
+            rule_intent_name = "distinct_values"
         if rule_intent_name in {"tabular_query", "grouped_tabular_query"}:
             options["selected_columns"] = rule_selected_columns or []
             options["sort_by"] = rule_sort_by
@@ -596,50 +617,24 @@ class InputCanonicalizer:
             if rule_intent_name == "grouped_tabular_query" and aggregation is None:
                 aggregation = "count" if target is None else "sum"
         options["intent_name"] = rule_intent_name
-
-        if target is None and profile.measure_columns and rule_intent_name not in {
-            "row_count",
-            "column_inventory",
-            "column_type_inventory",
-            "numeric_column_inventory",
-            "categorical_column_inventory",
-            "measure_inventory",
-            "dimension_inventory",
-            "time_column_inventory",
-            "missing_value_inventory",
-            "identifier_inventory",
-            "high_cardinality_inventory",
-            "time_coverage",
-            "time_bucket_counts",
-            "time_bucket_breakdown",
-            "time_period_comparison",
-            "existence_check",
-            "tabular_query",
-            "grouped_tabular_query",
-        }:
-            warnings.append("No explicit metric matched the prompt; using the first measure candidate.")
-            target = profile.measure_columns[0]
-        if target is None and not profile.measure_columns and rule_intent_name not in {
-            "row_count",
-            "column_inventory",
-            "column_type_inventory",
-            "numeric_column_inventory",
-            "categorical_column_inventory",
-            "measure_inventory",
-            "dimension_inventory",
-            "time_column_inventory",
-            "missing_value_inventory",
-            "identifier_inventory",
-            "high_cardinality_inventory",
-            "time_coverage",
-            "time_bucket_counts",
-            "time_bucket_breakdown",
-            "time_period_comparison",
-            "existence_check",
-            "tabular_query",
-            "grouped_tabular_query",
-        }:
-            raise ValidationError("No target metric could be resolved from the question or dataset profile.")
+        proposal_target_source: str | None = None
+        if proposal.target and target is not None:
+            proposal_target_source = "llm"
+        elif target is not None:
+            proposal_target_source = "rule"
+        target = self._resolve_safe_target(
+            question=question,
+            profile=profile,
+            task_type_hint=task_type_hint,
+            intent_name=rule_intent_name,
+            target=target,
+            target_source=proposal_target_source,
+            aggregation=aggregation,
+            group_by=group_by,
+            filters=filters,
+            options=options,
+            warnings=warnings,
+        )
         distinct_values = self._should_list_distinct_values(question, target, profile)
 
         request = AnalysisRequest(
@@ -662,6 +657,184 @@ class InputCanonicalizer:
         )
         request.prompt_family = derive_prompt_family(request)
         return request, warnings
+
+    def _resolve_safe_target(
+        self,
+        question: str,
+        profile: DatasetProfile,
+        task_type_hint: str | None,
+        intent_name: str | None,
+        target: str | None,
+        target_source: str | None,
+        aggregation: str | None,
+        group_by: list[str] | None,
+        filters: dict[str, object] | None,
+        options: dict[str, object],
+        warnings: list[str],
+    ) -> str | None:
+        if target is not None:
+            options["target_resolution_source"] = target_source or "prompt"
+            return target
+        if self._request_can_be_targetless(intent_name, aggregation, group_by, options):
+            return None
+        clarification_message = self._clarification_message_for_unresolved_prompt(
+            question,
+            profile,
+            aggregation,
+            group_by,
+        )
+        if clarification_message is not None:
+            self._mark_clarification(
+                options,
+                clarification_message,
+                reason="unsupported_or_ambiguous_metadata_prompt",
+            )
+            warnings.append("The prompt was held for clarification because it did not resolve to a safe supported metadata or metric request.")
+            return None
+        if self._can_use_exploratory_metric_fallback(
+            question,
+            profile,
+            task_type_hint,
+            intent_name,
+            aggregation,
+            group_by,
+            filters,
+            options,
+        ):
+            resolved_target = profile.measure_columns[0]
+            options["target_resolution_source"] = "first_measure_fallback"
+            warnings.append(
+                "No explicit metric matched the prompt; using the first measure candidate inside exploratory metric overview."
+            )
+            return resolved_target
+        if not profile.measure_columns:
+            raise ValidationError("No target metric could be resolved from the question or dataset profile.")
+        self._mark_clarification(
+            options,
+            self._ambiguous_metric_clarification_message(profile, group_by),
+            reason="ambiguous_metric_target",
+        )
+        warnings.append("The prompt was held for clarification because no safe explicit metric target could be resolved.")
+        return None
+
+    def _request_can_be_targetless(
+        self,
+        intent_name: str | None,
+        aggregation: str | None,
+        group_by: list[str] | None,
+        options: dict[str, object],
+    ) -> bool:
+        targetless_intents = {
+            "row_count",
+            "column_inventory",
+            "column_type_inventory",
+            "numeric_column_inventory",
+            "categorical_column_inventory",
+            "measure_inventory",
+            "dimension_inventory",
+            "time_column_inventory",
+            "missing_value_inventory",
+            "identifier_inventory",
+            "high_cardinality_inventory",
+            "time_coverage",
+            "time_bucket_counts",
+            "existence_check",
+            "tabular_query",
+        }
+        if intent_name in targetless_intents:
+            return True
+        return bool(intent_name == "grouped_tabular_query" and group_by and aggregation == "count" and options.get("intent_name") == "grouped_tabular_query")
+
+    def _clarification_message_for_unresolved_prompt(
+        self,
+        question: str,
+        profile: DatasetProfile,
+        aggregation: str | None,
+        group_by: list[str] | None,
+    ) -> str | None:
+        lowered = question.lower()
+        if self._looks_like_unsupported_metadata_count_request(question):
+            return (
+                "SAIDA understood this as a dataset schema or metadata count request, "
+                "but direct column or field counts are not supported yet. "
+                "You can ask 'What are the columns in the dataset?' for the field list, "
+                "or specify a metric target for analysis."
+            )
+        if group_by:
+            joined_groups = ", ".join(group_by)
+            return f"Please clarify which metric you want to analyze by {joined_groups}."
+        if aggregation in {"count", "sum", "mean", "max", "min"} and len(profile.measure_columns) > 1:
+            return (
+                "Please clarify which metric you want to analyze. "
+                "The dataset has multiple measure columns and the prompt did not identify a safe target metric."
+            )
+        if self._looks_like_schema_metadata_surface(lowered):
+            return (
+                "Please clarify the schema or metadata question. "
+                "You can ask for the column list directly, or specify a supported column-property check."
+            )
+        return None
+
+    def _ambiguous_metric_clarification_message(
+        self,
+        profile: DatasetProfile,
+        group_by: list[str] | None,
+    ) -> str:
+        if group_by:
+            joined_groups = ", ".join(group_by)
+            return f"Please clarify which metric you want to analyze by {joined_groups}."
+        if len(profile.measure_columns) > 1:
+            return (
+                "Please clarify which metric you want to analyze. "
+                "The dataset has multiple measure columns and the prompt did not identify a safe target metric."
+            )
+        return "Please clarify the target metric or ask for a supported schema listing."
+
+    def _mark_clarification(self, options: dict[str, object], message: str, reason: str) -> None:
+        options["analysis_outcome"] = "clarify"
+        options["llm_message"] = message
+        options["clarification_reason"] = reason
+
+    def _looks_like_unsupported_metadata_count_request(self, question: str) -> bool:
+        lowered = question.lower()
+        if any(keyword in lowered for keyword in ROW_COUNT_KEYWORDS):
+            return False
+        if not any(keyword in lowered for keyword in UNSAFE_COUNT_KEYWORDS):
+            return False
+        return any(keyword in lowered for keyword in METADATA_COUNT_OBJECT_KEYWORDS)
+
+    def _looks_like_schema_metadata_surface(self, lowered: str) -> bool:
+        return any(keyword in lowered for keyword in METADATA_SURFACE_KEYWORDS)
+
+    def _can_use_exploratory_metric_fallback(
+        self,
+        question: str,
+        profile: DatasetProfile,
+        task_type_hint: str | None,
+        intent_name: str | None,
+        aggregation: str | None,
+        group_by: list[str] | None,
+        filters: dict[str, object] | None,
+        options: dict[str, object],
+    ) -> bool:
+        lowered = question.lower()
+        if len(profile.measure_columns) != 1:
+            return False
+        if intent_name is not None or options.get("statistical_test"):
+            return False
+        if task_type_hint not in {"descriptive", "diagnostic"}:
+            return False
+        if aggregation is not None or group_by or filters:
+            return False
+        if self._looks_like_schema_metadata_surface(lowered):
+            return False
+        if self._looks_like_tabular_query_request(question, profile):
+            return False
+        if self._looks_like_existence_request(question, profile):
+            return False
+        if lowered.strip().startswith(("how many", "which ", "what are ")):
+            return False
+        return any(keyword in lowered for keyword in EXPLORATORY_METRIC_FALLBACK_KEYWORDS)
 
     def _validate_inputs(self, question: str, dataset: Dataset, profile: DatasetProfile) -> None:
         if not question or not question.strip():

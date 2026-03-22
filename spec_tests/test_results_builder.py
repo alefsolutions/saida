@@ -265,6 +265,38 @@ def test_build_analysis_result_uses_column_type_lookup_family_template() -> None
     assert result.response["result"]["value"] == "datetime"
 
 
+def test_build_analysis_result_uses_exploratory_metric_family_result_priority() -> None:
+    builder = ResultBuilder()
+
+    result = builder.build_analysis_result(
+        summary="Exploratory overview.",
+        deterministic_summary="Exploratory overview.",
+        llm_summary=None,
+        summary_source="deterministic",
+        metrics=[],
+        tables=[
+            TableArtifact(
+                name="numeric_summary",
+                description="Numeric summary.",
+                dataframe=pd.DataFrame({"column": ["revenue"], "count": [3.0]}),
+            ),
+            TableArtifact(
+                name="time_trend",
+                description="Trend.",
+                dataframe=pd.DataFrame({"posted_at": ["2026-01"], "revenue_sum": [100.0]}),
+            ),
+        ],
+        warnings=[],
+        plan=AnalysisPlan(task_type="descriptive", rationale="Exploratory overview."),
+        request=AnalysisRequest(question="Show revenue", prompt_family="exploratory_metric_overview", target="revenue"),
+        profile=build_profile(),
+        trace=[],
+    )
+
+    assert result.response["result"]["name"] == "time_trend"
+    assert result.response["result"]["logical_shape"] == "timeseries"
+
+
 @pytest.mark.parametrize(
     ("prompt_family", "table_name", "expected_logical_shape"),
     [

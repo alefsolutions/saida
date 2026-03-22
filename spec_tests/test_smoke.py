@@ -536,6 +536,55 @@ def test_analyze_counts_rows_for_row_count_prompt() -> None:
     assert any(metric.name == "row_count" for metric in result.metrics)
 
 
+def test_analyze_keeps_clear_open_ended_metric_prompt_on_exploratory_family() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "posted_at": ["2026-01-01", "2026-02-01", "2026-03-01"],
+            "revenue": [100.0, 120.0, 90.0],
+            "region": ["West", "West", "East"],
+        }
+    )
+    dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "Show revenue")
+
+    assert result.response["status"] == "ok"
+    assert result.response["interpretation"]["prompt_family"] == "exploratory_metric_overview"
+    assert result.response["result"]["name"] == "time_trend"
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Total number of columns in the dataset",
+        "How many columns in the dataset?",
+        "How many fields does the dataset have?",
+    ],
+)
+def test_analyze_clarifies_unsupported_metadata_count_prompt(question: str) -> None:
+    dataframe = pd.DataFrame(
+        {
+            "created_at": ["2026-01-01", "2026-01-02"],
+            "team": ["Support", "Platform"],
+            "priority": ["High", "Low"],
+            "channel": ["Email", "Phone"],
+            "product_area": ["Billing", "Core"],
+            "resolution_hours": [4.2, 6.1],
+            "csat_score": [4.8, 4.1],
+            "reopened_flag": ["no", "yes"],
+        }
+    )
+    dataset = Dataset(name="support", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, question)
+
+    assert result.response["status"] == "clarify"
+    assert result.response["result"]["name"] == "empty_result"
+    assert result.response["interpretation"]["target"] is None
+    assert result.response["interpretation"]["prompt_family"] is None
+    assert "schema or metadata count request" in result.summary
+
+
 def test_analyze_identifies_least_represented_group() -> None:
     dataframe = pd.DataFrame(
         {

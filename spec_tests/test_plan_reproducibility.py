@@ -14,7 +14,7 @@ from saida.core.prompt_family_catalog import build_default_prompt_family_catalog
 
 _UNSET = object()
 
-_LEGACY_OVERVIEW_ACTIONS = (
+_EXPLORATORY_METRIC_OVERVIEW_ACTIONS = (
     "dataset_summary",
     "time_trend",
     "missingness_summary",
@@ -26,7 +26,7 @@ _LEGACY_OVERVIEW_ACTIONS = (
     "group_mean_comparison",
 )
 
-_METRIC_AGGREGATE_ACTIONS = ("aggregate_value", *_LEGACY_OVERVIEW_ACTIONS)
+_METRIC_AGGREGATE_ACTIONS = ("aggregate_value", *_EXPLORATORY_METRIC_OVERVIEW_ACTIONS)
 
 
 @dataclass(frozen=True, slots=True)
@@ -144,12 +144,12 @@ def _canonical_jsonable(value: Any) -> Any:
 
 _REPRODUCIBILITY_CASES = [
     ReproducibilityCase(
-        family_id="legacy_metric_overview",
+        family_id="exploratory_metric_overview",
         dataset_factory=build_sales_dataset,
         prompts=("Show revenue", "Display revenue", "Give me revenue"),
         expected_intent_name=None,
         expected_target="revenue",
-        expected_step_actions=_LEGACY_OVERVIEW_ACTIONS,
+        expected_step_actions=_EXPLORATORY_METRIC_OVERVIEW_ACTIONS,
         expected_primary_result_name="time_trend",
         expected_primary_logical_shape="timeseries",
     ),

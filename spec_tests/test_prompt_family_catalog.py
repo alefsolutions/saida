@@ -86,6 +86,15 @@ def build_support_dataset() -> Dataset:
             ),
             "tabular_record_retrieval",
         ),
+        (
+            AnalysisRequest(
+                question="Show revenue by region.",
+                task_type_hint="descriptive",
+                target="resolution_hours",
+                group_by=["channel"],
+            ),
+            "exploratory_metric_overview",
+        ),
     ],
     ids=[
         "grouped-entity-count",
@@ -93,6 +102,7 @@ def build_support_dataset() -> Dataset:
         "column-presence-check",
         "representation-ranking",
         "tabular-record-retrieval",
+        "exploratory-metric-overview",
     ],
 )
 def test_derive_prompt_family_from_request_matrix(
@@ -203,6 +213,7 @@ def test_prompt_capability_contract_flags_prompt_family_request_mismatch() -> No
         ("Does the dataset have a created_at column?", "column_presence_check"),
         ("Which channel has the most tickets?", "representation_ranking"),
         ("List all team values.", "distinct_value_listing"),
+        ("Show resolution_hours by channel.", "exploratory_metric_overview"),
     ],
     ids=[
         "grouped-entity-count",
@@ -210,6 +221,7 @@ def test_prompt_capability_contract_flags_prompt_family_request_mismatch() -> No
         "column-presence-check",
         "representation-ranking",
         "distinct-value-listing",
+        "exploratory-metric-overview",
     ],
 )
 def test_engine_response_exposes_prompt_family_end_to_end(question: str, expected_family: str) -> None:

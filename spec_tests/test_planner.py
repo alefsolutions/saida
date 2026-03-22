@@ -260,6 +260,7 @@ def test_planner_builds_distinct_values_plan_for_dimension_listing() -> None:
     planner = AnalysisPlanner()
     request = AnalysisRequest(
         question="Give me a list of all regions",
+        intent_name="distinct_values",
         task_type_hint="descriptive",
         target="region",
         options={"distinct_values": True},
@@ -274,6 +275,7 @@ def test_planner_routes_dimension_only_prompt_to_distinct_values() -> None:
     planner = AnalysisPlanner()
     request = AnalysisRequest(
         question="Show region",
+        intent_name="distinct_values",
         task_type_hint="descriptive",
         target="region",
     )
@@ -281,7 +283,7 @@ def test_planner_routes_dimension_only_prompt_to_distinct_values() -> None:
     plan = planner.build_plan(request, build_profile())
 
     assert [step.action for step in plan.steps] == ["distinct_values"]
-    assert any("distinct value listing" in warning for warning in plan.warnings)
+    assert plan.warnings == []
 
 
 def test_planner_builds_row_count_plan() -> None:
@@ -765,14 +767,31 @@ def test_planner_rejects_unsupported_aggregation() -> None:
         planner.build_plan(request, build_profile())
 
 
-def test_planner_uses_first_measure_when_target_missing() -> None:
+def test_planner_builds_exploratory_metric_overview_from_prompt_family() -> None:
     planner = AnalysisPlanner()
-    request = AnalysisRequest(question="Show data", task_type_hint="descriptive")
+    request = AnalysisRequest(
+        question="Show revenue",
+        prompt_family="exploratory_metric_overview",
+        task_type_hint="descriptive",
+        target="revenue",
+    )
 
     plan = planner.build_plan(request, build_profile())
 
-    assert request.target == "revenue"
-    assert any("using the first measure column" in warning for warning in plan.warnings)
+    assert [step.action for step in plan.steps[:3]] == ["dataset_summary", "time_trend", "missingness_summary"]
+    assert "group_mean_comparison" in [step.action for step in plan.steps]
+
+
+def test_planner_rejects_unresolved_prompt_without_safe_family() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="Show data by region",
+        task_type_hint="descriptive",
+        group_by=["region"],
+    )
+
+    with pytest.raises(PlanningError, match="safe supported prompt family"):
+        planner.build_plan(request, build_profile())
 
 
 def test_planner_includes_group_mean_comparison_for_grouped_descriptive_requests() -> None:

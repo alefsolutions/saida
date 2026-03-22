@@ -234,7 +234,7 @@ def build_prompt_capability_contract(
         "The live planner is not yet compiling directly from the capability registry.",
     ]
     if prompt_family is None:
-        warnings.append("No governed prompt family was derived from the normalized request; the request remains on a legacy fallback path.")
+        warnings.append("No explicit prompt family was derived from the normalized request.")
     elif family_spec is not None:
         family_issues = family_spec.request_invariant_issues(request)
         if family_issues:
@@ -250,25 +250,10 @@ def build_prompt_capability_contract(
         else:
             notes.append(f"Prompt family {prompt_family!r} matched the request-level family invariants.")
 
-    if request.target is None and profile.measure_columns and request.intent_name not in {
-        "row_count",
-        "column_inventory",
-        "column_type_inventory",
-        "numeric_column_inventory",
-        "categorical_column_inventory",
-        "measure_inventory",
-        "dimension_inventory",
-        "time_column_inventory",
-        "missing_value_inventory",
-        "identifier_inventory",
-        "high_cardinality_inventory",
-        "time_coverage",
-        "time_bucket_counts",
-        "existence_check",
-        "tabular_query",
-        "grouped_tabular_query",
-    }:
-        warnings.append("The normalized request has no explicit target; current SAIDA planning may fall back to the first measure.")
+    if request.options.get("analysis_outcome") == "clarify":
+        warnings.append("The normalized request was stopped before planning because no safe supported prompt family or metric target could be resolved.")
+    elif request.options.get("target_resolution_source") == "first_measure_fallback":
+        warnings.append("The normalized request used the first measure fallback inside exploratory metric overview.")
 
     contract = PromptCapabilityContract(
         question=request.question,

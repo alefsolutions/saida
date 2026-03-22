@@ -15,12 +15,12 @@ This file is a human-readable snapshot of the live prompt family catalog in `src
 | `confidence_interval` | `governed` | `manual` | `manual` | - | target | table | confidence_interval | - |
 | `dimension_inventory` | `governed` | `manual` | `manual` | dimension_inventory | - | table | dimension_inventory | - |
 | `distinct_value_listing` | `governed` | `template` | `template` | distinct_values | target | table | distinct_values | numeric_summary |
+| `exploratory_metric_overview` | `partial` | `manual` | `manual` | - | target | table, timeseries | dataset_summary, time_trend, period_comparison, grouped_period_comparison, group_breakdown, ranked_breakdown, top_movers, top_dimension_breakdown, top_dimension_ranking, top_dimension_movers, contribution_breakdown, missingness_summary, numeric_summary, distribution_summary, target_correlation, anomaly_summary, time_series_diagnostics, group_mean_comparison | - |
 | `group_ranking` | `governed` | `manual` | `manual` | group_ranking | target, group_by | table | ranked_breakdown | - |
 | `grouped_entity_count` | `governed` | `template` | `template` | grouped_tabular_query | group_by | table | grouped_tabular_query | numeric_summary |
 | `grouped_metric_table` | `governed` | `manual` | `manual` | grouped_tabular_query | target, group_by | table | grouped_tabular_query | - |
 | `high_cardinality_inventory` | `governed` | `manual` | `manual` | high_cardinality_inventory | - | table | high_cardinality_inventory | - |
 | `identifier_inventory` | `governed` | `manual` | `manual` | identifier_inventory | - | table | identifier_inventory | - |
-| `legacy_metric_overview` | `legacy` | `manual` | `manual` | - | target | - | - | - |
 | `mann_whitney` | `governed` | `manual` | `manual` | - | target | table | mann_whitney | - |
 | `measure_inventory` | `governed` | `manual` | `manual` | measure_inventory | - | table | measure_inventory | - |
 | `metric_aggregate` | `partial` | `manual` | `manual` | - | target | aggregate, count | - | - |
@@ -48,5 +48,4 @@ This file is a human-readable snapshot of the live prompt family catalog in `src
 ## Notes
 
 - `governed`: family has a stable explicit intent surface and defined invariants.
-- `partial`: family is explicit, but some plan or result behavior still relies on legacy branching.
-- `legacy`: family exists mainly to expose non-governed fallback behavior while migration continues.
+- `partial`: family is explicit, but some plan or result behavior still relies on dynamic compiler logic or heuristic entry criteria.
