@@ -293,6 +293,14 @@ class Saida:
                             step.parameters.get("filters"),
                         )
                     )
+                elif step.action == "distinct_value_count":
+                    tables.append(
+                        adapter.distinct_value_count(
+                            dataset.data,
+                            step.parameters["target"],
+                            step.parameters.get("filters"),
+                        )
+                    )
                 elif step.action == "tabular_query":
                     tables.append(
                         adapter.tabular_query(
@@ -829,6 +837,9 @@ class Saida:
 
     def _metadata_table(self, action: str, profile: DatasetProfile, parameters: dict[str, object] | None = None) -> TableArtifact:
         parameters = parameters or {}
+        if action == "column_count":
+            dataframe = pd.DataFrame({"column_count": [int(profile.column_count)]})
+            return TableArtifact(name="column_count", description="Count of dataset columns.", dataframe=dataframe)
         if action == "column_inventory":
             dataframe = pd.DataFrame({"column_name": [column.name for column in profile.columns]})
             return TableArtifact(name="column_inventory", description="Available dataset columns.", dataframe=dataframe)
@@ -872,6 +883,14 @@ class Saida:
                 description="Detected numeric columns.",
                 dataframe=dataframe,
             )
+        if action == "numeric_column_count":
+            count = sum(1 for column in profile.columns if column.inferred_type in {"integer", "float", "numeric"})
+            dataframe = pd.DataFrame({"numeric_column_count": [int(count)]})
+            return TableArtifact(
+                name="numeric_column_count",
+                description="Count of numeric columns.",
+                dataframe=dataframe,
+            )
         if action == "categorical_column_inventory":
             rows = []
             for column in profile.columns:
@@ -884,12 +903,26 @@ class Saida:
                 description="Detected categorical and text-like columns.",
                 dataframe=dataframe,
             )
+        if action == "categorical_column_count":
+            count = sum(1 for column in profile.columns if column.inferred_type in {"category", "string", "boolean"})
+            dataframe = pd.DataFrame({"categorical_column_count": [int(count)]})
+            return TableArtifact(
+                name="categorical_column_count",
+                description="Count of categorical columns.",
+                dataframe=dataframe,
+            )
         if action == "measure_inventory":
             dataframe = pd.DataFrame({"measure_column": list(profile.measure_columns)})
             return TableArtifact(name="measure_inventory", description="Detected measure columns.", dataframe=dataframe)
+        if action == "measure_count":
+            dataframe = pd.DataFrame({"measure_count": [int(len(profile.measure_columns))]})
+            return TableArtifact(name="measure_count", description="Count of measure columns.", dataframe=dataframe)
         if action == "dimension_inventory":
             dataframe = pd.DataFrame({"dimension_column": list(profile.dimension_columns)})
             return TableArtifact(name="dimension_inventory", description="Detected dimension columns.", dataframe=dataframe)
+        if action == "dimension_count":
+            dataframe = pd.DataFrame({"dimension_count": [int(len(profile.dimension_columns))]})
+            return TableArtifact(name="dimension_count", description="Count of dimension columns.", dataframe=dataframe)
         if action == "time_column_inventory":
             rows = []
             for column in profile.columns:
@@ -898,6 +931,9 @@ class Saida:
                 rows.append({"time_column": column.name, "dtype": column.inferred_type})
             dataframe = pd.DataFrame(rows, columns=["time_column", "dtype"])
             return TableArtifact(name="time_column_inventory", description="Detected time columns.", dataframe=dataframe)
+        if action == "time_column_count":
+            dataframe = pd.DataFrame({"time_column_count": [int(len(profile.time_columns))]})
+            return TableArtifact(name="time_column_count", description="Count of time columns.", dataframe=dataframe)
         if action == "missing_value_inventory":
             rows = []
             for column in profile.columns:
@@ -936,6 +972,14 @@ class Saida:
                 description="Columns that look like identifiers.",
                 dataframe=dataframe,
             )
+        if action == "identifier_count":
+            count = sum(1 for column in profile.columns if column.is_identifier_candidate)
+            dataframe = pd.DataFrame({"identifier_count": [int(count)]})
+            return TableArtifact(
+                name="identifier_count",
+                description="Count of likely identifier columns.",
+                dataframe=dataframe,
+            )
         if action == "high_cardinality_inventory":
             rows = []
             for column in profile.columns:
@@ -953,6 +997,18 @@ class Saida:
             return TableArtifact(
                 name="high_cardinality_inventory",
                 description="Columns with a high distinct-value ratio.",
+                dataframe=dataframe,
+            )
+        if action == "high_cardinality_count":
+            count = sum(
+                1
+                for column in profile.columns
+                if column.distinct_ratio is not None and column.distinct_ratio >= self.HIGH_CARDINALITY_DISTINCT_RATIO
+            )
+            dataframe = pd.DataFrame({"high_cardinality_count": [int(count)]})
+            return TableArtifact(
+                name="high_cardinality_count",
+                description="Count of high-cardinality columns.",
                 dataframe=dataframe,
             )
         raise ValidationError(f"Unsupported metadata action: {action}")

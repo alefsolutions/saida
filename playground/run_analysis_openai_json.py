@@ -34,6 +34,10 @@ def _show_loader(stop_event: threading.Event) -> None:
     print("\r" + " " * 20 + "\r", end="", flush=True)
 
 
+def _compose_clarification_follow_up(original_question: str, answer: str) -> str:
+    return f"Original request: {original_question}\nClarification answer: {answer}"
+
+
 def main() -> None:
     load_project_env(PROJECT_ROOT)
 
@@ -68,7 +72,7 @@ def main() -> None:
             answer = input("clarification> ").strip()
             if answer.lower() in EXIT_WORDS:
                 break
-            question = answer
+            question = _compose_clarification_follow_up(pending_prompt, answer)
             pending_prompt = None
 
         if not question:

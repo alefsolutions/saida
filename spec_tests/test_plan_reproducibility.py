@@ -44,6 +44,8 @@ class ReproducibilityCase:
     expected_primary_result_name: str = ""
     expected_primary_logical_shape: str | None = None
     expected_primary_value: Any = _UNSET
+
+
 def _request_signature(request: AnalysisRequest) -> dict[str, Any]:
     options = {
         key: value
@@ -253,6 +255,21 @@ _REPRODUCIBILITY_CASES = [
         expected_primary_logical_shape="table",
     ),
     ReproducibilityCase(
+        family_id="distinct_value_count",
+        dataset_factory=build_support_dataset,
+        prompts=(
+            "How many unique team values are there?",
+            "How many different team types are there?",
+            "How many distinct team categories are there?",
+        ),
+        expected_intent_name="distinct_value_count",
+        expected_target="team",
+        expected_step_actions=("distinct_value_count",),
+        expected_primary_result_name="team_distinct_count",
+        expected_primary_logical_shape="count",
+        expected_primary_value=2,
+    ),
+    ReproducibilityCase(
         family_id="row_count",
         dataset_factory=build_sales_dataset,
         prompts=("How many data rows do we have?", "What is the row count?", "Count rows"),
@@ -262,6 +279,118 @@ _REPRODUCIBILITY_CASES = [
         expected_primary_result_name="row_count",
         expected_primary_logical_shape="count",
         expected_primary_value=6,
+    ),
+    ReproducibilityCase(
+        family_id="column_count",
+        dataset_factory=build_support_dataset,
+        prompts=(
+            "How many columns are in the dataset?",
+            "How many fields does the dataset have?",
+            "Total number of columns in the dataset",
+        ),
+        expected_intent_name="column_count",
+        expected_step_actions=("column_count",),
+        expected_primary_result_name="column_count",
+        expected_primary_logical_shape="count",
+        expected_primary_value=7,
+    ),
+    ReproducibilityCase(
+        family_id="numeric_column_count",
+        dataset_factory=build_support_dataset,
+        prompts=(
+            "How many numeric columns are there?",
+            "How many numeric fields are in the dataset?",
+            "Total number of numeric columns",
+        ),
+        expected_intent_name="numeric_column_count",
+        expected_step_actions=("numeric_column_count",),
+        expected_primary_result_name="numeric_column_count",
+        expected_primary_logical_shape="count",
+        expected_primary_value=2,
+    ),
+    ReproducibilityCase(
+        family_id="categorical_column_count",
+        dataset_factory=build_support_dataset,
+        prompts=(
+            "How many categorical columns are there?",
+            "How many categorical fields are in the dataset?",
+            "Total number of categorical columns",
+        ),
+        expected_intent_name="categorical_column_count",
+        expected_step_actions=("categorical_column_count",),
+        expected_primary_result_name="categorical_column_count",
+        expected_primary_logical_shape="count",
+        expected_primary_value=4,
+    ),
+    ReproducibilityCase(
+        family_id="measure_count",
+        dataset_factory=build_support_dataset,
+        prompts=(
+            "How many measure columns are there?",
+            "How many measures are in the dataset?",
+            "How many metrics are in the dataset?",
+        ),
+        expected_intent_name="measure_count",
+        expected_step_actions=("measure_count",),
+        expected_primary_result_name="measure_count",
+        expected_primary_logical_shape="count",
+        expected_primary_value=2,
+    ),
+    ReproducibilityCase(
+        family_id="dimension_count",
+        dataset_factory=build_support_dataset,
+        prompts=(
+            "How many dimension columns are there?",
+            "How many dimensions are in the dataset?",
+            "How many dimension columns are in the dataset?",
+        ),
+        expected_intent_name="dimension_count",
+        expected_step_actions=("dimension_count",),
+        expected_primary_result_name="dimension_count",
+        expected_primary_logical_shape="count",
+        expected_primary_value=4,
+    ),
+    ReproducibilityCase(
+        family_id="time_column_count",
+        dataset_factory=build_support_dataset,
+        prompts=(
+            "How many time columns are there?",
+            "How many datetime fields are there?",
+            "Total number of date columns in the dataset",
+        ),
+        expected_intent_name="time_column_count",
+        expected_step_actions=("time_column_count",),
+        expected_primary_result_name="time_column_count",
+        expected_primary_logical_shape="count",
+        expected_primary_value=1,
+    ),
+    ReproducibilityCase(
+        family_id="identifier_count",
+        dataset_factory=build_support_dataset,
+        prompts=(
+            "How many identifier columns are there?",
+            "How many likely identifier columns are there?",
+            "Total number of identifier columns",
+        ),
+        expected_intent_name="identifier_count",
+        expected_step_actions=("identifier_count",),
+        expected_primary_result_name="identifier_count",
+        expected_primary_logical_shape="count",
+        expected_primary_value=1,
+    ),
+    ReproducibilityCase(
+        family_id="high_cardinality_count",
+        dataset_factory=build_support_dataset,
+        prompts=(
+            "How many high-cardinality columns are there?",
+            "How many columns have high cardinality?",
+            "Total number of high-cardinality fields",
+        ),
+        expected_intent_name="high_cardinality_count",
+        expected_step_actions=("high_cardinality_count",),
+        expected_primary_result_name="high_cardinality_count",
+        expected_primary_logical_shape="count",
+        expected_primary_value=4,
     ),
 ]
 

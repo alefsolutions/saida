@@ -568,15 +568,24 @@ class ResultCanonicalizer:
             "group_mean_comparison": "table",
             "time_series_diagnostics": "table",
             "column_inventory": "table",
+            "column_count": "count",
             "column_type_inventory": "table",
+            "numeric_column_count": "count",
             "numeric_column_inventory": "table",
+            "categorical_column_count": "count",
             "categorical_column_inventory": "table",
+            "measure_count": "count",
             "measure_inventory": "table",
+            "dimension_count": "count",
             "dimension_inventory": "table",
+            "time_column_count": "count",
             "time_column_inventory": "table",
             "missing_value_inventory": "table",
+            "identifier_count": "count",
             "identifier_inventory": "table",
+            "high_cardinality_count": "count",
             "high_cardinality_inventory": "table",
+            "distinct_value_count": "count",
             "time_trend": "timeseries",
             "period_comparison": "timeseries",
             "time_coverage": "timeseries",
@@ -625,6 +634,11 @@ class ResultCanonicalizer:
         return "string"
 
     def _dtype_from_value(self, value: Any) -> str:
+        if hasattr(value, "item"):
+            try:
+                return self._dtype_from_value(value.item())
+            except Exception:
+                pass
         if isinstance(value, bool):
             return "boolean"
         if isinstance(value, int) and not isinstance(value, bool):

@@ -52,31 +52,6 @@ _PROMPT_FORMAT_VARIANTS: tuple[tuple[str, str, Callable[[str], str]], ...] = (
 
 _NEGATIVE_PROMPT_CASES: tuple[ClarificationPromptCase, ...] = (
     ClarificationPromptCase(
-        case_id="column-count",
-        question="How many columns in the dataset?",
-        expected_summary_contains="schema or metadata count request",
-    ),
-    ClarificationPromptCase(
-        case_id="field-count",
-        question="How many fields does the dataset have?",
-        expected_summary_contains="schema or metadata count request",
-    ),
-    ClarificationPromptCase(
-        case_id="total-column-count",
-        question="Total number of columns in the dataset",
-        expected_summary_contains="schema or metadata count request",
-    ),
-    ClarificationPromptCase(
-        case_id="measure-count",
-        question="How many measures are in the dataset?",
-        expected_summary_contains="schema or metadata count request",
-    ),
-    ClarificationPromptCase(
-        case_id="dimension-count",
-        question="How many dimensions are in the dataset?",
-        expected_summary_contains="schema or metadata count request",
-    ),
-    ClarificationPromptCase(
         case_id="ambiguous-data-by-group",
         question="Show data by region",
         expected_summary_contains="Please clarify which metric you want to analyze.",
@@ -283,5 +258,5 @@ def test_prompt_payload_reproducibility_across_format_variants(case: PromptAccep
 def test_prompt_acceptance_matrix_expands_positive_negative_edge_and_extreme_coverage() -> None:
     assert len(_SUPPORTED_ACCEPTANCE_CASES) == len(_REPRODUCIBILITY_CASES) * len(_PROMPT_FORMAT_VARIANTS)
     assert len(_NEGATIVE_ACCEPTANCE_CASES) == len(_NEGATIVE_PROMPT_CASES) * len(_PROMPT_FORMAT_VARIANTS)
-    assert len(_PROMPT_ACCEPTANCE_CASES) == 282
+    assert len(_PROMPT_ACCEPTANCE_CASES) == 306
     assert len(_PAYLOAD_REPRODUCIBILITY_CASES) == len(_REPRODUCIBILITY_CASES)

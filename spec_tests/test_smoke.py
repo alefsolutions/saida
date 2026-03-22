@@ -561,7 +561,7 @@ def test_analyze_keeps_clear_open_ended_metric_prompt_on_exploratory_family() ->
         "How many fields does the dataset have?",
     ],
 )
-def test_analyze_clarifies_unsupported_metadata_count_prompt(question: str) -> None:
+def test_analyze_returns_column_count_for_metadata_count_prompt(question: str) -> None:
     dataframe = pd.DataFrame(
         {
             "created_at": ["2026-01-01", "2026-01-02"],
@@ -578,11 +578,73 @@ def test_analyze_clarifies_unsupported_metadata_count_prompt(question: str) -> N
 
     result = Saida().analyze(dataset, question)
 
-    assert result.response["status"] == "clarify"
-    assert result.response["result"]["name"] == "empty_result"
+    assert result.response["status"] == "ok"
+    assert result.response["result"]["name"] == "column_count"
+    assert result.response["result"]["logical_shape"] == "count"
+    assert result.response["result"]["value"] == 8
     assert result.response["interpretation"]["target"] is None
-    assert result.response["interpretation"]["prompt_family"] is None
-    assert "schema or metadata count request" in result.summary
+    assert result.response["interpretation"]["intent_name"] == "column_count"
+    assert result.response["interpretation"]["prompt_family"] == "column_count"
+    assert "The dataset has 8 columns." in result.summary
+    assert any(table.name == "column_count" for table in result.tables)
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "How many unique team values are there?",
+        "How many different team types are there in the dataset?",
+        "How many distinct team categories are there?",
+    ],
+)
+def test_analyze_returns_distinct_value_count_for_dimension_count_prompt(question: str) -> None:
+    dataframe = pd.DataFrame(
+        {
+            "created_at": ["2026-01-01", "2026-01-02", "2026-01-03", "2026-01-04"],
+            "resolution_hours": [4.2, 6.0, 3.1, 8.4],
+            "team": ["Support", "Platform", "Support", "Infrastructure"],
+        }
+    )
+    dataset = Dataset(name="support", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, question)
+
+    assert result.response["status"] == "ok"
+    assert result.response["interpretation"]["intent_name"] == "distinct_value_count"
+    assert result.response["interpretation"]["prompt_family"] == "distinct_value_count"
+    assert result.response["interpretation"]["target"] == "team"
+    assert result.response["result"]["name"] == "team_distinct_count"
+    assert result.response["result"]["logical_shape"] == "count"
+    assert result.response["result"]["dtype"] == "integer"
+    assert result.response["result"]["value"] == 3
+    assert "The column team has 3 distinct values." in result.summary
+    assert any(table.name == "distinct_value_count" for table in result.tables)
+
+
+def test_analyze_returns_high_cardinality_count_without_row_existence_fallback() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "ticket_id": ["T1", "T2", "T3", "T4"],
+            "created_at": ["2026-01-01", "2026-01-02", "2026-01-03", "2026-01-04"],
+            "resolution_hours": [4.2, 6.1, 3.4, 8.0],
+            "team": ["Support", "Platform", "Support", "Payments"],
+            "priority": ["Low", "Medium", "High", "Medium"],
+        }
+    )
+    dataset = Dataset(name="support", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "How many high-cardinality columns are there?")
+
+    assert result.response["status"] == "ok"
+    assert result.response["interpretation"]["intent_name"] == "high_cardinality_count"
+    assert result.response["interpretation"]["prompt_family"] == "high_cardinality_count"
+    assert result.response["result"]["name"] == "high_cardinality_count"
+    assert result.response["result"]["logical_shape"] == "count"
+    assert result.response["result"]["dtype"] == "integer"
+    assert result.response["result"]["value"] == 3
+    assert "The dataset has 3 high-cardinality columns." in result.summary
+    assert any(table.name == "high_cardinality_count" for table in result.tables)
+    assert all(table.name != "row_existence" for table in result.tables)
 
 
 def test_analyze_identifies_least_represented_group() -> None:

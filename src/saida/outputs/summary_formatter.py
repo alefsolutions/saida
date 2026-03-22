@@ -129,6 +129,16 @@ class SummaryFormatter:
                 parts.append(f"Warnings: {'; '.join(warnings)}.")
             return " ".join(parts)
 
+        distinct_count_part = self._describe_distinct_value_count(tables, request)
+        if distinct_count_part:
+            parts.append(distinct_count_part)
+            context_note = self._describe_context_note(context)
+            if context_note:
+                parts.append(context_note)
+            if warnings:
+                parts.append(f"Warnings: {'; '.join(warnings)}.")
+            return " ".join(parts)
+
         grouped_aggregate_part = self._describe_grouped_aggregation(tables, request)
         if grouped_aggregate_part:
             parts.append(grouped_aggregate_part)
@@ -320,6 +330,16 @@ class SummaryFormatter:
             "dimension_inventory": ("dimension_inventory", "dimension_column", "Available dimension columns"),
             "time_column_inventory": ("time_column_inventory", "time_column", "Available time columns"),
         }
+        count_mapping = {
+            "column_count": ("column_count", "column_count", "column"),
+            "numeric_column_count": ("numeric_column_count", "numeric_column_count", "numeric column"),
+            "categorical_column_count": ("categorical_column_count", "categorical_column_count", "categorical column"),
+            "measure_count": ("measure_count", "measure_count", "measure column"),
+            "dimension_count": ("dimension_count", "dimension_count", "dimension column"),
+            "time_column_count": ("time_column_count", "time_column_count", "time column"),
+            "identifier_count": ("identifier_count", "identifier_count", "likely identifier column"),
+            "high_cardinality_count": ("high_cardinality_count", "high_cardinality_count", "high-cardinality column"),
+        }
         if request.intent_name == "column_type_inventory":
             inventory_table = self._table(tables, "column_type_inventory")
             if inventory_table is None or inventory_table.dataframe.empty:
@@ -361,6 +381,14 @@ class SummaryFormatter:
             for _, row in inventory_table.dataframe.iterrows():
                 entries.append(f"{row['column_name']} ({int(row['unique_count'])} unique, {float(row['distinct_ratio']):.1%} distinct)")
             return f"High-cardinality columns: {'; '.join(entries)}."
+        if request.intent_name in count_mapping:
+            table_name, field_name, label = count_mapping[request.intent_name]
+            count_table = self._table(tables, table_name)
+            if count_table is None or count_table.dataframe.empty:
+                return None
+            count = int(count_table.dataframe.iloc[0][field_name] or 0)
+            suffix = "" if count == 1 else "s"
+            return f"The dataset has {count} {label}{suffix}."
         if request.intent_name not in inventory_mapping:
             return None
         table_name, column_name, prefix = inventory_mapping[request.intent_name]
@@ -369,6 +397,16 @@ class SummaryFormatter:
             return f"{prefix}: none."
         values = [str(value) for value in inventory_table.dataframe[column_name].tolist()]
         return f"{prefix}: {', '.join(values)}."
+
+    def _describe_distinct_value_count(self, tables: list[TableArtifact], request: AnalysisRequest) -> str | None:
+        if request.intent_name != "distinct_value_count" or not request.target:
+            return None
+        count_table = self._table(tables, "distinct_value_count")
+        if count_table is None or count_table.dataframe.empty:
+            return None
+        count = int(count_table.dataframe.iloc[0]["distinct_count"] or 0)
+        label = request.target.replace("_", " ")
+        return f"The column {label} has {count} distinct value{'s' if count != 1 else ''}."
 
     def _describe_time_coverage(self, tables: list[TableArtifact], request: AnalysisRequest) -> str | None:
         if request.intent_name != "time_coverage":

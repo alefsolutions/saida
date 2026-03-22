@@ -15,31 +15,47 @@ import run_analysis_openai_json_yellow as openai_playground_json_yellow
 
 
 class _FakeEngine:
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        status: str = "ok",
+        task_type: str = "descriptive",
+        summary: str = "Returned ticket rows.",
+    ) -> None:
         self.calls: list[str] = []
+        self.status = status
+        self.task_type = task_type
+        self.summary = summary
 
     def analyze(self, dataset: object, question: str) -> object:
         _ = dataset
         self.calls.append(question)
         payload = {
             "schema_version": "saida.response.v2",
+            "status": self.status,
             "interpretation": {
+                "options": {"clarification_reason": "ambiguous_metric_target"},
                 "capability_contract": {
                     "status": "supported_with_partial_fallback",
                     "selected_capabilities": ["descriptive"],
                 }
             },
             "result": {
+                "name": "empty_result" if self.status == "clarify" else "tabular_query",
                 "value": {
                     "rows": [{"ticket_id": "T1"}],
-                }
+                },
+            } if self.status != "clarify" else {
+                "name": "empty_result",
+                "value": None,
             },
+            "reasoning": {"summary": self.summary},
         }
         return SimpleNamespace(
-            summary="Please clarify the target metric.",
+            summary=self.summary,
             tables=[],
             warnings=[],
-            plan=SimpleNamespace(task_type="clarification"),
+            plan=SimpleNamespace(task_type=self.task_type),
             to_response_dict=lambda: payload,
         )
 
@@ -48,7 +64,7 @@ def test_openai_playground_exits_cleanly_from_clarification_prompt(
     monkeypatch: object,
     capsys: object,
 ) -> None:
-    fake_engine = _FakeEngine()
+    fake_engine = _FakeEngine(status="clarify", task_type="clarification", summary="Please clarify the target metric.")
     dataset = SimpleNamespace(name="sales", data=pd.DataFrame({"revenue": [1.0]}))
 
     monkeypatch.setattr(openai_playground, "load_project_env", lambda project_root: None)
@@ -64,6 +80,30 @@ def test_openai_playground_exits_cleanly_from_clarification_prompt(
 
     assert "Please answer the clarification above, or type 'exit' to quit." in output
     assert fake_engine.calls == ["Hi there"]
+
+
+def test_openai_playground_reuses_original_request_for_clarification_follow_up(
+    monkeypatch: object,
+    capsys: object,
+) -> None:
+    fake_engine = _FakeEngine(status="clarify", task_type="clarification", summary="Please clarify the target metric.")
+    dataset = SimpleNamespace(name="sales", data=pd.DataFrame({"revenue": [1.0]}))
+
+    monkeypatch.setattr(openai_playground, "load_project_env", lambda project_root: None)
+    monkeypatch.setattr(openai_playground.os, "getenv", lambda key, default=None: "test-key" if key == "OPENAI_API_KEY" else default)
+    monkeypatch.setattr(openai_playground.CSVSource, "load", lambda self: dataset)
+    monkeypatch.setattr(openai_playground, "Saida", lambda config=None: fake_engine)
+
+    answers = iter(["How many columns?", "Count the dataset fields", "exit"])
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(answers))
+
+    openai_playground.main()
+    _ = capsys.readouterr().out
+
+    assert fake_engine.calls == [
+        "How many columns?",
+        "Original request: How many columns?\nClarification answer: Count the dataset fields",
+    ]
 
 
 def test_openai_playground_json_mode_prints_structured_contract(
@@ -116,6 +156,34 @@ def test_openai_yellow_json_playground_prints_yellow_primary_result_only(
     assert '"schema_version": "saida.response.v2"' not in output
     assert '"result"' not in output
     assert '"ticket_id": "T1"' in output
+
+
+def test_openai_yellow_json_playground_renders_clarification_summary_in_result_mode(
+    monkeypatch: object,
+    capsys: object,
+) -> None:
+    fake_engine = _FakeEngine(status="clarify", task_type="clarification", summary="Please clarify the target metric.")
+    dataset = SimpleNamespace(name="sales", data=pd.DataFrame({"revenue": [1.0]}))
+
+    monkeypatch.setattr(openai_playground_json_yellow, "load_project_env", lambda project_root: None)
+    monkeypatch.setattr(
+        openai_playground_json_yellow.os,
+        "getenv",
+        lambda key, default=None: "test-key" if key == "OPENAI_API_KEY" else default,
+    )
+    monkeypatch.setattr(openai_playground_json_yellow.CSVSource, "load", lambda self: dataset)
+    monkeypatch.setattr(openai_playground_json_yellow, "Saida", lambda config=None: fake_engine)
+
+    answers = iter(["Hi there", "exit"])
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(answers))
+
+    openai_playground_json_yellow.main()
+    output = capsys.readouterr().out
+
+    assert '"status": "clarify"' in output
+    assert '"summary": "Please clarify the target metric."' in output
+    assert '"clarification_reason": "ambiguous_metric_target"' in output
+    assert '"name": "empty_result"' in output
 
 
 def test_openai_yellow_json_playground_can_render_capability_contract(

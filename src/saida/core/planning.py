@@ -14,20 +14,29 @@ if TYPE_CHECKING:
 
 _PROMPT_FAMILY_TO_INTENT = {
     "row_count": "row_count",
+    "distinct_value_count": "distinct_value_count",
     "distinct_value_listing": "distinct_values",
     "representation_ranking": "representation_ranking",
     "row_ranking": "row_ranking",
     "group_ranking": "group_ranking",
+    "column_count": "column_count",
     "column_inventory": "column_inventory",
     "column_type_lookup": "column_type_inventory",
     "column_type_inventory": "column_type_inventory",
+    "numeric_column_count": "numeric_column_count",
     "numeric_column_inventory": "numeric_column_inventory",
+    "categorical_column_count": "categorical_column_count",
     "categorical_column_inventory": "categorical_column_inventory",
+    "measure_count": "measure_count",
     "measure_inventory": "measure_inventory",
+    "dimension_count": "dimension_count",
     "dimension_inventory": "dimension_inventory",
+    "time_column_count": "time_column_count",
     "time_column_inventory": "time_column_inventory",
     "missing_value_inventory": "missing_value_inventory",
+    "identifier_count": "identifier_count",
     "identifier_inventory": "identifier_inventory",
+    "high_cardinality_count": "high_cardinality_count",
     "high_cardinality_inventory": "high_cardinality_inventory",
     "column_presence_check": "existence_check",
     "column_property_check": "existence_check",
@@ -66,16 +75,24 @@ _STATISTICAL_PROMPT_FAMILIES = {
 }
 
 _METADATA_PROMPT_FAMILY_TO_ACTION = {
+    "column_count": "column_count",
     "column_inventory": "column_inventory",
     "column_type_lookup": "column_type_inventory",
     "column_type_inventory": "column_type_inventory",
+    "numeric_column_count": "numeric_column_count",
     "numeric_column_inventory": "numeric_column_inventory",
+    "categorical_column_count": "categorical_column_count",
     "categorical_column_inventory": "categorical_column_inventory",
+    "measure_count": "measure_count",
     "measure_inventory": "measure_inventory",
+    "dimension_count": "dimension_count",
     "dimension_inventory": "dimension_inventory",
+    "time_column_count": "time_column_count",
     "time_column_inventory": "time_column_inventory",
     "missing_value_inventory": "missing_value_inventory",
+    "identifier_count": "identifier_count",
     "identifier_inventory": "identifier_inventory",
+    "high_cardinality_count": "high_cardinality_count",
     "high_cardinality_inventory": "high_cardinality_inventory",
 }
 
@@ -768,6 +785,8 @@ class PlanBuilder:
             raise PlanningError(f"Target column '{request.target}' does not exist in the dataset profile.")
         if request.options.get("distinct_values") and request.target not in set(profile.dimension_columns):
             raise PlanningError("Distinct value listing requires a dimension target.")
+        if effective_intent_name == "distinct_value_count" and request.target not in set(profile.dimension_columns):
+            raise PlanningError("Distinct value count requires a dimension target.")
         if effective_intent_name == "representation_ranking" and request.target not in set(profile.dimension_columns):
             raise PlanningError("Representation ranking requires a dimension target.")
         if effective_intent_name == "row_ranking" and request.target not in set(profile.measure_columns):

@@ -396,22 +396,59 @@ def test_normalizer_clarifies_grouped_prompt_without_metric_target() -> None:
 
 
 @pytest.mark.parametrize(
-    "question",
+    ("question", "expected_intent_name"),
     [
-        "Total number of columns in the dataset",
-        "How many columns in the dataset?",
-        "How many fields does the dataset have?",
+        ("Total number of columns in the dataset", "column_count"),
+        ("How many columns in the dataset?", "column_count"),
+        ("How many fields does the dataset have?", "column_count"),
+        ("How many numeric columns are there?", "numeric_column_count"),
+        ("How many categorical columns are there?", "categorical_column_count"),
+        ("How many measure columns are there?", "measure_count"),
+        ("How many dimension columns are there?", "dimension_count"),
+        ("How many time columns are there?", "time_column_count"),
+        ("How many identifier columns are there?", "identifier_count"),
+        ("How many high-cardinality columns are there?", "high_cardinality_count"),
     ],
 )
-def test_normalizer_clarifies_unsupported_metadata_count_prompts(question: str) -> None:
+def test_normalizer_resolves_supported_metadata_count_prompts(
+    question: str,
+    expected_intent_name: str,
+) -> None:
     normalizer = RequestNormalizer()
 
     request, warnings = normalizer.normalize(question, build_schema_dataset(), build_schema_profile(), None)
 
     assert request.target is None
-    assert request.options["analysis_outcome"] == "clarify"
-    assert "schema or metadata count request" in request.options["llm_message"]
-    assert any("supported metadata or metric request" in warning for warning in warnings)
+    assert request.intent_name == expected_intent_name
+    assert request.prompt_family == expected_intent_name
+    assert request.aggregation is None
+    assert request.group_by is None
+    assert request.options.get("analysis_outcome") is None
+    assert warnings == []
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "How many unique team values are there?",
+        "How many different team types are there?",
+        "How many distinct team categories are there?",
+    ],
+)
+def test_normalizer_resolves_distinct_value_count_prompts(question: str) -> None:
+    normalizer = RequestNormalizer()
+    dataset = build_statistical_dataset()
+    profile = build_statistical_profile()
+
+    request, warnings = normalizer.normalize(question, dataset, profile, None)
+
+    assert request.intent_name == "distinct_value_count"
+    assert request.prompt_family == "distinct_value_count"
+    assert request.target == "team"
+    assert request.aggregation is None
+    assert request.group_by is None
+    assert request.options.get("analysis_outcome") is None
+    assert warnings == []
 
 
 def test_normalizer_extracts_relative_time_reference() -> None:

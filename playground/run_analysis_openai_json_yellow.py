@@ -57,9 +57,21 @@ def _render_json_output(result: object, output_mode: str) -> str:
             "result": payload.get("result", payload),
         }
     else:
-        rendered_payload = payload.get("result", payload)
+        if payload.get("status") in {"clarify", "refuse"}:
+            rendered_payload = {
+                "status": payload.get("status"),
+                "summary": payload.get("reasoning", {}).get("summary"),
+                "clarification_reason": payload.get("interpretation", {}).get("options", {}).get("clarification_reason"),
+                "result": payload.get("result", payload),
+            }
+        else:
+            rendered_payload = payload.get("result", payload)
     formatted_json = json.dumps(rendered_payload, indent=2, ensure_ascii=True, allow_nan=False)
     return f"{ANSI_YELLOW}{formatted_json}{ANSI_RESET}"
+
+
+def _compose_clarification_follow_up(original_question: str, answer: str) -> str:
+    return f"Original request: {original_question}\nClarification answer: {answer}"
 
 
 def main() -> None:
@@ -98,7 +110,7 @@ def main() -> None:
             answer = input("clarification> ").strip()
             if answer.lower() in EXIT_WORDS:
                 break
-            question = answer
+            question = _compose_clarification_follow_up(pending_prompt, answer)
             pending_prompt = None
 
         if not question:

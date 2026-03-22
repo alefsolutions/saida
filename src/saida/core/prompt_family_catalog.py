@@ -228,14 +228,22 @@ class PromptFamilyCatalog:
 
 _METADATA_INTENT_TO_FAMILY = {
     "column_inventory": "column_inventory",
+    "column_count": "column_count",
     "numeric_column_inventory": "numeric_column_inventory",
+    "numeric_column_count": "numeric_column_count",
     "categorical_column_inventory": "categorical_column_inventory",
+    "categorical_column_count": "categorical_column_count",
     "measure_inventory": "measure_inventory",
+    "measure_count": "measure_count",
     "dimension_inventory": "dimension_inventory",
+    "dimension_count": "dimension_count",
     "time_column_inventory": "time_column_inventory",
+    "time_column_count": "time_column_count",
     "missing_value_inventory": "missing_value_inventory",
     "identifier_inventory": "identifier_inventory",
+    "identifier_count": "identifier_count",
     "high_cardinality_inventory": "high_cardinality_inventory",
+    "high_cardinality_count": "high_cardinality_count",
 }
 
 _STATISTICAL_TEST_TO_FAMILY = {
@@ -257,6 +265,39 @@ _EXISTENCE_MODE_TO_FAMILY = {
     "threshold_check": "threshold_verification",
     "time_value": "time_value_verification",
 }
+
+
+def _build_metadata_count_family(
+    family_id: str,
+    label: str,
+    description: str,
+    example: str,
+) -> PromptFamilySpec:
+    return PromptFamilySpec(
+        family_id=family_id,
+        label=label,
+        description=description,
+        intent_names=(family_id,),
+        primary_result_shapes=("count",),
+        allowed_plan_actions=(family_id,),
+        examples=(example,),
+        plan_steps=(
+            PromptFamilyPlanStepSpec(
+                step_id=family_id,
+                tool_family="metadata",
+                action=family_id,
+                description=description,
+            ),
+        ),
+        primary_result=PromptFamilyResultSpec(
+            source="table_scalar_field",
+            table_name=family_id,
+            value_field=family_id,
+            result_name_template=family_id,
+            description_template=description,
+            logical_shape="count",
+        ),
+    )
 
 
 def build_default_prompt_family_catalog() -> PromptFamilyCatalog:
@@ -315,6 +356,37 @@ def build_default_prompt_family_catalog() -> PromptFamilyCatalog:
             primary_result=PromptFamilyResultSpec(
                 source="table",
                 table_name="distinct_values",
+            ),
+        ),
+        PromptFamilySpec(
+            family_id="distinct_value_count",
+            label="Distinct Value Count",
+            description="Return the number of distinct values for one dimension.",
+            intent_names=("distinct_value_count",),
+            required_parameters=("target",),
+            primary_result_shapes=("count",),
+            allowed_plan_actions=("distinct_value_count",),
+            forbidden_primary_results=("distinct_values", "numeric_summary"),
+            examples=("How many unique channels are there?",),
+            plan_steps=(
+                PromptFamilyPlanStepSpec(
+                    step_id="distinct_value_count",
+                    tool_family="duckdb",
+                    action="distinct_value_count",
+                    description="Count the number of distinct values for the requested dimension.",
+                    parameters={
+                        "target": PromptFamilyValueSpec("request_attr", key="target"),
+                        "filters": PromptFamilyValueSpec("request_attr", key="filters"),
+                    },
+                ),
+            ),
+            primary_result=PromptFamilyResultSpec(
+                source="table_scalar_field",
+                table_name="distinct_value_count",
+                value_field="distinct_count",
+                result_name_template="{target}_distinct_count",
+                description_template="Distinct value count for {target}.",
+                logical_shape="count",
             ),
         ),
         PromptFamilySpec(
@@ -451,6 +523,12 @@ def build_default_prompt_family_catalog() -> PromptFamilyCatalog:
             allowed_plan_actions=("column_inventory",),
             examples=("What are the columns in the dataset?",),
         ),
+        _build_metadata_count_family(
+            family_id="column_count",
+            label="Column Count",
+            description="Return the number of columns in the dataset.",
+            example="How many columns are in the dataset?",
+        ),
         PromptFamilySpec(
             family_id="column_type_lookup",
             label="Column Type Lookup",
@@ -497,6 +575,12 @@ def build_default_prompt_family_catalog() -> PromptFamilyCatalog:
             primary_result_shapes=("table",),
             allowed_plan_actions=("numeric_column_inventory",),
         ),
+        _build_metadata_count_family(
+            family_id="numeric_column_count",
+            label="Numeric Column Count",
+            description="Return the number of numeric columns in the dataset.",
+            example="How many numeric columns are there?",
+        ),
         PromptFamilySpec(
             family_id="categorical_column_inventory",
             label="Categorical Column Inventory",
@@ -504,6 +588,12 @@ def build_default_prompt_family_catalog() -> PromptFamilyCatalog:
             intent_names=("categorical_column_inventory",),
             primary_result_shapes=("table",),
             allowed_plan_actions=("categorical_column_inventory",),
+        ),
+        _build_metadata_count_family(
+            family_id="categorical_column_count",
+            label="Categorical Column Count",
+            description="Return the number of categorical columns in the dataset.",
+            example="How many categorical columns are there?",
         ),
         PromptFamilySpec(
             family_id="measure_inventory",
@@ -513,6 +603,12 @@ def build_default_prompt_family_catalog() -> PromptFamilyCatalog:
             primary_result_shapes=("table",),
             allowed_plan_actions=("measure_inventory",),
         ),
+        _build_metadata_count_family(
+            family_id="measure_count",
+            label="Measure Count",
+            description="Return the number of measure columns in the dataset.",
+            example="How many measure columns are there?",
+        ),
         PromptFamilySpec(
             family_id="dimension_inventory",
             label="Dimension Inventory",
@@ -521,6 +617,12 @@ def build_default_prompt_family_catalog() -> PromptFamilyCatalog:
             primary_result_shapes=("table",),
             allowed_plan_actions=("dimension_inventory",),
         ),
+        _build_metadata_count_family(
+            family_id="dimension_count",
+            label="Dimension Count",
+            description="Return the number of dimension columns in the dataset.",
+            example="How many dimension columns are there?",
+        ),
         PromptFamilySpec(
             family_id="time_column_inventory",
             label="Time Column Inventory",
@@ -528,6 +630,12 @@ def build_default_prompt_family_catalog() -> PromptFamilyCatalog:
             intent_names=("time_column_inventory",),
             primary_result_shapes=("table",),
             allowed_plan_actions=("time_column_inventory",),
+        ),
+        _build_metadata_count_family(
+            family_id="time_column_count",
+            label="Time Column Count",
+            description="Return the number of time columns in the dataset.",
+            example="How many time columns are there?",
         ),
         PromptFamilySpec(
             family_id="missing_value_inventory",
@@ -545,6 +653,12 @@ def build_default_prompt_family_catalog() -> PromptFamilyCatalog:
             primary_result_shapes=("table",),
             allowed_plan_actions=("identifier_inventory",),
         ),
+        _build_metadata_count_family(
+            family_id="identifier_count",
+            label="Identifier Count",
+            description="Return the number of likely identifier columns in the dataset.",
+            example="How many identifier columns are there?",
+        ),
         PromptFamilySpec(
             family_id="high_cardinality_inventory",
             label="High Cardinality Inventory",
@@ -552,6 +666,12 @@ def build_default_prompt_family_catalog() -> PromptFamilyCatalog:
             intent_names=("high_cardinality_inventory",),
             primary_result_shapes=("table",),
             allowed_plan_actions=("high_cardinality_inventory",),
+        ),
+        _build_metadata_count_family(
+            family_id="high_cardinality_count",
+            label="High Cardinality Count",
+            description="Return the number of high-cardinality columns in the dataset.",
+            example="How many high-cardinality columns are there?",
         ),
         PromptFamilySpec(
             family_id="column_presence_check",
@@ -818,6 +938,8 @@ def derive_prompt_family(
 
     if request.intent_name == "row_count":
         return "row_count"
+    if request.intent_name == "distinct_value_count":
+        return "distinct_value_count"
     if request.intent_name == "distinct_values":
         return "distinct_value_listing"
     if request.intent_name == "representation_ranking":

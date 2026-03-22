@@ -29,6 +29,7 @@ DISTINCT_VALUE_CATEGORY_KEYWORDS = {
     "types",
     "kinds",
 }
+DISTINCT_COUNT_KEYWORDS = DISTINCT_VALUE_CATEGORY_KEYWORDS | {"distinct", "unique"}
 ROW_COUNT_KEYWORDS = {"how many rows", "number of rows", "data rows", "row count", "count rows"}
 REPRESENTATION_LOW_KEYWORDS = {"least represented", "fewest rows", "least number of rows", "smallest count"}
 REPRESENTATION_HIGH_KEYWORDS = {"most represented", "most rows", "highest count", "largest count"}
@@ -403,6 +404,17 @@ class InputCanonicalizer:
         elif options.get("statistical_test") in {"t_test", "anova", "mann_whitney", "significance_inference", "power_analysis", "sample_size_estimate"} and not group_by:
             group_by = self._extract_statistical_group_by(question, profile, target)
 
+        explicit_count_intent = self._resolve_explicit_count_intent(question, profile, target)
+        if explicit_count_intent is not None:
+            intent_name = explicit_count_intent
+            aggregation = None
+            group_by = None
+            self._clear_existence_options(options)
+            if explicit_count_intent != "distinct_value_count":
+                target = None
+                filters = None
+                time_reference = None
+
         if intent_name == "representation_ranking" and target is not None:
             group_by = [target]
             aggregation = "count"
@@ -435,6 +447,8 @@ class InputCanonicalizer:
             warnings=warnings,
         )
         distinct_values = self._should_list_distinct_values(question, target, profile)
+        if intent_name == "distinct_value_count":
+            distinct_values = False
 
         request = AnalysisRequest(
             question=question,
@@ -498,6 +512,18 @@ class InputCanonicalizer:
             return target, aggregation, group_by
 
         return None, aggregation, group_by
+
+    def _clear_existence_options(self, options: dict[str, object]) -> None:
+        for key in (
+            "existence_mode",
+            "requested_column",
+            "expected_property",
+            "null_expectation",
+            "threshold_operator",
+            "threshold_value",
+            "expected_year",
+        ):
+            options.pop(key, None)
 
     def normalize_with_proposal(
         self,
@@ -599,6 +625,16 @@ class InputCanonicalizer:
             group_by = None
         elif options.get("statistical_test") in {"t_test", "anova", "mann_whitney", "significance_inference", "power_analysis", "sample_size_estimate"} and not group_by:
             group_by = self._extract_statistical_group_by(question, profile, target)
+        explicit_count_intent = self._resolve_explicit_count_intent(question, profile, target)
+        if explicit_count_intent is not None:
+            rule_intent_name = explicit_count_intent
+            aggregation = None
+            group_by = None
+            self._clear_existence_options(options)
+            if explicit_count_intent != "distinct_value_count":
+                target = None
+                filters = None
+                time_reference = None
         if rule_intent_name == "representation_ranking" and target is not None:
             group_by = [target]
             aggregation = "count"
@@ -636,6 +672,8 @@ class InputCanonicalizer:
             warnings=warnings,
         )
         distinct_values = self._should_list_distinct_values(question, target, profile)
+        if rule_intent_name == "distinct_value_count":
+            distinct_values = False
 
         request = AnalysisRequest(
             question=question,
@@ -726,15 +764,23 @@ class InputCanonicalizer:
     ) -> bool:
         targetless_intents = {
             "row_count",
+            "column_count",
             "column_inventory",
             "column_type_inventory",
+            "numeric_column_count",
             "numeric_column_inventory",
+            "categorical_column_count",
             "categorical_column_inventory",
+            "measure_count",
             "measure_inventory",
+            "dimension_count",
             "dimension_inventory",
+            "time_column_count",
             "time_column_inventory",
             "missing_value_inventory",
+            "identifier_count",
             "identifier_inventory",
+            "high_cardinality_count",
             "high_cardinality_inventory",
             "time_coverage",
             "time_bucket_counts",
@@ -799,9 +845,63 @@ class InputCanonicalizer:
         lowered = question.lower()
         if any(keyword in lowered for keyword in ROW_COUNT_KEYWORDS):
             return False
+        if self._resolve_metadata_count_intent(question) is not None:
+            return False
         if not any(keyword in lowered for keyword in UNSAFE_COUNT_KEYWORDS):
             return False
         return any(keyword in lowered for keyword in METADATA_COUNT_OBJECT_KEYWORDS)
+
+    def _resolve_explicit_count_intent(
+        self,
+        question: str,
+        profile: DatasetProfile,
+        target: str | None,
+    ) -> str | None:
+        metadata_count_intent = self._resolve_metadata_count_intent(question)
+        if metadata_count_intent is not None:
+            return metadata_count_intent
+        if self._looks_like_distinct_value_count_request(question, target, profile):
+            return "distinct_value_count"
+        return None
+
+    def _resolve_metadata_count_intent(self, question: str) -> str | None:
+        lowered = question.lower()
+        if any(keyword in lowered for keyword in ROW_COUNT_KEYWORDS):
+            return None
+        if not any(keyword in lowered for keyword in UNSAFE_COUNT_KEYWORDS):
+            return None
+        if any(keyword in lowered for keyword in HIGH_CARDINALITY_INVENTORY_KEYWORDS):
+            return "high_cardinality_count"
+        if any(keyword in lowered for keyword in IDENTIFIER_INVENTORY_KEYWORDS):
+            return "identifier_count"
+        if self._looks_like_numeric_column_inventory_request(lowered):
+            return "numeric_column_count"
+        if self._looks_like_categorical_column_inventory_request(lowered):
+            return "categorical_column_count"
+        if self._looks_like_time_column_inventory_request(lowered):
+            return "time_column_count"
+        if any(keyword in lowered for keyword in {"measure columns", "measure column", "available metrics", "metrics available"}):
+            return "measure_count"
+        if any(keyword in lowered for keyword in {"measure", "measures", "metric", "metrics"}):
+            return "measure_count"
+        if any(keyword in lowered for keyword in {"dimension columns", "dimension column", "available dimensions", "grouping columns", "dimensions"}):
+            return "dimension_count"
+        if any(keyword in lowered for keyword in {"column", "columns", "field", "fields"}):
+            return "column_count"
+        return None
+
+    def _looks_like_distinct_value_count_request(
+        self,
+        question: str,
+        target: str | None,
+        profile: DatasetProfile,
+    ) -> bool:
+        if target is None or target not in set(profile.dimension_columns):
+            return False
+        lowered = question.lower()
+        if not any(keyword in lowered for keyword in UNSAFE_COUNT_KEYWORDS):
+            return False
+        return any(keyword in lowered for keyword in DISTINCT_COUNT_KEYWORDS)
 
     def _looks_like_schema_metadata_surface(self, lowered: str) -> bool:
         return any(keyword in lowered for keyword in METADATA_SURFACE_KEYWORDS)

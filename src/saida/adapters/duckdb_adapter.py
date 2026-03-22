@@ -88,6 +88,29 @@ class DuckDBAdapter:
             dataframe=values,
         )
 
+    def distinct_value_count(
+        self,
+        dataframe: pd.DataFrame,
+        target: str,
+        filters: dict[str, str] | None = None,
+    ) -> TableArtifact:
+        """Return the number of distinct values for a dimension column."""
+        prepared = self._apply_filters(dataframe, filters)
+        self._require_columns(prepared, [target])
+        query = f'select count(distinct "{target}") as distinct_count from source_df'
+        try:
+            connection = duckdb.connect()
+            connection.register("source_df", self._prepare_for_duckdb(prepared))
+            values = connection.execute(query).fetchdf()
+            connection.close()
+        except Exception as exc:  # pragma: no cover
+            raise ComputeError(f"Failed to compute distinct value count for target '{target}'.") from exc
+        return TableArtifact(
+            name="distinct_value_count",
+            description=f"Distinct value count for {target}.",
+            dataframe=values,
+        )
+
     def tabular_query(
         self,
         dataframe: pd.DataFrame,
