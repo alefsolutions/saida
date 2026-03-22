@@ -455,7 +455,7 @@ def build_default_prompt_family_catalog() -> PromptFamilyCatalog:
             intent_names=("time_period_comparison",),
             required_parameters=("target", "time_reference"),
             primary_result_shapes=("table",),
-            allowed_plan_actions=("period_comparison",),
+            allowed_plan_actions=("period_comparison", "grouped_period_comparison"),
         ),
         PromptFamilySpec(
             family_id="significance_inference",

@@ -42,7 +42,7 @@ This file is a human-readable snapshot of the live prompt family catalog in `src
 | `time_bucket_counts` | `partial` | time_bucket_counts | - | table | count_rows_by_group, time_bucket_counts | - |
 | `time_column_inventory` | `governed` | time_column_inventory | - | table | time_column_inventory | - |
 | `time_coverage` | `governed` | time_coverage | - | table | time_coverage | - |
-| `time_period_comparison` | `governed` | time_period_comparison | target, time_reference | table | period_comparison | - |
+| `time_period_comparison` | `governed` | time_period_comparison | target, time_reference | table | period_comparison, grouped_period_comparison | - |
 | `time_value_verification` | `governed` | existence_check | target | verification | time_value_exists | - |
 
 ## Notes

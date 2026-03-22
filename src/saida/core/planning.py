@@ -6,9 +6,78 @@ from typing import TYPE_CHECKING
 
 from saida.exceptions import PlanningError
 from saida.core.contracts import AnalysisPlan, AnalysisRequest, DatasetProfile, PlanStep, SourceContext
+from saida.core.prompt_family_catalog import derive_prompt_family, get_prompt_family_catalog
 
 if TYPE_CHECKING:
     from saida.core.prompt_capability_contract import PromptCapabilityContract
+
+
+_PROMPT_FAMILY_TO_INTENT = {
+    "row_count": "row_count",
+    "distinct_value_listing": "distinct_values",
+    "representation_ranking": "representation_ranking",
+    "row_ranking": "row_ranking",
+    "group_ranking": "group_ranking",
+    "column_inventory": "column_inventory",
+    "column_type_lookup": "column_type_inventory",
+    "column_type_inventory": "column_type_inventory",
+    "numeric_column_inventory": "numeric_column_inventory",
+    "categorical_column_inventory": "categorical_column_inventory",
+    "measure_inventory": "measure_inventory",
+    "dimension_inventory": "dimension_inventory",
+    "time_column_inventory": "time_column_inventory",
+    "missing_value_inventory": "missing_value_inventory",
+    "identifier_inventory": "identifier_inventory",
+    "high_cardinality_inventory": "high_cardinality_inventory",
+    "column_presence_check": "existence_check",
+    "column_property_check": "existence_check",
+    "null_verification": "existence_check",
+    "threshold_verification": "existence_check",
+    "time_value_verification": "existence_check",
+    "row_existence_check": "existence_check",
+    "time_coverage": "time_coverage",
+    "time_bucket_counts": "time_bucket_counts",
+    "time_bucket_breakdown": "time_bucket_breakdown",
+    "time_period_comparison": "time_period_comparison",
+    "tabular_record_retrieval": "tabular_query",
+    "grouped_entity_count": "grouped_tabular_query",
+    "grouped_metric_table": "grouped_tabular_query",
+}
+
+_PROMPT_FAMILY_TO_EXISTENCE_MODE = {
+    "column_presence_check": "column_presence_check",
+    "column_property_check": "column_property_check",
+    "null_verification": "null_check",
+    "threshold_verification": "threshold_check",
+    "time_value_verification": "time_value",
+    "row_existence_check": "row_existence",
+}
+
+_STATISTICAL_PROMPT_FAMILIES = {
+    "significance_inference",
+    "confidence_interval",
+    "power_analysis",
+    "sample_size_estimate",
+    "t_test",
+    "anova",
+    "mann_whitney",
+    "regression_significance",
+    "chi_square",
+}
+
+_METADATA_PROMPT_FAMILY_TO_ACTION = {
+    "column_inventory": "column_inventory",
+    "column_type_lookup": "column_type_inventory",
+    "column_type_inventory": "column_type_inventory",
+    "numeric_column_inventory": "numeric_column_inventory",
+    "categorical_column_inventory": "categorical_column_inventory",
+    "measure_inventory": "measure_inventory",
+    "dimension_inventory": "dimension_inventory",
+    "time_column_inventory": "time_column_inventory",
+    "missing_value_inventory": "missing_value_inventory",
+    "identifier_inventory": "identifier_inventory",
+    "high_cardinality_inventory": "high_cardinality_inventory",
+}
 
 
 class PlanBuilder:
@@ -27,7 +96,13 @@ class PlanBuilder:
             raise PlanningError("Prompt capability contract resolved to an unsupported capability.")
         if contract.status in {"supported_but_data_infeasible", "supported_but_data_insufficient"}:
             raise PlanningError("Prompt capability contract failed data feasibility checks.")
-        return self.build_plan(request, profile, context)
+        if request.prompt_family is None:
+            request.prompt_family = contract.prompt_family or derive_prompt_family(request)
+        plan = self.build_plan(request, profile, context)
+        prompt_family = request.prompt_family or contract.prompt_family
+        if prompt_family:
+            self._validate_family_plan(prompt_family, plan)
+        return plan
 
     def build_plan(
         self,
@@ -37,9 +112,14 @@ class PlanBuilder:
     ) -> AnalysisPlan:
         """Build an executable plan from the request and profile."""
         self._validate_request(request, profile)
+        if request.prompt_family is None:
+            request.prompt_family = derive_prompt_family(request)
         task_type = request.task_type_hint or "descriptive"
         warnings: list[str] = []
         steps: list[PlanStep] = []
+        family_plan = self._build_plan_for_prompt_family(request, profile, context, task_type, warnings)
+        if family_plan is not None:
+            return family_plan
 
         if request.target is None and profile.measure_columns and request.intent_name not in {
             "row_count",
@@ -682,6 +762,377 @@ class PlanBuilder:
         rationale = self._build_rationale(task_type, request, context)
         return AnalysisPlan(task_type=task_type, rationale=rationale, steps=steps, warnings=warnings)
 
+    def _build_plan_for_prompt_family(
+        self,
+        request: AnalysisRequest,
+        profile: DatasetProfile,
+        context: SourceContext | None,
+        task_type: str,
+        warnings: list[str],
+    ) -> AnalysisPlan | None:
+        prompt_family = request.prompt_family
+        if not prompt_family:
+            return None
+
+        if prompt_family in _STATISTICAL_PROMPT_FAMILIES:
+            steps = [
+                PlanStep(
+                    step_id=prompt_family,
+                    tool_family="stats",
+                    action=prompt_family,
+                    parameters={
+                        "target": request.target,
+                        "group_by": request.group_by,
+                        "filters": request.filters,
+                        "alpha": request.options.get("alpha", 0.05),
+                        "confidence_level": request.options.get("confidence_level", 0.95),
+                        "desired_power": request.options.get("desired_power", 0.80),
+                        "feature_columns": request.options.get("feature_columns", []),
+                        "comparison_columns": request.options.get("comparison_columns", []),
+                    },
+                    description=f"Run the deterministic {prompt_family} workflow selected from the prompt family.",
+                )
+            ]
+            return self._finalize_plan(task_type, request, context, steps, warnings)
+
+        if prompt_family in _METADATA_PROMPT_FAMILY_TO_ACTION:
+            action = _METADATA_PROMPT_FAMILY_TO_ACTION[prompt_family]
+            steps = [
+                PlanStep(
+                    step_id=action,
+                    tool_family="metadata",
+                    action=action,
+                    parameters={"target": request.target},
+                    description="Return dataset inventory information for the requested metadata family.",
+                )
+            ]
+            return self._finalize_plan(task_type, request, context, steps, warnings)
+
+        if prompt_family == "time_coverage":
+            steps = [
+                PlanStep(
+                    step_id="time_coverage",
+                    tool_family="duckdb",
+                    action="time_coverage",
+                    parameters={
+                        "time_column": profile.time_columns[0],
+                        "filters": request.filters,
+                        "mode": request.options.get("time_coverage_mode", "years_present"),
+                    },
+                    description="Inspect time coverage in the dataset without treating the datetime column as a metric.",
+                )
+            ]
+            return self._finalize_plan(task_type, request, context, steps, warnings)
+
+        if prompt_family == "time_bucket_counts":
+            steps = [
+                PlanStep(
+                    step_id="time_bucket_counts",
+                    tool_family="duckdb",
+                    action="time_bucket_counts",
+                    parameters={
+                        "time_column": profile.time_columns[0],
+                        "filters": request.filters,
+                        "bucket": request.options.get("time_bucket", "year"),
+                    },
+                    description="Count rows across derived time buckets such as years or months.",
+                )
+            ]
+            return self._finalize_plan(task_type, request, context, steps, warnings)
+
+        if prompt_family == "time_bucket_breakdown":
+            steps = [
+                PlanStep(
+                    step_id="time_bucket_breakdown",
+                    tool_family="duckdb",
+                    action="time_bucket_breakdown",
+                    parameters={
+                        "target": request.target,
+                        "time_column": profile.time_columns[0],
+                        "bucket": request.options.get("time_bucket", "month"),
+                        "aggregation": request.aggregation or "sum",
+                        "group_by": request.group_by,
+                        "filters": request.filters,
+                    },
+                    description="Aggregate a numeric target across derived time buckets such as month, quarter, or year.",
+                )
+            ]
+            return self._finalize_plan(task_type, request, context, steps, warnings)
+
+        if prompt_family == "time_period_comparison":
+            comparison_action = "grouped_period_comparison" if request.group_by else "period_comparison"
+            steps = [
+                PlanStep(
+                    step_id=comparison_action,
+                    tool_family="duckdb",
+                    action=comparison_action,
+                    parameters={
+                        "target": request.target,
+                        "group_by": request.group_by,
+                        "time_column": profile.time_columns[0],
+                        "time_reference": request.time_reference,
+                        "bucket": request.options.get("time_bucket", "month"),
+                        "aggregation": request.aggregation or "sum",
+                        "filters": request.filters,
+                    },
+                    description="Compare adjacent derived time periods such as month, quarter, or year.",
+                )
+            ]
+            return self._finalize_plan(task_type, request, context, steps, warnings)
+
+        if prompt_family in {
+            "column_presence_check",
+            "column_property_check",
+            "null_verification",
+            "threshold_verification",
+            "time_value_verification",
+            "row_existence_check",
+        }:
+            return self._build_existence_family_plan(request, profile, context, task_type, warnings, prompt_family)
+
+        if prompt_family == "tabular_record_retrieval":
+            steps = [
+                PlanStep(
+                    step_id="tabular_query",
+                    tool_family="duckdb",
+                    action="tabular_query",
+                    parameters={
+                        "selected_columns": request.options.get("selected_columns") or None,
+                        "filters": request.filters,
+                        "sort_by": request.options.get("sort_by"),
+                        "sort_direction": request.options.get("sort_direction", "asc"),
+                        "limit": request.options.get("limit"),
+                        "page": request.options.get("page", 1),
+                        "page_size": request.options.get("page_size", 50),
+                    },
+                    description="Return a filtered, sorted, and paginated recordset for natural-language data discovery.",
+                )
+            ]
+            return self._finalize_plan(task_type, request, context, steps, warnings)
+
+        if prompt_family in {"grouped_entity_count", "grouped_metric_table"}:
+            steps = [
+                PlanStep(
+                    step_id="grouped_tabular_query",
+                    tool_family="duckdb",
+                    action="grouped_tabular_query",
+                    parameters={
+                        "target": request.target,
+                        "group_by": request.group_by,
+                        "aggregation": request.aggregation or ("count" if request.target is None else "sum"),
+                        "filters": request.filters,
+                        "sort_by": request.options.get("sort_by"),
+                        "sort_direction": request.options.get("sort_direction", "desc"),
+                        "limit": request.options.get("limit"),
+                        "page": request.options.get("page", 1),
+                        "page_size": request.options.get("page_size", 50),
+                    },
+                    description="Return a grouped, tabular dataset slice for discovery-style analysis.",
+                )
+            ]
+            return self._finalize_plan(task_type, request, context, steps, warnings)
+
+        if prompt_family == "row_count":
+            steps = [
+                PlanStep(
+                    step_id="row_count",
+                    tool_family="duckdb",
+                    action="row_count",
+                    parameters={"filters": request.filters},
+                    description="Count the number of rows in the requested dataset slice.",
+                )
+            ]
+            return self._finalize_plan(task_type, request, context, steps, warnings)
+
+        if prompt_family == "representation_ranking" and request.target:
+            steps = [
+                PlanStep(
+                    step_id="count_rows_by_group",
+                    tool_family="duckdb",
+                    action="count_rows_by_group",
+                    parameters={
+                        "group_by": [request.target],
+                        "filters": request.filters,
+                        "ascending": request.options.get("ranking_direction") == "asc",
+                        "limit": int(request.options.get("ranking_limit", 5)),
+                    },
+                    description="Count rows by group and rank the representation of the requested dimension.",
+                )
+            ]
+            return self._finalize_plan(task_type, request, context, steps, warnings)
+
+        if prompt_family == "row_ranking" and request.target:
+            steps = [
+                PlanStep(
+                    step_id="ranked_rows",
+                    tool_family="duckdb",
+                    action="ranked_rows",
+                    parameters={
+                        "target": request.target,
+                        "filters": request.filters,
+                        "ascending": request.options.get("ranking_direction") == "asc",
+                        "limit": int(request.options.get("ranking_limit", 5)),
+                    },
+                    description="Rank individual rows by the requested numeric target.",
+                )
+            ]
+            return self._finalize_plan(task_type, request, context, steps, warnings)
+
+        if prompt_family == "group_ranking" and request.target and request.group_by:
+            steps = [
+                PlanStep(
+                    step_id="ranked_breakdown",
+                    tool_family="duckdb",
+                    action="ranked_breakdown",
+                    parameters={
+                        "target": request.target,
+                        "group_by": request.group_by,
+                        "aggregation": request.aggregation or "sum",
+                        "filters": request.filters,
+                        "limit": int(request.options.get("ranking_limit", 5)),
+                        "ascending": request.options.get("ranking_direction") == "asc",
+                    },
+                    description="Rank grouped results according to the requested top or bottom limit.",
+                )
+            ]
+            return self._finalize_plan(task_type, request, context, steps, warnings)
+
+        if prompt_family == "distinct_value_listing" and request.target:
+            steps = [
+                PlanStep(
+                    step_id="distinct_values",
+                    tool_family="duckdb",
+                    action="distinct_values",
+                    parameters={"target": request.target, "filters": request.filters},
+                    description="List the distinct values for the requested dimension.",
+                )
+            ]
+            return self._finalize_plan(task_type, request, context, steps, warnings)
+
+        return None
+
+    def _build_existence_family_plan(
+        self,
+        request: AnalysisRequest,
+        profile: DatasetProfile,
+        context: SourceContext | None,
+        task_type: str,
+        warnings: list[str],
+        prompt_family: str,
+    ) -> AnalysisPlan:
+        if prompt_family == "time_value_verification":
+            steps = [
+                PlanStep(
+                    step_id="time_value_exists",
+                    tool_family="duckdb",
+                    action="time_value_exists",
+                    parameters={
+                        "time_column": request.target or profile.time_columns[0],
+                        "filters": request.filters,
+                        "expected_year": request.options.get("expected_year"),
+                        "time_reference": request.time_reference,
+                    },
+                    description="Verify whether the requested time value exists in the dataset.",
+                )
+            ]
+            return self._finalize_plan(task_type, request, context, steps, warnings)
+        if prompt_family == "null_verification":
+            steps = [
+                PlanStep(
+                    step_id="null_check",
+                    tool_family="duckdb",
+                    action="null_check",
+                    parameters={
+                        "target": request.target,
+                        "filters": request.filters,
+                        "null_expectation": request.options.get("null_expectation", "has_nulls"),
+                    },
+                    description="Verify whether the requested column has missing values or is complete.",
+                )
+            ]
+            return self._finalize_plan(task_type, request, context, steps, warnings)
+        if prompt_family == "threshold_verification":
+            steps = [
+                PlanStep(
+                    step_id="threshold_check",
+                    tool_family="duckdb",
+                    action="threshold_check",
+                    parameters={
+                        "target": request.target,
+                        "filters": request.filters,
+                        "threshold_operator": request.options.get("threshold_operator"),
+                        "threshold_value": request.options.get("threshold_value"),
+                        "lower_bound": request.options.get("lower_bound"),
+                        "upper_bound": request.options.get("upper_bound"),
+                    },
+                    description="Verify whether the requested numeric threshold condition is present in the data.",
+                )
+            ]
+            return self._finalize_plan(task_type, request, context, steps, warnings)
+        if prompt_family == "column_property_check":
+            steps = [
+                PlanStep(
+                    step_id="column_property_check",
+                    tool_family="metadata",
+                    action="column_property_check",
+                    parameters={
+                        "target": request.target,
+                        "expected_property": request.options.get("expected_property"),
+                    },
+                    description="Verify whether the requested column has the expected schema property.",
+                )
+            ]
+            return self._finalize_plan(task_type, request, context, steps, warnings)
+        if prompt_family == "column_presence_check":
+            steps = [
+                PlanStep(
+                    step_id="column_presence_check",
+                    tool_family="metadata",
+                    action="column_presence_check",
+                    parameters={
+                        "requested_column": request.options.get("requested_column"),
+                    },
+                    description="Verify whether the requested column exists in the dataset schema.",
+                )
+            ]
+            return self._finalize_plan(task_type, request, context, steps, warnings)
+
+        steps = [
+            PlanStep(
+                step_id="row_existence",
+                tool_family="duckdb",
+                action="row_existence",
+                parameters={"filters": request.filters or {}},
+                description="Verify whether any rows match the requested filters.",
+            )
+        ]
+        return self._finalize_plan(task_type, request, context, steps, warnings)
+
+    def _finalize_plan(
+        self,
+        task_type: str,
+        request: AnalysisRequest,
+        context: SourceContext | None,
+        steps: list[PlanStep],
+        warnings: list[str],
+    ) -> AnalysisPlan:
+        rationale = self._build_rationale(task_type, request, context)
+        plan = AnalysisPlan(task_type=task_type, rationale=rationale, steps=steps, warnings=list(warnings))
+        if request.prompt_family:
+            self._validate_family_plan(request.prompt_family, plan)
+        return plan
+
+    def _validate_family_plan(self, prompt_family: str, plan: AnalysisPlan) -> None:
+        family_spec = get_prompt_family_catalog().get(prompt_family)
+        if family_spec is None:
+            return
+        issues = family_spec.plan_invariant_issues(plan)
+        if not issues:
+            return
+        if family_spec.governance == "governed":
+            raise PlanningError(f"Prompt family {prompt_family!r} produced an invalid plan: {' '.join(issues)}")
+        plan.warnings.extend(issues)
+
     def validate(self, plan: AnalysisPlan) -> None:
         """Validate a plan before execution."""
         if not plan.steps:
@@ -691,6 +1142,12 @@ class PlanBuilder:
         supported_tasks = {"descriptive", "diagnostic", "statistical", "predictive", "forecasting"}
         supported_aggregations = {"sum", "mean", "max", "min", "count"}
         task_type = request.task_type_hint or "descriptive"
+        prompt_family = request.prompt_family or derive_prompt_family(request)
+        effective_intent_name = request.intent_name or _PROMPT_FAMILY_TO_INTENT.get(prompt_family)
+        effective_existence_mode = request.options.get("existence_mode") or _PROMPT_FAMILY_TO_EXISTENCE_MODE.get(prompt_family, "filtered_rows")
+        effective_statistical_test = request.options.get("statistical_test")
+        if effective_statistical_test is None and prompt_family in _STATISTICAL_PROMPT_FAMILIES:
+            effective_statistical_test = prompt_family
         if task_type not in supported_tasks:
             raise PlanningError(f"Unsupported analysis task type: {task_type}")
 
@@ -698,23 +1155,23 @@ class PlanBuilder:
         if not profile_columns:
             raise PlanningError("Dataset profile contains no columns.")
 
-        existence_mode = request.options.get("existence_mode", "filtered_rows")
+        existence_mode = effective_existence_mode
         allows_missing_target_lookup = (
-            request.intent_name == "existence_check"
+            effective_intent_name == "existence_check"
             and existence_mode in {"column_property_check", "column_presence_check"}
         )
         if request.target is not None and request.target not in profile_columns and not allows_missing_target_lookup:
             raise PlanningError(f"Target column '{request.target}' does not exist in the dataset profile.")
         if request.options.get("distinct_values") and request.target not in set(profile.dimension_columns):
             raise PlanningError("Distinct value listing requires a dimension target.")
-        if request.intent_name == "representation_ranking" and request.target not in set(profile.dimension_columns):
+        if effective_intent_name == "representation_ranking" and request.target not in set(profile.dimension_columns):
             raise PlanningError("Representation ranking requires a dimension target.")
-        if request.intent_name == "row_ranking" and request.target not in set(profile.measure_columns):
+        if effective_intent_name == "row_ranking" and request.target not in set(profile.measure_columns):
             raise PlanningError("Row ranking requires a numeric target.")
-        if request.intent_name == "group_ranking":
+        if effective_intent_name == "group_ranking":
             if request.target not in set(profile.measure_columns) or not request.group_by:
                 raise PlanningError("Group ranking requires a numeric target and one grouping column.")
-        if request.intent_name == "tabular_query":
+        if effective_intent_name == "tabular_query":
             selected_columns = request.options.get("selected_columns", [])
             invalid_selected = [column for column in selected_columns if column not in profile_columns]
             if invalid_selected:
@@ -723,7 +1180,7 @@ class PlanBuilder:
             sort_by = request.options.get("sort_by")
             if sort_by is not None and sort_by not in profile_columns:
                 raise PlanningError(f"Sort column '{sort_by}' does not exist in the dataset profile.")
-        if request.intent_name == "grouped_tabular_query":
+        if effective_intent_name == "grouped_tabular_query":
             if not request.group_by:
                 raise PlanningError("Grouped tabular querying requires at least one grouping column.")
             if request.target is not None and request.target not in set(profile.measure_columns):
@@ -736,7 +1193,7 @@ class PlanBuilder:
                 "target_total",
             }:
                 raise PlanningError("Grouped tabular query sort column must be a grouping column or aggregate output.")
-        if request.aggregation and request.aggregation != "count" and request.intent_name not in {
+        if request.aggregation and request.aggregation != "count" and effective_intent_name not in {
             "time_bucket_breakdown",
             "time_period_comparison",
             "group_ranking",
@@ -746,29 +1203,29 @@ class PlanBuilder:
                 raise PlanningError(f"Aggregation '{request.aggregation}' requires a numeric target.")
         if (
             request.group_by
-            and request.intent_name not in {"representation_ranking", "group_ranking", "time_bucket_breakdown", "time_period_comparison", "grouped_tabular_query"}
+            and effective_intent_name not in {"representation_ranking", "group_ranking", "time_bucket_breakdown", "time_period_comparison", "grouped_tabular_query"}
             and request.target is not None
             and request.target not in set(profile.measure_columns)
         ):
             raise PlanningError("Grouped descriptive analysis requires a numeric target or a dedicated dimension intent.")
-        if request.intent_name == "time_coverage" and not profile.time_columns:
+        if effective_intent_name == "time_coverage" and not profile.time_columns:
             raise PlanningError("Time coverage analysis requires a datetime column.")
-        if request.intent_name == "time_bucket_counts" and not profile.time_columns:
+        if effective_intent_name == "time_bucket_counts" and not profile.time_columns:
             raise PlanningError("Time bucket count analysis requires a datetime column.")
-        if request.intent_name == "time_bucket_breakdown" and not profile.time_columns:
+        if effective_intent_name == "time_bucket_breakdown" and not profile.time_columns:
             raise PlanningError("Time bucket breakdown analysis requires a datetime column.")
-        if request.intent_name == "time_period_comparison" and not profile.time_columns:
+        if effective_intent_name == "time_period_comparison" and not profile.time_columns:
             raise PlanningError("Time period comparison requires a datetime column.")
-        if request.intent_name == "time_column_inventory" and not profile.time_columns:
+        if effective_intent_name == "time_column_inventory" and not profile.time_columns:
             raise PlanningError("Time column inventory requires at least one datetime column.")
-        if request.intent_name == "time_bucket_breakdown" and request.target not in set(profile.measure_columns):
+        if effective_intent_name == "time_bucket_breakdown" and request.target not in set(profile.measure_columns):
             raise PlanningError("Time bucket breakdown requires a numeric target.")
-        if request.intent_name == "time_period_comparison":
+        if effective_intent_name == "time_period_comparison":
             if request.target not in set(profile.measure_columns):
                 raise PlanningError("Time period comparison requires a numeric target.")
             if not request.time_reference:
                 raise PlanningError("Time period comparison requires an explicit time reference.")
-        if request.intent_name == "existence_check":
+        if effective_intent_name == "existence_check":
             if existence_mode == "time_value":
                 if not profile.time_columns:
                     raise PlanningError("Time existence verification requires a datetime column.")
@@ -808,23 +1265,23 @@ class PlanBuilder:
                     raise PlanningError("Column presence verification requires a requested column name.")
             elif not request.filters:
                 raise PlanningError("Existence verification requires filters or a time-value check.")
-        if request.intent_name in {"tabular_query", "grouped_tabular_query"}:
+        if effective_intent_name in {"tabular_query", "grouped_tabular_query"}:
             page = int(request.options.get("page", 1))
             page_size = int(request.options.get("page_size", 50))
             if page <= 0:
                 raise PlanningError("Tabular pagination requires page to be 1 or greater.")
             if page_size <= 0:
                 raise PlanningError("Tabular pagination requires page_size to be 1 or greater.")
-        if request.options.get("statistical_test") == "chi_square":
+        if effective_statistical_test == "chi_square":
             comparison_columns = request.options.get("comparison_columns", [])
             if len(comparison_columns) < 2:
                 raise PlanningError("Chi-square testing requires two categorical columns.")
-        if request.options.get("statistical_test") in {"t_test", "anova", "mann_whitney", "significance_inference", "power_analysis", "sample_size_estimate"}:
+        if effective_statistical_test in {"t_test", "anova", "mann_whitney", "significance_inference", "power_analysis", "sample_size_estimate"}:
             if request.target is None or not request.group_by:
                 raise PlanningError("Group-based statistical testing requires a numeric target and one grouping column.")
-        if request.options.get("statistical_test") == "confidence_interval" and request.target is None:
+        if effective_statistical_test == "confidence_interval" and request.target is None:
             raise PlanningError("Confidence interval analysis requires a numeric target.")
-        if request.options.get("statistical_test") == "regression_significance":
+        if effective_statistical_test == "regression_significance":
             feature_columns = request.options.get("feature_columns", [])
             if request.target is None or not feature_columns:
                 raise PlanningError("Regression significance testing requires a target and at least one feature column.")
@@ -848,7 +1305,7 @@ class PlanBuilder:
         if request.time_reference and request.time_reference.get("type") not in supported_time_reference_types:
             raise PlanningError("Unsupported time reference in analysis request.")
 
-        if request.time_reference and request.time_reference.get("type") != "month_name" and request.intent_name != "time_period_comparison":
+        if request.time_reference and request.time_reference.get("type") != "month_name" and effective_intent_name != "time_period_comparison":
             raise PlanningError("Only month-based time references are supported for non-ML analysis right now.")
 
         if request.aggregation and request.aggregation not in supported_aggregations:
@@ -861,6 +1318,8 @@ class PlanBuilder:
 
     def _build_rationale(self, task_type: str, request: AnalysisRequest, context: SourceContext | None) -> str:
         rationale = f"Selected a {task_type} workflow based on the normalized request."
+        if request.prompt_family:
+            rationale += f" Prompt family: {request.prompt_family}."
         if request.target:
             rationale += f" Target metric: {request.target}."
         if request.aggregation:

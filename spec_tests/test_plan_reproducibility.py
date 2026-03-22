@@ -101,6 +101,7 @@ def _request_signature(request: AnalysisRequest) -> dict[str, Any]:
         if key not in {"dataset", "nlp_backend", "llm_status", "candidate_capabilities"}
     }
     return {
+        "prompt_family": request.prompt_family,
         "intent_name": request.intent_name,
         "task_type_hint": request.task_type_hint,
         "target": request.target,
@@ -155,6 +156,7 @@ _REPRODUCIBILITY_CASES = [
             "Count tickets by channel",
         ],
         expected_request={
+            "prompt_family": "grouped_entity_count",
             "intent_name": "grouped_tabular_query",
             "task_type_hint": "descriptive",
             "target": None,
@@ -203,6 +205,7 @@ _REPRODUCIBILITY_CASES = [
             "What is the type of created_at?",
         ],
         expected_request={
+            "prompt_family": "column_type_lookup",
             "intent_name": "column_type_inventory",
             "task_type_hint": "descriptive",
             "target": "created_at",
@@ -234,6 +237,7 @@ _REPRODUCIBILITY_CASES = [
             "Does this data include a created_at column?",
         ],
         expected_request={
+            "prompt_family": "column_presence_check",
             "intent_name": "existence_check",
             "task_type_hint": "descriptive",
             "target": None,
@@ -266,6 +270,7 @@ _REPRODUCIBILITY_CASES = [
             "Count rows",
         ],
         expected_request={
+            "prompt_family": "row_count",
             "intent_name": "row_count",
             "task_type_hint": "descriptive",
             "target": None,
@@ -297,6 +302,7 @@ _REPRODUCIBILITY_CASES = [
             "Which channel has the highest count?",
         ],
         expected_request={
+            "prompt_family": "representation_ranking",
             "intent_name": "representation_ranking",
             "task_type_hint": "descriptive",
             "target": "channel",
@@ -330,6 +336,7 @@ _REPRODUCIBILITY_CASES = [
             "Is region a dimension column?",
         ],
         expected_request={
+            "prompt_family": "column_property_check",
             "intent_name": "existence_check",
             "task_type_hint": "descriptive",
             "target": "region",
@@ -363,6 +370,7 @@ _REPRODUCIBILITY_CASES = [
             "From when to when does the data run?",
         ],
         expected_request={
+            "prompt_family": "time_coverage",
             "intent_name": "time_coverage",
             "task_type_hint": "descriptive",
             "target": None,
@@ -394,6 +402,7 @@ _REPRODUCIBILITY_CASES = [
             "Return ticket_id and priority row data sorted by created_at",
         ],
         expected_request={
+            "prompt_family": "tabular_record_retrieval",
             "intent_name": "tabular_query",
             "task_type_hint": "descriptive",
             "target": "ticket_id",

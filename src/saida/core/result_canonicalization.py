@@ -22,6 +22,7 @@ from saida.core.contracts import (
     TableArtifact,
     TrainResult,
 )
+from saida.core.prompt_family_catalog import derive_prompt_family
 
 if TYPE_CHECKING:
     from saida.core.prompt_capability_contract import PromptCapabilityContract
@@ -258,12 +259,14 @@ class ResultCanonicalizer:
         metrics: list[Metric],
         tables: list[TableArtifact],
     ) -> dict[str, object]:
-        if request.intent_name == "row_count":
+        prompt_family = request.prompt_family or derive_prompt_family(request)
+
+        if prompt_family == "row_count":
             row_count_metric = self._metric_by_name(metrics, "row_count")
             if row_count_metric is not None:
                 return self._metric_result_payload(row_count_metric, logical_shape="count")
 
-        if request.target and request.aggregation and not request.group_by:
+        if prompt_family == "metric_aggregate" or (request.target and request.aggregation and not request.group_by):
             metric_name = f"{request.target}_{request.aggregation}"
             aggregate_metric = self._metric_by_name(metrics, metric_name)
             if aggregate_metric is not None:
@@ -276,7 +279,7 @@ class ResultCanonicalizer:
                 }.get(request.aggregation, "scalar")
                 return self._metric_result_payload(aggregate_metric, logical_shape=logical_shape)
 
-        if request.intent_name == "column_type_inventory" and request.target:
+        if prompt_family == "column_type_lookup" or (request.intent_name == "column_type_inventory" and request.target):
             column_type_table = self._table_by_name(tables, "column_type_inventory")
             if column_type_table is not None and not column_type_table.dataframe.empty:
                 row = column_type_table.dataframe.iloc[0]
@@ -293,7 +296,7 @@ class ResultCanonicalizer:
                     "value": self._json_safe(row.get("dtype")),
                 }
 
-        if request.intent_name == "representation_ranking":
+        if prompt_family == "representation_ranking" or request.intent_name == "representation_ranking":
             count_table = self._table_by_name(tables, "group_row_counts")
             if count_table is not None and not count_table.dataframe.empty:
                 return self._table_result_payload(

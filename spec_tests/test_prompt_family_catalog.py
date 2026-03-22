@@ -7,6 +7,7 @@ import pytest
 
 from saida import Saida
 from saida.core import (
+    AnalysisPlanner,
     AnalysisRequest,
     Dataset,
     build_default_prompt_family_catalog,
@@ -182,3 +183,61 @@ def test_engine_response_exposes_prompt_family_end_to_end(question: str, expecte
     assert result.response["meta"]["prompt_family"] == expected_family
     assert capability_contract["prompt_family"] == expected_family
     assert capability_contract["family_spec"]["family_id"] == expected_family
+
+
+def test_planner_builds_grouped_entity_count_plan_from_prompt_family_only() -> None:
+    planner = AnalysisPlanner()
+    engine = Saida()
+    profile = engine.profile(build_support_dataset())
+    request = AnalysisRequest(
+        question="Give me the total tickets per channel.",
+        prompt_family="grouped_entity_count",
+        task_type_hint="descriptive",
+        aggregation="count",
+        group_by=["channel"],
+        options={"page": 1, "page_size": 50, "sort_direction": "asc"},
+    )
+
+    plan = planner.build_plan(request, profile)
+
+    assert request.intent_name is None
+    assert [step.action for step in plan.steps] == ["grouped_tabular_query"]
+    assert plan.steps[0].parameters["group_by"] == ["channel"]
+    assert plan.steps[0].parameters["aggregation"] == "count"
+
+
+def test_planner_builds_column_type_lookup_plan_from_prompt_family_only() -> None:
+    planner = AnalysisPlanner()
+    engine = Saida()
+    profile = engine.profile(build_support_dataset())
+    request = AnalysisRequest(
+        question="What is the data type of created_at?",
+        prompt_family="column_type_lookup",
+        task_type_hint="descriptive",
+        target="created_at",
+    )
+
+    plan = planner.build_plan(request, profile)
+
+    assert request.intent_name is None
+    assert [step.action for step in plan.steps] == ["column_type_inventory"]
+    assert plan.steps[0].parameters == {"target": "created_at"}
+
+
+def test_planner_builds_column_presence_plan_from_contract_using_prompt_family() -> None:
+    planner = AnalysisPlanner()
+    engine = Saida()
+    dataset = build_support_dataset()
+    profile = engine.profile(dataset)
+    request = AnalysisRequest(
+        question="Does the dataset have a created_at column?",
+        prompt_family="column_presence_check",
+        task_type_hint="descriptive",
+        options={"requested_column": "created_at"},
+    )
+    contract = build_prompt_capability_contract(request, profile)
+
+    plan = planner.build_plan_from_contract(contract, request, profile)
+
+    assert [step.action for step in plan.steps] == ["column_presence_check"]
+    assert plan.steps[0].parameters == {"requested_column": "created_at"}
