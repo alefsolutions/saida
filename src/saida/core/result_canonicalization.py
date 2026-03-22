@@ -193,6 +193,7 @@ class ResultCanonicalizer:
                 },
             },
             "interpretation": {
+                "prompt_family": request.prompt_family,
                 "intent_name": request.intent_name,
                 "task_type": plan.task_type,
                 "target": request.target,
@@ -233,6 +234,7 @@ class ResultCanonicalizer:
                     "identifier_columns": list(profile.identifier_columns),
                     "profile_warnings": list(profile.warnings),
                 },
+                "prompt_family": request.prompt_family,
                 "capability_contract_status": capability_contract.status if capability_contract is not None else None,
                 "plan_warnings": list(plan.warnings),
                 "warning_count": len(warnings),

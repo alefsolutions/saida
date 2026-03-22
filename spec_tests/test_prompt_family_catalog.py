@@ -1,0 +1,184 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+import pandas as pd
+import pytest
+
+from saida import Saida
+from saida.core import (
+    AnalysisRequest,
+    Dataset,
+    build_default_prompt_family_catalog,
+    build_prompt_capability_contract,
+    derive_prompt_family,
+)
+
+
+def build_support_dataset() -> Dataset:
+    return Dataset(
+        name="support",
+        source_type="pandas",
+        data=pd.DataFrame(
+            {
+                "ticket_id": ["T1", "T2", "T3", "T4", "T5"],
+                "created_at": ["2026-01-01", "2026-01-02", "2026-01-03", "2026-01-04", "2026-01-05"],
+                "channel": ["Email", "Phone", "Email", "Chat", "Email"],
+                "priority": ["High", "High", "Low", "Low", "Medium"],
+                "team": ["Support", "Platform", "Support", "Payments", "Infrastructure"],
+                "resolution_hours": [4.2, 6.1, 3.4, 8.0, 5.5],
+            }
+        ),
+    )
+
+
+@pytest.mark.parametrize(
+    ("analysis_request", "expected_family"),
+    [
+        (
+            AnalysisRequest(
+                question="Give me the total tickets per channel.",
+                intent_name="grouped_tabular_query",
+                task_type_hint="descriptive",
+                aggregation="count",
+                group_by=["channel"],
+                options={"intent_name": "grouped_tabular_query"},
+            ),
+            "grouped_entity_count",
+        ),
+        (
+            AnalysisRequest(
+                question="What is the data type of created_at?",
+                intent_name="column_type_inventory",
+                task_type_hint="descriptive",
+                target="created_at",
+            ),
+            "column_type_lookup",
+        ),
+        (
+            AnalysisRequest(
+                question="Does the dataset have a created_at column?",
+                intent_name="existence_check",
+                task_type_hint="descriptive",
+                options={"existence_mode": "column_presence_check", "requested_column": "created_at"},
+            ),
+            "column_presence_check",
+        ),
+        (
+            AnalysisRequest(
+                question="Which channel has the most tickets?",
+                intent_name="representation_ranking",
+                task_type_hint="descriptive",
+                target="channel",
+                aggregation="count",
+                group_by=["channel"],
+                options={"ranking_limit": 1, "ranking_direction": "desc"},
+            ),
+            "representation_ranking",
+        ),
+        (
+            AnalysisRequest(
+                question="Show the latest rows.",
+                intent_name="tabular_query",
+                task_type_hint="descriptive",
+                options={"page": 1, "page_size": 50},
+            ),
+            "tabular_record_retrieval",
+        ),
+    ],
+    ids=[
+        "grouped-entity-count",
+        "column-type-lookup",
+        "column-presence-check",
+        "representation-ranking",
+        "tabular-record-retrieval",
+    ],
+)
+def test_derive_prompt_family_from_request_matrix(
+    analysis_request: AnalysisRequest,
+    expected_family: str,
+) -> None:
+    assert derive_prompt_family(analysis_request) == expected_family
+
+
+def test_prompt_family_catalog_markdown_snapshot_matches_live_catalog() -> None:
+    catalog = build_default_prompt_family_catalog()
+    catalog_path = Path(__file__).resolve().parents[1] / "PROMPT_FAMILY_CATALOG.md"
+
+    assert catalog_path.read_text(encoding="utf-8") == catalog.to_markdown()
+
+
+def test_prompt_capability_contract_exposes_prompt_family_and_family_spec() -> None:
+    engine = Saida()
+    dataset = build_support_dataset()
+    profile = engine.profile(dataset)
+    request = AnalysisRequest(
+        question="Give me the total tickets per channel.",
+        intent_name="grouped_tabular_query",
+        task_type_hint="descriptive",
+        aggregation="count",
+        group_by=["channel"],
+        options={"intent_name": "grouped_tabular_query"},
+    )
+
+    contract = build_prompt_capability_contract(request, profile)
+
+    assert contract.prompt_family == "grouped_entity_count"
+    assert contract.family_spec is not None
+    assert contract.family_spec["family_id"] == "grouped_entity_count"
+    assert not any(issue.code == "prompt_family_request_invariant" for issue in contract.validation_issues)
+
+
+def test_prompt_capability_contract_flags_prompt_family_request_mismatch() -> None:
+    engine = Saida()
+    dataset = build_support_dataset()
+    profile = engine.profile(dataset)
+    request = AnalysisRequest(
+        question="What are the columns?",
+        prompt_family="grouped_entity_count",
+        intent_name="column_inventory",
+        task_type_hint="descriptive",
+        options={"intent_name": "column_inventory"},
+    )
+
+    contract = build_prompt_capability_contract(request, profile)
+
+    mismatch_messages = [
+        issue.message
+        for issue in contract.validation_issues
+        if issue.code == "prompt_family_request_invariant"
+    ]
+    assert mismatch_messages
+    assert "Expected intent_name" in mismatch_messages[0]
+
+
+@pytest.mark.parametrize(
+    ("question", "expected_family"),
+    [
+        ("Give me the total tickets per channel.", "grouped_entity_count"),
+        ("What is the data type of the created_at field?", "column_type_lookup"),
+        ("Does the dataset have a created_at column?", "column_presence_check"),
+        ("Which channel has the most tickets?", "representation_ranking"),
+        ("List all team values.", "distinct_value_listing"),
+    ],
+    ids=[
+        "grouped-entity-count",
+        "column-type-lookup",
+        "column-presence-check",
+        "representation-ranking",
+        "distinct-value-listing",
+    ],
+)
+def test_engine_response_exposes_prompt_family_end_to_end(question: str, expected_family: str) -> None:
+    engine = Saida()
+    dataset = build_support_dataset()
+
+    result = engine.analyze(dataset, question)
+
+    interpretation = result.response["interpretation"]
+    capability_contract = interpretation["capability_contract"]
+
+    assert interpretation["prompt_family"] == expected_family
+    assert result.response["meta"]["prompt_family"] == expected_family
+    assert capability_contract["prompt_family"] == expected_family
+    assert capability_contract["family_spec"]["family_id"] == expected_family

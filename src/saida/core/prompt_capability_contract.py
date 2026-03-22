@@ -7,6 +7,11 @@ from typing import Any, Literal
 
 from saida.core.capability_registry import CapabilityRegistry, build_default_capability_registry
 from saida.core.contracts import AnalysisRequest, DatasetProfile
+from saida.core.prompt_family_catalog import (
+    PromptFamilyCatalog,
+    derive_prompt_family,
+    get_prompt_family_catalog,
+)
 
 ContractStatus = Literal[
     "supported_and_data_feasible",
@@ -118,8 +123,10 @@ class PromptCapabilityContract:
     question: str
     dataset_name: str
     status: ContractStatus
+    prompt_family: str | None = None
     task_type_hint: str | None = None
     intent_name: str | None = None
+    family_spec: dict[str, Any] | None = None
     candidate_capabilities: list[CapabilityActivation] = field(default_factory=list)
     selected_capabilities: list[str] = field(default_factory=list)
     resolved_parameters: list[ResolvedParameter] = field(default_factory=list)
@@ -146,8 +153,10 @@ class PromptCapabilityContract:
             "question": self.question,
             "dataset_name": self.dataset_name,
             "status": self.status,
+            "prompt_family": self.prompt_family,
             "task_type_hint": self.task_type_hint,
             "intent_name": self.intent_name,
+            "family_spec": dict(self.family_spec or {}) if self.family_spec is not None else None,
             "candidate_capabilities": [
                 {
                     "capability_id": candidate.capability_id,
@@ -201,10 +210,14 @@ def build_prompt_capability_contract(
     request: AnalysisRequest,
     profile: DatasetProfile,
     registry: CapabilityRegistry | None = None,
+    family_catalog: PromptFamilyCatalog | None = None,
 ) -> PromptCapabilityContract:
     """Bootstrap a prompt capability contract from the current normalized request."""
 
     active_registry = registry or build_default_capability_registry()
+    active_family_catalog = family_catalog or get_prompt_family_catalog()
+    prompt_family = request.prompt_family or derive_prompt_family(request, active_family_catalog)
+    family_spec = active_family_catalog.get(prompt_family)
     selected_capabilities = _select_capabilities(request, active_registry)
     candidate_capabilities = _build_capability_activations(request, selected_capabilities, active_registry)
     resolved_parameters = _build_resolved_parameters(request)
@@ -220,6 +233,22 @@ def build_prompt_capability_contract(
         "This contract is currently a bootstrap layer derived from the normalized AnalysisRequest.",
         "The live planner is not yet compiling directly from the capability registry.",
     ]
+    if prompt_family is None:
+        warnings.append("No governed prompt family was derived from the normalized request; the request remains on a legacy fallback path.")
+    elif family_spec is not None:
+        family_issues = family_spec.request_invariant_issues(request)
+        if family_issues:
+            issues.extend(
+                ValidationIssue(
+                    code="prompt_family_request_invariant",
+                    severity="warning",
+                    message=message,
+                    capability_id=prompt_family,
+                )
+                for message in family_issues
+            )
+        else:
+            notes.append(f"Prompt family {prompt_family!r} matched the request-level family invariants.")
 
     if request.target is None and profile.measure_columns and request.intent_name not in {
         "row_count",
@@ -245,8 +274,10 @@ def build_prompt_capability_contract(
         question=request.question,
         dataset_name=profile.dataset_name,
         status="supported_and_data_feasible",
+        prompt_family=prompt_family,
         task_type_hint=request.task_type_hint,
         intent_name=request.intent_name,
+        family_spec=family_spec.to_dict() if family_spec is not None else None,
         candidate_capabilities=candidate_capabilities,
         selected_capabilities=selected_capabilities,
         resolved_parameters=resolved_parameters,

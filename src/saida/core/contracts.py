@@ -77,6 +77,7 @@ class DatasetProfile:
 @dataclass(slots=True)
 class AnalysisRequest:
     question: str
+    prompt_family: str | None = None
     intent_name: str | None = None
     task_type_hint: str | None = None
     target: str | None = None

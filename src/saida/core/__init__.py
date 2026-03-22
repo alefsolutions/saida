@@ -32,6 +32,13 @@ from saida.core.contracts import (
 )
 from saida.core.discovery import DatasetProfiler, SchemaDiscoveryService
 from saida.core.planning import AnalysisPlanner, PlanBuilder
+from saida.core.prompt_family_catalog import (
+    PromptFamilyCatalog,
+    PromptFamilySpec,
+    build_default_prompt_family_catalog,
+    derive_prompt_family,
+    get_prompt_family_catalog,
+)
 from saida.core.prompt_capability_contract import (
     CapabilityActivation,
     DataFeasibilityCheck,
@@ -52,6 +59,7 @@ __all__ = [
     "AnalysisResult",
     "BackendRouter",
     "build_default_capability_registry",
+    "build_default_prompt_family_catalog",
     "build_prompt_capability_contract",
     "CapabilityActivation",
     "CapabilityEdge",
@@ -68,6 +76,7 @@ __all__ = [
     "ForecastResult",
     "get_capability_contract",
     "get_capability_registry",
+    "get_prompt_family_catalog",
     "InputCanonicalizer",
     "Metric",
     "MLReadinessProfile",
@@ -78,6 +87,8 @@ __all__ = [
     "PlanValidator",
     "PredictionResult",
     "PromptCapabilityContract",
+    "PromptFamilyCatalog",
+    "PromptFamilySpec",
     "RequestNormalizer",
     "ResolvedParameter",
     "ResultBuilder",
@@ -88,4 +99,5 @@ __all__ = [
     "TableArtifact",
     "TrainResult",
     "ValidationIssue",
+    "derive_prompt_family",
 ]

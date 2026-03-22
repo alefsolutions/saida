@@ -10,6 +10,7 @@ from saida.config import NlpConfig
 from saida.exceptions import ValidationError
 from saida.llm import IntentProposal
 from saida.core.contracts import AnalysisRequest, Dataset, DatasetProfile, SourceContext
+from saida.core.prompt_family_catalog import derive_prompt_family
 
 TASK_LABELS = ["descriptive", "diagnostic", "statistical", "predictive", "forecasting"]
 DISTINCT_VALUE_KEYWORDS = {
@@ -432,6 +433,7 @@ class InputCanonicalizer:
                 "distinct_values": distinct_values,
             },
         )
+        request.prompt_family = derive_prompt_family(request)
         return request, warnings
 
     def _configure_existence_request(
@@ -658,6 +660,7 @@ class InputCanonicalizer:
                 "distinct_values": distinct_values,
             },
         )
+        request.prompt_family = derive_prompt_family(request)
         return request, warnings
 
     def _validate_inputs(self, question: str, dataset: Dataset, profile: DatasetProfile) -> None:
