@@ -5,6 +5,7 @@ import pytest
 
 from saida import Saida
 from saida.config import LlmConfig
+from saida.core import get_capability_contract
 from saida.core.contracts import Dataset
 from saida.llm import BaseLlmProvider, IntentProposal, OpenAiLlmProvider, OllamaLlmProvider, ResponseContext, ResponseProposal, build_llm_provider
 from saida.exceptions import ValidationError
@@ -120,6 +121,8 @@ def test_engine_exposes_current_capabilities() -> None:
         "train": False,
         "predict": False,
         "forecast": False,
+        "prompt_capability_contract": True,
+        "capability_registry": True,
         "llm_prompting": False,
         "llm_reasoning": False,
     }
@@ -305,9 +308,17 @@ def test_engine_analysis_response_contract_records_intent_and_operations() -> No
     assert result.response["status"] == "ok"
     assert result.response["interpretation"]["aggregation"] == "mean"
     assert result.response["interpretation"]["target"] == "revenue"
+    assert result.response["interpretation"]["capability_contract"]["status"] in {
+        "supported_and_data_feasible",
+        "supported_with_partial_fallback",
+    }
     assert result.response["execution"]["step_count"] >= 1
     assert any(operation["action"] == "aggregate_value" for operation in result.response["execution"]["steps"])
     assert "revenue_mean" in result.response["meta"]["metric_lookup"]
+    assert result.response["meta"]["capability_contract_status"] in {
+        "supported_and_data_feasible",
+        "supported_with_partial_fallback",
+    }
     assert result.deterministic_summary is not None
     assert result.response["reasoning"]["deterministic_summary"] == result.deterministic_summary
 
@@ -434,6 +445,41 @@ def test_ollama_intent_prompt_mentions_tabular_query_capabilities() -> None:
     assert "limits" in prompt
     assert "grouped table outputs" in prompt
     assert "pagination-friendly requests" in prompt
+
+
+def test_capability_contract_exposes_live_input_and_result_surfaces() -> None:
+    contract = get_capability_contract()
+
+    assert "input_surface" in contract
+    assert "intent_families" in contract
+    assert "result_contract" in contract
+    assert "tabular_querying" in contract["intent_families"]
+    assert "ranking" in contract["intent_families"]
+    assert "analysis_result_top_level_fields" in contract["result_contract"]
+    assert "physical_shapes" in contract["result_contract"]
+    assert "logical_shapes" in contract["result_contract"]
+    assert "recordset" in contract["result_contract"]["physical_shapes"]
+    assert "verification" in contract["result_contract"]["logical_shapes"]
+    assert "pagination_fields" in contract["result_contract"]
+
+
+def test_provider_prompts_include_contract_driven_result_surface_text() -> None:
+    provider = OpenAiLlmProvider(LlmConfig(enabled=True, provider="openai", model="gpt-4.1-mini", options={"api_key": "test-key"}))
+    response_prompt = provider._build_response_prompt(
+        ResponseContext(
+            question="Show revenue by region",
+            dataset_name="sales",
+            task_type="descriptive",
+            deterministic_summary="Deterministic summary.",
+            context_summary=None,
+            metric_lookup={"revenue_sum": 100.0},
+            table_index={"group_breakdown": {"rows": 2, "columns": ["region", "target_total"], "description": "Breakdown", "metadata": {}}},
+            warnings=[],
+        )
+    )
+
+    assert "schema_version, status, request, interpretation, execution, result, tables, reasoning, history, warnings, errors, meta" in response_prompt
+    assert "name, description, physical_shape, logical_shape, dtype, schema, dimensions, row_count, labels, pagination, metadata, value" in response_prompt
 
 
 _ENGINE_PROFILE_CASES = [

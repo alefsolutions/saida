@@ -34,14 +34,37 @@ def _show_loader(stop_event: threading.Event) -> None:
     print("\r" + " " * 20 + "\r", end="", flush=True)
 
 
-def _render_json_output(result: object) -> str:
+def _output_mode(argv: list[str] | None = None) -> str:
+    arguments = argv or sys.argv[1:]
+    if "--both" in arguments:
+        return "both"
+    if "--contract" in arguments:
+        return "contract"
+    env_mode = os.getenv("SAIDA_PLAYGROUND_OUTPUT_MODE")
+    if env_mode in {"result", "contract", "both"}:
+        return env_mode
+    return "result"
+
+
+def _render_json_output(result: object, output_mode: str) -> str:
     payload = result.to_response_dict()
-    formatted_json = json.dumps(payload, indent=2, ensure_ascii=True, allow_nan=False)
+    contract_payload = payload.get("interpretation", {}).get("capability_contract")
+    if output_mode == "contract":
+        rendered_payload = contract_payload or {"status": "missing_contract", "message": "No capability contract payload was returned."}
+    elif output_mode == "both":
+        rendered_payload = {
+            "capability_contract": contract_payload,
+            "result": payload.get("result", payload),
+        }
+    else:
+        rendered_payload = payload.get("result", payload)
+    formatted_json = json.dumps(rendered_payload, indent=2, ensure_ascii=True, allow_nan=False)
     return f"{ANSI_YELLOW}{formatted_json}{ANSI_RESET}"
 
 
 def main() -> None:
     load_project_env(PROJECT_ROOT)
+    output_mode = _output_mode()
 
     if not os.getenv("OPENAI_API_KEY"):
         raise RuntimeError("OPENAI_API_KEY is not set.")
@@ -65,7 +88,7 @@ def main() -> None:
     print("SAIDA OpenAI JSON yellow playground")
     print(f"Dataset: {dataset.name}")
     print("Type a question, or type 'exit' to quit.")
-    print("Output mode: structured JSON")
+    print(f"Output mode: {output_mode} JSON")
 
     pending_prompt: str | None = None
     while True:
@@ -92,7 +115,7 @@ def main() -> None:
             stop_event.set()
             loader_thread.join()
 
-        print(_render_json_output(result))
+        print(_render_json_output(result, output_mode))
 
         if result.plan.task_type == "clarification":
             pending_prompt = question

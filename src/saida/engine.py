@@ -14,8 +14,9 @@ from saida.core import (
     ResultCanonicalizer,
     SchemaDiscoveryService,
     SourceContextParser,
+    build_prompt_capability_contract,
 )
-from saida.exceptions import ReasoningError, ValidationError
+from saida.exceptions import PlanningError, ReasoningError, ValidationError
 from saida.llm import BaseLlmProvider, ResponseContext, build_llm_provider
 from saida.outputs import SummaryFormatter
 from saida.core.contracts import (
@@ -72,6 +73,8 @@ class Saida:
             "train": False,
             "predict": False,
             "forecast": False,
+            "prompt_capability_contract": True,
+            "capability_registry": True,
             "llm_prompting": bool(self.llm_provider and self.config.llm.use_for_prompting),
             "llm_reasoning": bool(self.llm_provider and self.config.llm.use_for_reasoning),
         }
@@ -91,6 +94,18 @@ class Saida:
             trace.append(llm_trace_event)
         trace.append(self._trace("nlp", "request normalized", {"task_type": request.task_type_hint, "target": request.target}))
 
+        capability_contract = build_prompt_capability_contract(request, profile)
+        trace.append(
+            self._trace(
+                "contract",
+                "prompt capability contract built",
+                {
+                    "status": capability_contract.status,
+                    "selected_capabilities": list(capability_contract.selected_capabilities),
+                },
+            )
+        )
+
         if request.options.get("analysis_outcome") == "clarify":
             plan = AnalysisPlan(
                 task_type="clarification",
@@ -100,7 +115,20 @@ class Saida:
             )
             summary = request.options.get("llm_message") or "We need clarification before running this analysis."
             trace.append(self._trace("results", "clarification returned", {"summary_length": len(summary)}))
-            return self.result_canonicalizer.build_analysis_result(summary, None, None, "deterministic", [], [], request_warnings, plan, request, profile, trace)
+            return self.result_canonicalizer.build_analysis_result(
+                summary,
+                None,
+                None,
+                "deterministic",
+                [],
+                [],
+                self._merge_warnings(request_warnings, capability_contract.warnings),
+                plan,
+                request,
+                profile,
+                trace,
+                capability_contract,
+            )
 
         if request.options.get("analysis_outcome") == "refuse":
             plan = AnalysisPlan(
@@ -111,15 +139,113 @@ class Saida:
             )
             summary = request.options.get("llm_message") or "We are not able to provide this information at this time."
             trace.append(self._trace("results", "refusal returned", {"summary_length": len(summary)}))
-            return self.result_canonicalizer.build_analysis_result(summary, None, None, "deterministic", [], [], request_warnings, plan, request, profile, trace)
+            return self.result_canonicalizer.build_analysis_result(
+                summary,
+                None,
+                None,
+                "deterministic",
+                [],
+                [],
+                self._merge_warnings(request_warnings, capability_contract.warnings),
+                plan,
+                request,
+                profile,
+                trace,
+                capability_contract,
+            )
 
-        plan = self.plan_builder.build_plan(request, profile, dataset.context)
+        contract_warning_messages = [issue.message for issue in capability_contract.validation_issues if issue.severity != "error"]
+        if capability_contract.status == "unsupported_capability":
+            summary = "The request mapped to capabilities that SAIDA does not currently support."
+            plan = AnalysisPlan(
+                task_type="unavailable",
+                rationale="Prompt capability contract determined the request is unsupported before planning.",
+                steps=[],
+                warnings=self._merge_warnings(request_warnings, capability_contract.warnings, contract_warning_messages),
+            )
+            trace.append(self._trace("results", "unsupported capability returned", {"summary_length": len(summary)}))
+            return self.result_canonicalizer.build_analysis_result(
+                summary,
+                None,
+                None,
+                "deterministic",
+                [],
+                [],
+                self._merge_warnings(request_warnings, capability_contract.warnings, contract_warning_messages),
+                plan,
+                request,
+                profile,
+                trace,
+                capability_contract,
+            )
+
+        if (
+            request.options.get("nlp_backend") == "llm+validation"
+            and capability_contract.status in {"supported_but_data_infeasible", "supported_but_data_insufficient"}
+        ):
+            summary = self._contract_guidance_message(capability_contract)
+            plan = AnalysisPlan(
+                task_type="clarification",
+                rationale="Prompt capability contract requires clarification or better data support before planning.",
+                steps=[],
+                warnings=self._merge_warnings(request_warnings, capability_contract.warnings, contract_warning_messages),
+            )
+            trace.append(self._trace("results", "contract clarification returned", {"summary_length": len(summary)}))
+            return self.result_canonicalizer.build_analysis_result(
+                summary,
+                None,
+                None,
+                "deterministic",
+                [],
+                [],
+                self._merge_warnings(request_warnings, capability_contract.warnings, contract_warning_messages),
+                plan,
+                request,
+                profile,
+                trace,
+                capability_contract,
+            )
+
+        try:
+            plan = self.plan_builder.build_plan_from_contract(capability_contract, request, profile, dataset.context)
+        except PlanningError as exc:
+            if request.options.get("nlp_backend") != "llm+validation" or not capability_contract.missing_parameters:
+                raise
+            summary = self._contract_guidance_message(capability_contract, fallback_message=str(exc))
+            plan = AnalysisPlan(
+                task_type="clarification",
+                rationale="Prompt capability contract could not be compiled into a safe deterministic plan.",
+                steps=[],
+                warnings=self._merge_warnings(request_warnings, capability_contract.warnings, contract_warning_messages),
+            )
+            trace.append(self._trace("results", "planning clarification returned", {"summary_length": len(summary)}))
+            return self.result_canonicalizer.build_analysis_result(
+                summary,
+                None,
+                None,
+                "deterministic",
+                [],
+                [],
+                self._merge_warnings(request_warnings, capability_contract.warnings, contract_warning_messages),
+                plan,
+                request,
+                profile,
+                trace,
+                capability_contract,
+            )
+
         self.validator.validate_plan(plan)
         trace.append(self._trace("planning", "plan validated", {"task_type": plan.task_type, "step_count": len(plan.steps)}))
 
         metrics = []
         tables = []
-        warnings = self._merge_warnings(profile.warnings, request_warnings, plan.warnings)
+        warnings = self._merge_warnings(
+            profile.warnings,
+            request_warnings,
+            capability_contract.warnings,
+            contract_warning_messages,
+            plan.warnings,
+        )
 
         for step in plan.steps:
             if step.tool_family == "metadata":
@@ -509,6 +635,7 @@ class Saida:
             request,
             profile,
             trace,
+            capability_contract,
         )
 
     def train(
@@ -681,6 +808,22 @@ class Saida:
         if request.aggregation or request.group_by or request.time_reference:
             return True
         return False
+
+    def _contract_guidance_message(
+        self,
+        capability_contract: object,
+        fallback_message: str | None = None,
+    ) -> str:
+        missing_parameters = getattr(capability_contract, "missing_parameters", [])
+        issues = getattr(capability_contract, "validation_issues", [])
+        if missing_parameters:
+            joined = ", ".join(str(parameter) for parameter in missing_parameters)
+            return f"We need clarification before running this analysis. Missing or unresolved inputs: {joined}."
+        if issues:
+            first_message = getattr(issues[0], "message", None)
+            if isinstance(first_message, str) and first_message.strip():
+                return first_message
+        return fallback_message or "We need clarification or better data support before running this analysis."
 
     def _metadata_table(self, action: str, profile: DatasetProfile) -> TableArtifact:
         if action == "column_inventory":

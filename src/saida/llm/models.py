@@ -11,6 +11,7 @@ class IntentProposal:
     """Structured prompt interpretation proposed by an optional LLM."""
 
     status: str = "ready"
+    candidate_capabilities: list[str] | None = None
     task_type_hint: str | None = None
     target: str | None = None
     aggregation: str | None = None

@@ -2,12 +2,32 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from saida.exceptions import PlanningError
 from saida.core.contracts import AnalysisPlan, AnalysisRequest, DatasetProfile, PlanStep, SourceContext
+
+if TYPE_CHECKING:
+    from saida.core.prompt_capability_contract import PromptCapabilityContract
 
 
 class PlanBuilder:
     """Create executable analytical plans from canonical requests."""
+
+    def build_plan_from_contract(
+        self,
+        contract: PromptCapabilityContract,
+        request: AnalysisRequest,
+        profile: DatasetProfile,
+        context: SourceContext | None = None,
+    ) -> AnalysisPlan:
+        """Compile a plan through the prompt capability contract layer."""
+
+        if contract.status == "unsupported_capability":
+            raise PlanningError("Prompt capability contract resolved to an unsupported capability.")
+        if contract.status in {"supported_but_data_infeasible", "supported_but_data_insufficient"}:
+            raise PlanningError("Prompt capability contract failed data feasibility checks.")
+        return self.build_plan(request, profile, context)
 
     def build_plan(
         self,

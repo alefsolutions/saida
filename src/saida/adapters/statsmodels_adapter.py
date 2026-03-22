@@ -4,10 +4,19 @@ from __future__ import annotations
 
 import math
 
+import numpy as np
 import pandas as pd
-import statsmodels.api as sm
 from scipy import stats
-from statsmodels.stats.power import TTestIndPower
+
+try:  # pragma: no cover - exercised indirectly in environments with statsmodels
+    import statsmodels.api as sm
+except Exception:  # pragma: no cover - graceful fallback path
+    sm = None
+
+try:  # pragma: no cover - exercised indirectly in environments with statsmodels
+    from statsmodels.stats.power import TTestIndPower
+except Exception:  # pragma: no cover - graceful fallback path
+    TTestIndPower = None
 
 from saida.exceptions import ComputeError
 from saida.core.contracts import TableArtifact
@@ -408,25 +417,28 @@ class StatsModelsAdapter:
         if prepared.empty or len(prepared) < len(feature_columns) + 2:
             raise ComputeError("Regression significance testing requires enough complete numeric observations.")
 
-        design_matrix = sm.add_constant(prepared[feature_columns], has_constant="add")
-        model = sm.OLS(prepared[target], design_matrix).fit()
-        intervals = model.conf_int(alpha=alpha)
-
         rows: list[dict[str, object]] = []
-        for parameter_name in model.params.index:
-            rows.append(
-                {
-                    "parameter": str(parameter_name),
-                    "coefficient": float(model.params[parameter_name]),
-                    "std_error": float(model.bse[parameter_name]),
-                    "t_value": float(model.tvalues[parameter_name]),
-                    "p_value": float(model.pvalues[parameter_name]),
-                    "lower_bound": float(intervals.loc[parameter_name, 0]),
-                    "upper_bound": float(intervals.loc[parameter_name, 1]),
-                    "alpha": float(alpha),
-                    "is_significant": bool(model.pvalues[parameter_name] < alpha),
-                }
-            )
+        if sm is not None:
+            design_matrix = sm.add_constant(prepared[feature_columns], has_constant="add")
+            model = sm.OLS(prepared[target], design_matrix).fit()
+            intervals = model.conf_int(alpha=alpha)
+
+            for parameter_name in model.params.index:
+                rows.append(
+                    {
+                        "parameter": str(parameter_name),
+                        "coefficient": float(model.params[parameter_name]),
+                        "std_error": float(model.bse[parameter_name]),
+                        "t_value": float(model.tvalues[parameter_name]),
+                        "p_value": float(model.pvalues[parameter_name]),
+                        "lower_bound": float(intervals.loc[parameter_name, 0]),
+                        "upper_bound": float(intervals.loc[parameter_name, 1]),
+                        "alpha": float(alpha),
+                        "is_significant": bool(model.pvalues[parameter_name] < alpha),
+                    }
+                )
+        else:
+            rows.extend(self._fallback_regression_significance_rows(prepared, target, feature_columns, alpha))
 
         return TableArtifact(
             name="regression_significance",
@@ -469,13 +481,21 @@ class StatsModelsAdapter:
         if effect_size == 0.0:
             raise ComputeError("Power analysis requires a non-zero observed effect size.")
 
-        power_model = TTestIndPower()
-        actual_power = power_model.power(
-            effect_size=abs(effect_size),
-            nobs1=len(left_values),
-            alpha=alpha,
-            ratio=len(right_values) / len(left_values),
-        )
+        if TTestIndPower is not None:
+            power_model = TTestIndPower()
+            actual_power = power_model.power(
+                effect_size=abs(effect_size),
+                nobs1=len(left_values),
+                alpha=alpha,
+                ratio=len(right_values) / len(left_values),
+            )
+        else:
+            actual_power = self._approximate_two_group_power(
+                abs(effect_size),
+                len(left_values),
+                len(right_values),
+                alpha,
+            )
         return TableArtifact(
             name="power_analysis",
             description=f"Observed power for {target} by {group_column}.",
@@ -510,14 +530,21 @@ class StatsModelsAdapter:
         if effect_size == 0.0:
             raise ComputeError("Sample size estimation requires a non-zero observed effect size.")
 
-        power_model = TTestIndPower()
-        required_sample_size = power_model.solve_power(
-            effect_size=abs(effect_size),
-            power=desired_power,
-            alpha=alpha,
-            ratio=1.0,
-        )
-        required_sample_size_value = self._coerce_scalar_float(required_sample_size)
+        if TTestIndPower is not None:
+            power_model = TTestIndPower()
+            required_sample_size = power_model.solve_power(
+                effect_size=abs(effect_size),
+                power=desired_power,
+                alpha=alpha,
+                ratio=1.0,
+            )
+            required_sample_size_value = self._coerce_scalar_float(required_sample_size)
+        else:
+            required_sample_size_value = self._approximate_sample_size_per_group(
+                abs(effect_size),
+                alpha,
+                desired_power,
+            )
         if not math.isfinite(required_sample_size_value):
             raise ComputeError("Sample size estimation did not converge to a finite result.")
         return TableArtifact(
@@ -614,6 +641,87 @@ class StatsModelsAdapter:
         if pooled_deviation <= 0.0:
             return 0.0
         return float((left_values.mean() - right_values.mean()) / pooled_deviation**0.5)
+
+    def _fallback_regression_significance_rows(
+        self,
+        prepared: pd.DataFrame,
+        target: str,
+        feature_columns: list[str],
+        alpha: float,
+    ) -> list[dict[str, object]]:
+        y = prepared[target].to_numpy(dtype=float)
+        x = prepared[feature_columns].to_numpy(dtype=float)
+        x = np.column_stack([np.ones(len(x)), x])
+        parameter_names = ["const", *feature_columns]
+        observation_count, parameter_count = x.shape
+        degrees_of_freedom = observation_count - parameter_count
+        if degrees_of_freedom <= 0:
+            raise ComputeError("Regression significance testing requires more rows than model parameters.")
+
+        xtx = x.T @ x
+        try:
+            xtx_inv = np.linalg.inv(xtx)
+        except np.linalg.LinAlgError as exc:
+            raise ComputeError("Regression significance testing encountered a singular design matrix.") from exc
+
+        coefficients = xtx_inv @ x.T @ y
+        residuals = y - (x @ coefficients)
+        rss = float(np.sum(residuals**2))
+        sigma_squared = rss / degrees_of_freedom
+        standard_errors = np.sqrt(np.diag(sigma_squared * xtx_inv))
+        if np.any(standard_errors == 0):
+            raise ComputeError("Regression significance testing produced zero standard error estimates.")
+
+        t_values = coefficients / standard_errors
+        p_values = 2.0 * (1.0 - stats.t.cdf(np.abs(t_values), df=degrees_of_freedom))
+        critical_value = float(stats.t.ppf(1.0 - (alpha / 2.0), df=degrees_of_freedom))
+
+        rows: list[dict[str, object]] = []
+        for index, parameter_name in enumerate(parameter_names):
+            coefficient = float(coefficients[index])
+            std_error = float(standard_errors[index])
+            lower_bound = coefficient - (critical_value * std_error)
+            upper_bound = coefficient + (critical_value * std_error)
+            p_value = float(p_values[index])
+            rows.append(
+                {
+                    "parameter": parameter_name,
+                    "coefficient": coefficient,
+                    "std_error": std_error,
+                    "t_value": float(t_values[index]),
+                    "p_value": p_value,
+                    "lower_bound": float(lower_bound),
+                    "upper_bound": float(upper_bound),
+                    "alpha": float(alpha),
+                    "is_significant": bool(p_value < alpha),
+                }
+            )
+        return rows
+
+    def _approximate_two_group_power(
+        self,
+        effect_size: float,
+        left_count: int,
+        right_count: int,
+        alpha: float,
+    ) -> float:
+        effective_n = (left_count * right_count) / max(left_count + right_count, 1)
+        z_alpha = float(stats.norm.ppf(1.0 - (alpha / 2.0)))
+        z_effect = effect_size * math.sqrt(max(effective_n, 1e-9))
+        power = float(stats.norm.cdf(z_effect - z_alpha))
+        return min(max(power, 0.0), 1.0)
+
+    def _approximate_sample_size_per_group(
+        self,
+        effect_size: float,
+        alpha: float,
+        desired_power: float,
+    ) -> float:
+        z_alpha = float(stats.norm.ppf(1.0 - (alpha / 2.0)))
+        z_beta = float(stats.norm.ppf(desired_power))
+        if effect_size <= 0.0:
+            raise ComputeError("Sample size estimation requires a positive effect size.")
+        return float(2.0 * ((z_alpha + z_beta) / effect_size) ** 2)
 
 
 StatsComputeEngine = StatsModelsAdapter

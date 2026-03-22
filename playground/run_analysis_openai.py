@@ -39,6 +39,18 @@ def _json_mode_enabled(argv: list[str] | None = None) -> bool:
     return "--json" in arguments or os.getenv("SAIDA_PLAYGROUND_JSON") == "1"
 
 
+def _output_mode(argv: list[str] | None = None) -> str:
+    arguments = argv or sys.argv[1:]
+    if "--both" in arguments:
+        return "both"
+    if "--contract" in arguments:
+        return "contract"
+    env_mode = os.getenv("SAIDA_PLAYGROUND_OUTPUT_MODE")
+    if env_mode in {"response", "contract", "both"}:
+        return env_mode
+    return "response"
+
+
 def _colorize_json_value_blocks(formatted_json: str) -> str:
     lines = formatted_json.splitlines()
     highlighted_lines: list[str] = []
@@ -66,15 +78,26 @@ def _colorize_json_value_blocks(formatted_json: str) -> str:
     return "\n".join(highlighted_lines)
 
 
-def _render_json_output(result: object) -> str:
+def _render_json_output(result: object, output_mode: str) -> str:
     payload = result.to_response_dict()
-    formatted_json = json.dumps(payload, indent=2, ensure_ascii=True, allow_nan=False)
+    contract_payload = payload.get("interpretation", {}).get("capability_contract")
+    if output_mode == "contract":
+        rendered_payload = contract_payload or {"status": "missing_contract", "message": "No capability contract payload was returned."}
+    elif output_mode == "both":
+        rendered_payload = {
+            "capability_contract": contract_payload,
+            "response": payload,
+        }
+    else:
+        rendered_payload = payload
+    formatted_json = json.dumps(rendered_payload, indent=2, ensure_ascii=True, allow_nan=False)
     return _colorize_json_value_blocks(formatted_json)
 
 
 def main() -> None:
     load_project_env(PROJECT_ROOT)
     json_mode = _json_mode_enabled()
+    output_mode = _output_mode()
 
     if not os.getenv("OPENAI_API_KEY"):
         raise RuntimeError("OPENAI_API_KEY is not set.")
@@ -99,7 +122,7 @@ def main() -> None:
     print(f"Dataset: {dataset.name}")
     print("Type a question, or type 'exit' to quit.")
     if json_mode:
-        print("Output mode: structured JSON")
+        print(f"Output mode: {output_mode} JSON")
 
     pending_prompt: str | None = None
     while True:
@@ -127,7 +150,7 @@ def main() -> None:
             loader_thread.join()
 
         if json_mode:
-            print(_render_json_output(result))
+            print(_render_json_output(result, output_mode))
         else:
             llm_summary = getattr(result, "llm_summary", None)
             summary = getattr(result, "summary", "")

@@ -308,6 +308,10 @@ class InputCanonicalizer:
         )
         if intent_name == "grouped_tabular_query" and target in set(group_by or []) and target not in set(profile.measure_columns):
             target = None
+        if self._looks_like_grouped_entity_count_request(question, target, group_by, profile):
+            intent_name = "grouped_tabular_query"
+            target = None
+            aggregation = "count"
         if intent_name == "existence_check":
             target, aggregation, group_by = self._configure_existence_request(
                 question,
@@ -360,6 +364,7 @@ class InputCanonicalizer:
             options["page_size"] = page_size or limit or 50
             if intent_name == "grouped_tabular_query" and aggregation is None:
                 aggregation = "count" if target is None else "sum"
+        options["intent_name"] = intent_name
 
         if target is None and profile.measure_columns and intent_name not in {
             "row_count",
@@ -520,6 +525,10 @@ class InputCanonicalizer:
         )
         if rule_intent_name == "grouped_tabular_query" and target in set(group_by or []) and target not in set(profile.measure_columns):
             target = None
+        if self._looks_like_grouped_entity_count_request(question, target, group_by, profile):
+            rule_intent_name = "grouped_tabular_query"
+            target = None
+            aggregation = "count"
         if rule_intent_name == "existence_check":
             target, aggregation, group_by = self._configure_existence_request(
                 question,
@@ -571,6 +580,7 @@ class InputCanonicalizer:
             options["page_size"] = rule_page_size or rule_limit or 50
             if rule_intent_name == "grouped_tabular_query" and aggregation is None:
                 aggregation = "count" if target is None else "sum"
+        options["intent_name"] = rule_intent_name
 
         if target is None and profile.measure_columns and rule_intent_name not in {
             "row_count",
@@ -629,6 +639,7 @@ class InputCanonicalizer:
             time_reference=time_reference,
             options={
                 **options,
+                "candidate_capabilities": list(proposal.candidate_capabilities or []),
                 "nlp_backend": "llm+validation",
                 "llm_status": proposal.status,
                 "distinct_values": distinct_values,
@@ -1574,6 +1585,23 @@ class InputCanonicalizer:
         if selected_columns or filters or any(keyword in lowered for keyword in TABULAR_ROW_KEYWORDS | TABULAR_SURFACE_KEYWORDS):
             return "tabular_query"
         return intent_name
+
+    def _looks_like_grouped_entity_count_request(
+        self,
+        question: str,
+        target: str | None,
+        group_by: list[str] | None,
+        profile: DatasetProfile,
+    ) -> bool:
+        if not group_by or not target:
+            return False
+        if target not in set(group_by):
+            return False
+        if target in set(profile.measure_columns):
+            return False
+
+        lowered = question.lower()
+        return any(keyword in lowered for keyword in {"count", "how many", "number of", "total"})
 
     def _resolve_candidate_column(
         self,

@@ -7,6 +7,7 @@ import os
 from urllib import error, request
 
 from saida.config import LlmConfig
+from saida.core.capability_contract import build_intent_prompt_contract_text, build_response_contract_text
 from saida.exceptions import ReasoningError
 from saida.llm.base import BaseLlmProvider
 from saida.llm.models import IntentProposal, ResponseContext, ResponseProposal
@@ -43,6 +44,7 @@ class OpenAiLlmProvider(BaseLlmProvider):
 
         return IntentProposal(
             status=str(payload.get("status", "ready")),
+            candidate_capabilities=self._maybe_string_list(payload.get("candidate_capabilities")),
             task_type_hint=self._maybe_string(payload.get("task_type_hint")),
             target=self._maybe_string(payload.get("target")),
             aggregation=self._maybe_string(payload.get("aggregation")),
@@ -135,20 +137,7 @@ class OpenAiLlmProvider(BaseLlmProvider):
         return (
             "You are a prompt interpreter for SAIDA.\n"
             "Return JSON only.\n"
-            'Allowed status values: "ready", "clarify", "refuse".\n'
-            "Do not invent columns.\n"
-            "If uncertain, use clarify or refuse.\n"
-            "Supported deterministic intents include row counts, grouped row counts for most/least represented groups, "
-            "column inventory, distinct value listing, scalar aggregations, grouped aggregations, trends, period comparisons, "
-            "boolean verification checks, ranked row/group retrieval, and tabular query workflows.\n"
-            "Supported tabular query workflows include filtered row retrieval, recordset listing, selected columns, sorting, limits, "
-            "grouped table outputs, and pagination-friendly requests such as returning the first N rows or a page of rows.\n"
-            "Requests for rows, records, tables, or tickets can be supported when they map to deterministic tabular querying.\n"
-            "Do not refuse a supported tabular request just because it is not an aggregation.\n"
-            "If a request is supported but underspecified, prefer status=ready and leave unsupported fields null so deterministic normalization can finish the routing.\n"
-            "For prompts about least or most represented groups, prefer a grouped row-count interpretation when a dimension column is present.\n"
-            "For prompts about available columns, return a ready status instead of asking for clarification.\n"
-            "Return keys: status, task_type_hint, target, aggregation, horizon, filters, group_by, time_reference, message, warnings.\n"
+            f"{build_intent_prompt_contract_text()}"
             f"Dataset: {dataset_name}\n"
             f"Profile summary: {profile_summary}\n"
             f"Context summary: {context_summary or 'none'}\n"
@@ -159,10 +148,7 @@ class OpenAiLlmProvider(BaseLlmProvider):
         return (
             "You are a response writer for SAIDA.\n"
             "Return JSON only.\n"
-            'Allowed status values: "ready", "refuse".\n'
-            "Do not invent metrics or facts.\n"
-            "Use the deterministic summary and metric payload only.\n"
-            "Return keys: status, summary, message, warnings.\n"
+            f"{build_response_contract_text()}"
             f"Question: {response_context.question}\n"
             f"Dataset: {response_context.dataset_name}\n"
             f"Task type: {response_context.task_type}\n"

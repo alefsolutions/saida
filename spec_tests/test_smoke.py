@@ -1137,6 +1137,25 @@ def test_analyze_supports_group_ranking_summary_prompt() -> None:
     assert any(table.name == "ranked_breakdown" for table in result.tables)
 
 
+def test_analyze_supports_grouped_entity_count_prompt() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "channel": ["Email", "Phone", "Email", "Chat"],
+            "priority": ["High", "High", "Low", "Low"],
+        }
+    )
+    dataset = Dataset(name="tickets", source_type="pandas", data=dataframe)
+
+    result = Saida().analyze(dataset, "Give me a list of total tickets per channel.")
+
+    assert result.response["interpretation"]["intent_name"] == "grouped_tabular_query"
+    assert result.response["interpretation"]["options"]["intent_name"] == "grouped_tabular_query"
+    assert result.response["interpretation"]["target"] is None
+    assert result.response["interpretation"]["aggregation"] == "count"
+    assert result.response["interpretation"]["capability_contract"]["status"] == "supported_and_data_feasible"
+    assert any(table.name == "grouped_tabular_query" for table in result.tables)
+
+
 def test_analyze_rejects_dimension_mean_prompt_instead_of_falling_back() -> None:
     dataframe = pd.DataFrame(
         {

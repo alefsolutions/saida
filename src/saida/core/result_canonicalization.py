@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import asdict
 import math
 from typing import Any
+from typing import TYPE_CHECKING
 
 import pandas as pd
 
@@ -21,6 +22,9 @@ from saida.core.contracts import (
     TableArtifact,
     TrainResult,
 )
+
+if TYPE_CHECKING:
+    from saida.core.prompt_capability_contract import PromptCapabilityContract
 
 
 class ResultCanonicalizer:
@@ -39,6 +43,7 @@ class ResultCanonicalizer:
         request: AnalysisRequest,
         profile: DatasetProfile,
         trace: list[ExecutionTraceEvent],
+        capability_contract: PromptCapabilityContract | None = None,
     ) -> AnalysisResult:
         artifacts = self._build_analysis_artifacts(
             metrics,
@@ -51,6 +56,7 @@ class ResultCanonicalizer:
             deterministic_summary,
             llm_summary,
             summary_source,
+            capability_contract,
         )
         response = self._build_analysis_response(
             summary,
@@ -64,6 +70,7 @@ class ResultCanonicalizer:
             deterministic_summary,
             llm_summary,
             summary_source,
+            capability_contract,
         )
         return AnalysisResult(
             summary=summary,
@@ -107,6 +114,7 @@ class ResultCanonicalizer:
         deterministic_summary: str | None,
         llm_summary: str | None,
         summary_source: str,
+        capability_contract: PromptCapabilityContract | None,
     ) -> dict[str, object]:
         metric_lookup = {metric.name: metric.value for metric in metrics}
         table_index = {
@@ -123,6 +131,7 @@ class ResultCanonicalizer:
         return self._json_safe(
             {
             "request": asdict(request),
+            "prompt_capability_contract": capability_contract.to_dict() if capability_contract is not None else None,
             "profile": {
                 "dataset_name": profile.dataset_name,
                 "row_count": profile.row_count,
@@ -157,6 +166,7 @@ class ResultCanonicalizer:
         deterministic_summary: str | None,
         llm_summary: str | None,
         summary_source: str,
+        capability_contract: PromptCapabilityContract | None,
     ) -> dict[str, object]:
         operations = [
             {
@@ -192,6 +202,7 @@ class ResultCanonicalizer:
                 "time_reference": dict(request.time_reference or {}),
                 "horizon": request.horizon,
                 "options": dict(request.options),
+                "capability_contract": capability_contract.to_dict() if capability_contract is not None else None,
             },
             "execution": {
                 "status": self._resolve_status(plan),
@@ -222,6 +233,7 @@ class ResultCanonicalizer:
                     "identifier_columns": list(profile.identifier_columns),
                     "profile_warnings": list(profile.warnings),
                 },
+                "capability_contract_status": capability_contract.status if capability_contract is not None else None,
                 "plan_warnings": list(plan.warnings),
                 "warning_count": len(warnings),
                 "metrics": [asdict(metric) for metric in metrics],
