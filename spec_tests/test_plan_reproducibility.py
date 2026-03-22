@@ -1,15 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-import json
 from typing import Any, Callable
 
-import pandas as pd
 import pytest
 
 from saida import Saida
 from saida.core.contracts import AnalysisPlan, AnalysisRequest, Dataset
 from saida.core.prompt_family_catalog import build_default_prompt_family_catalog
+from .factories import build_sales_dataset, build_support_dataset, json_safe
 
 
 _UNSET = object()
@@ -45,56 +44,6 @@ class ReproducibilityCase:
     expected_primary_result_name: str = ""
     expected_primary_logical_shape: str | None = None
     expected_primary_value: Any = _UNSET
-
-
-def build_sales_dataset() -> Dataset:
-    return Dataset(
-        name="sales",
-        source_type="pandas",
-        data=pd.DataFrame(
-            {
-                "posted_at": [
-                    "2025-10-01",
-                    "2025-11-01",
-                    "2025-12-01",
-                    "2026-01-01",
-                    "2026-02-01",
-                    "2026-03-01",
-                ],
-                "revenue": [100.0, 120.0, 90.0, 80.0, 110.0, 130.0],
-                "region": ["West", "East", "West", "East", "West", "East"],
-                "segment": ["SMB", "Enterprise", "SMB", "Enterprise", "SMB", "Enterprise"],
-            }
-        ),
-    )
-
-
-def build_support_dataset() -> Dataset:
-    return Dataset(
-        name="support",
-        source_type="pandas",
-        data=pd.DataFrame(
-            {
-                "ticket_id": ["T1", "T2", "T3", "T4", "T5", "T6", "T7"],
-                "created_at": [
-                    "2026-01-01",
-                    "2026-01-12",
-                    "2026-02-03",
-                    "2026-02-14",
-                    "2026-03-05",
-                    "2026-04-16",
-                    "2026-05-07",
-                ],
-                "resolution_hours": [2.1, 5.4, 6.8, 4.2, 7.1, 8.0, 3.5],
-                "csat_score": [4.7, None, 3.6, 4.1, 3.5, 3.2, 4.4],
-                "team": ["Support", "Support", "Platform", "Platform", "Support", "Platform", "Support"],
-                "priority": ["Low", "Medium", "High", "Low", "High", "Medium", "Low"],
-                "reopened_flag": ["no", "no", "yes", "yes", "no", "yes", "no"],
-            }
-        ),
-    )
-
-
 def _request_signature(request: AnalysisRequest) -> dict[str, Any]:
     options = {
         key: value
@@ -133,13 +82,12 @@ def _plan_signature(plan: AnalysisPlan) -> dict[str, Any]:
 def _result_signature(result: Any) -> dict[str, Any]:
     payload = result.to_response_dict()
     return {
+        "status": payload["status"],
         "result": payload["result"],
-        "table_names": [table["name"] for table in payload["tables"]],
+        "tables": payload["tables"],
+        "warnings": payload["warnings"],
+        "metric_lookup": payload["meta"].get("metric_lookup"),
     }
-
-
-def _canonical_jsonable(value: Any) -> Any:
-    return json.loads(json.dumps(value, sort_keys=True, default=str))
 
 
 _REPRODUCIBILITY_CASES = [
@@ -709,9 +657,9 @@ def test_prompt_family_paraphrases_reproduce_same_request_plan_and_result(case: 
 
         assert warnings == []
 
-        request_signature = _canonical_jsonable(_request_signature(request))
-        plan_signature = _canonical_jsonable(_plan_signature(plan))
-        result_signature = _canonical_jsonable(_result_signature(result))
+        request_signature = json_safe(_request_signature(request))
+        plan_signature = json_safe(_plan_signature(plan))
+        result_signature = json_safe(_result_signature(result))
 
         if baseline_request_signature is None:
             baseline_request_signature = request_signature
