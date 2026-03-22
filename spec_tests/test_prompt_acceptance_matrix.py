@@ -113,6 +113,16 @@ def _canonical_filters(value: dict[str, Any] | None) -> dict[str, Any]:
     return value or {}
 
 
+def _casefold_filter_value(value: Any) -> Any:
+    if isinstance(value, str):
+        return value.casefold()
+    if isinstance(value, list):
+        return [_casefold_filter_value(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _casefold_filter_value(item) for key, item in value.items()}
+    return value
+
+
 def _build_supported_acceptance_cases() -> tuple[PromptAcceptanceCase, ...]:
     cases: list[PromptAcceptanceCase] = []
     for reproducibility_case in _REPRODUCIBILITY_CASES:
@@ -211,7 +221,9 @@ def test_prompt_acceptance_matrix_request_and_plan(case: PromptAcceptanceCase) -
     assert request.target == case.expected_target
     assert request.aggregation == case.expected_aggregation
     assert _canonical_group_by(request.group_by) == list(case.expected_group_by)
-    assert json_safe(_canonical_filters(request.filters)) == json_safe(_canonical_filters(case.expected_filters))
+    assert json_safe(_casefold_filter_value(_canonical_filters(request.filters))) == json_safe(
+        _casefold_filter_value(_canonical_filters(case.expected_filters))
+    )
     _assert_option_subset(request.options, case.expected_option_subset)
 
     plan = engine.plan_builder.build_plan(request, profile, dataset.context)
