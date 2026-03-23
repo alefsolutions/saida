@@ -54,18 +54,10 @@ def _render_json_output(result: object, output_mode: str) -> str:
     elif output_mode == "both":
         rendered_payload = {
             "capability_contract": contract_payload,
-            "result": payload.get("result", payload),
+            "response": payload,
         }
     else:
-        if payload.get("status") in {"clarify", "refuse"}:
-            rendered_payload = {
-                "status": payload.get("status"),
-                "summary": payload.get("reasoning", {}).get("summary"),
-                "clarification_reason": payload.get("interpretation", {}).get("options", {}).get("clarification_reason"),
-                "result": payload.get("result", payload),
-            }
-        else:
-            rendered_payload = payload.get("result", payload)
+        rendered_payload = payload
     formatted_json = json.dumps(rendered_payload, indent=2, ensure_ascii=True, allow_nan=False)
     return f"{ANSI_YELLOW}{formatted_json}{ANSI_RESET}"
 

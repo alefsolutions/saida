@@ -130,7 +130,7 @@ def test_openai_playground_json_mode_prints_structured_contract(
     assert '"ticket_id": "T1"' in output
 
 
-def test_openai_yellow_json_playground_prints_yellow_primary_result_only(
+def test_openai_yellow_json_playground_prints_full_response_payload(
     monkeypatch: object,
     capsys: object,
 ) -> None:
@@ -153,8 +153,9 @@ def test_openai_yellow_json_playground_prints_yellow_primary_result_only(
     output = capsys.readouterr().out
 
     assert "\033[33m" in output
-    assert '"schema_version": "saida.response.v2"' not in output
-    assert '"result"' not in output
+    assert '"schema_version": "saida.response.v2"' in output
+    assert '"result"' in output
+    assert '"interpretation"' in output
     assert '"ticket_id": "T1"' in output
 
 
