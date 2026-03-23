@@ -119,7 +119,7 @@ class YearMonthFilterLlmProvider(BaseLlmProvider):
 
 
 class CanonicalQuestionLlmProvider(BaseLlmProvider):
-    """Provider that simplifies awkward phrasing into a clearer equivalent prompt."""
+    """Provider that simplifies awkward scalar prompts into clearer equivalent prompts."""
 
     def interpret_prompt(
         self,
@@ -128,20 +128,47 @@ class CanonicalQuestionLlmProvider(BaseLlmProvider):
         profile_summary: str,
         context_summary: str | None,
     ) -> IntentProposal | None:
-        _ = question
         _ = dataset_name
         _ = profile_summary
         _ = context_summary
+        prompt_mapping = {
+            "Count total rows in dataset for Q1": ("Count rows for Q1", "row_count"),
+            "Count total columns in dataset": ("How many columns are in the dataset?", "column_count"),
+            "Count total numeric columns in dataset": ("How many numeric columns are there?", "numeric_column_count"),
+            "Count total categorical fields in dataset": ("How many categorical fields are in the dataset?", "categorical_column_count"),
+            "Count total unique team values in dataset": ("How many unique team values are there?", "distinct_value_count"),
+            "Count total measures in dataset": ("How many measures are in the dataset?", "measure_count"),
+        }
+        canonical_question, prompt_family_hint = prompt_mapping[question]
         return IntentProposal(
             status="ready",
-            canonical_question="Count rows for Q1",
-            prompt_family_hint="row_count",
+            canonical_question=canonical_question,
+            prompt_family_hint=prompt_family_hint,
             confidence=0.94,
             warnings=["llm prompt path used"],
         )
 
     def generate_response(self, response_context: ResponseContext) -> ResponseProposal | None:
         return ResponseProposal(status="ready", summary=response_context.deterministic_summary)
+
+
+def build_canonical_scalar_support_dataset() -> Dataset:
+    return Dataset(
+        name="support",
+        source_type="pandas",
+        data=pd.DataFrame(
+            {
+                "created_at": ["2025-01-01", "2025-02-01", "2025-03-01", "2025-04-01"],
+                "team": ["Support", "Platform", "Payments", "Support"],
+                "priority": ["High", "Low", "Medium", "High"],
+                "channel": ["Email", "Chat", "Phone", "Portal"],
+                "product_area": ["Billing", "Checkout", "Accounts", "Reporting"],
+                "resolution_hours": [2.5, 5.0, 7.5, 4.0],
+                "csat_score": [4.5, 3.8, 3.2, 4.1],
+                "reopened_flag": ["no", "yes", "no", "no"],
+            }
+        ),
+    )
 
 
 def test_engine_load_context_parses_markdown() -> None:
@@ -407,34 +434,60 @@ def test_engine_coerces_llm_year_month_filter_on_time_column() -> None:
     assert result.artifacts["request"]["options"]["nlp_backend"] == "llm+validation"
 
 
-def test_engine_uses_llm_canonical_question_for_condensed_prompt_routing() -> None:
+@pytest.mark.parametrize(
+    ("question", "expected_prompt_family", "expected_result_name", "expected_value", "expected_canonical_question"),
+    [
+        ("Count total rows in dataset for Q1", "row_count", "row_count", 3, "Count rows for Q1"),
+        ("Count total columns in dataset", "column_count", "column_count", 8, "How many columns are in the dataset?"),
+        (
+            "Count total numeric columns in dataset",
+            "numeric_column_count",
+            "numeric_column_count",
+            2,
+            "How many numeric columns are there?",
+        ),
+        (
+            "Count total categorical fields in dataset",
+            "categorical_column_count",
+            "categorical_column_count",
+            5,
+            "How many categorical fields are in the dataset?",
+        ),
+        (
+            "Count total unique team values in dataset",
+            "distinct_value_count",
+            "team_distinct_count",
+            3,
+            "How many unique team values are there?",
+        ),
+        ("Count total measures in dataset", "measure_count", "measure_count", 2, "How many measures are in the dataset?"),
+    ],
+)
+def test_engine_uses_llm_canonical_question_for_condensed_scalar_prompt_routing(
+    question: str,
+    expected_prompt_family: str,
+    expected_result_name: str,
+    expected_value: int,
+    expected_canonical_question: str,
+) -> None:
     engine = Saida(llm_provider=CanonicalQuestionLlmProvider())
     engine.config.llm.enabled = True
-    dataset = Dataset(
-        name="support",
-        source_type="pandas",
-        data=pd.DataFrame(
-            {
-                "created_at": ["2025-01-01", "2025-02-01", "2025-03-01", "2025-04-01"],
-                "team": ["Support", "Platform", "Support", "Payments"],
-                "priority": ["High", "Low", "Medium", "High"],
-            }
-        ),
-    )
+    dataset = build_canonical_scalar_support_dataset()
 
-    result = engine.analyze(dataset, "Count total rows in dataset for Q1")
+    result = engine.analyze(dataset, question)
 
     assert result.response["status"] == "ok"
-    assert result.response["interpretation"]["intent_name"] == "row_count"
-    assert result.response["interpretation"]["prompt_family"] == "row_count"
-    assert result.response["interpretation"]["filters"] == {
-        "created_at": {"op": "quarter_eq", "value": 1, "label": "q1"}
-    }
-    assert result.response["result"]["name"] == "row_count"
-    assert result.response["result"]["value"] == 3
-    assert result.artifacts["request"]["options"]["canonical_question"] == "Count rows for Q1"
+    assert result.response["interpretation"]["prompt_family"] == expected_prompt_family
+    assert result.response["result"]["name"] == expected_result_name
+    assert result.response["result"]["value"] == expected_value
+    if expected_prompt_family == "row_count":
+        assert result.response["interpretation"]["intent_name"] == "row_count"
+        assert result.response["interpretation"]["filters"] == {
+            "created_at": {"op": "quarter_eq", "value": 1, "label": "q1"}
+        }
+    assert result.artifacts["request"]["options"]["canonical_question"] == expected_canonical_question
     assert result.artifacts["request"]["options"]["canonical_question_used"] is True
-    assert result.artifacts["request"]["options"]["prompt_family_hint"] == "row_count"
+    assert result.artifacts["request"]["options"]["prompt_family_hint"] == expected_prompt_family
     assert result.artifacts["request"]["options"]["llm_confidence"] == 0.94
     assert result.artifacts["request"]["options"]["nlp_backend"] == "llm+validation"
 
