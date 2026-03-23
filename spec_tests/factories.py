@@ -56,6 +56,54 @@ def build_support_dataset() -> Dataset:
     )
 
 
+def build_recurring_time_dataset() -> Dataset:
+    return Dataset(
+        name="tickets",
+        source_type="pandas",
+        data=pd.DataFrame(
+            {
+                "ticket_id": [f"T{index}" for index in range(1, 17)],
+                "created_at": [
+                    "2026-01-01",
+                    "2026-01-03",
+                    "2026-01-05",
+                    "2026-01-15",
+                    "2026-01-30",
+                    "2026-01-31",
+                    "2026-02-01",
+                    "2026-02-02",
+                    "2026-02-15",
+                    "2026-02-27",
+                    "2026-02-28",
+                    "2026-03-01",
+                    "2026-03-02",
+                    "2026-03-15",
+                    "2026-03-27",
+                    "2026-03-31",
+                ],
+                "priority": [
+                    "Low",
+                    "Low",
+                    "Medium",
+                    "High",
+                    "Medium",
+                    "Low",
+                    "Low",
+                    "Medium",
+                    "High",
+                    "Medium",
+                    "Low",
+                    "Low",
+                    "Medium",
+                    "High",
+                    "Medium",
+                    "Low",
+                ],
+            }
+        ),
+    )
+
+
 def build_support_schema_dataset() -> Dataset:
     return Dataset(
         name="support",

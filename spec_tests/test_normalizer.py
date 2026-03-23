@@ -356,6 +356,24 @@ def test_normalizer_extracts_quarter_and_multiple_group_triggers() -> None:
     assert request.time_reference == {"type": "quarter", "value": "q1", "quarter": "1"}
 
 
+def test_normalizer_extracts_row_count_quarter_filter_prompt() -> None:
+    normalizer = RequestNormalizer()
+
+    request, warnings = normalizer.normalize(
+        "How many rows are in Q1?",
+        build_dataset(),
+        build_profile(),
+        None,
+    )
+
+    assert warnings == []
+    assert request.intent_name == "row_count"
+    assert request.prompt_family == "row_count"
+    assert request.aggregation == "count"
+    assert request.filters == {"posted_at": {"op": "quarter_eq", "value": 1, "label": "q1"}}
+    assert request.time_reference == {"type": "quarter", "value": "q1", "quarter": "1"}
+
+
 def test_normalizer_rejects_empty_question() -> None:
     normalizer = RequestNormalizer()
 

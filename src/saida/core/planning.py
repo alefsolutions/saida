@@ -929,8 +929,10 @@ class PlanBuilder:
         if request.time_reference and request.time_reference.get("type") not in supported_time_reference_types:
             raise PlanningError("Unsupported time reference in analysis request.")
 
-        if request.time_reference and request.time_reference.get("type") != "month_name" and effective_intent_name != "time_period_comparison":
-            raise PlanningError("Only month-based time references are supported for non-ML analysis right now.")
+        if request.time_reference:
+            reference_type = request.time_reference.get("type")
+            if reference_type == "relative_period" and effective_intent_name != "time_period_comparison":
+                raise PlanningError("Relative time references are only supported for period-comparison analysis right now.")
 
         if request.aggregation and request.aggregation not in supported_aggregations:
             raise PlanningError(f"Unsupported aggregation: {request.aggregation}")

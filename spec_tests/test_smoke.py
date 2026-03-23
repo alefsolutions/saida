@@ -1713,6 +1713,27 @@ def test_analyze_supports_recent_window_time_filter() -> None:
     assert list(table.dataframe["ticket_id"]) == ["T3", "T4"]
 
 
+@pytest.mark.parametrize(
+    "question",
+    [
+        "How many rows are in Q1?",
+        "Count rows for quarter 1",
+        "What is the row count for the first quarter?",
+    ],
+)
+def test_analyze_supports_row_count_for_quarter_filtered_prompt(question: str) -> None:
+    dataset = _build_recurring_time_filter_dataset()
+
+    result = Saida().analyze(dataset, question)
+
+    assert result.response["status"] == "ok"
+    assert result.response["interpretation"]["intent_name"] == "row_count"
+    assert result.response["interpretation"]["prompt_family"] == "row_count"
+    assert result.response["interpretation"]["filters"] == {"created_at": {"op": "quarter_eq", "value": 1, "label": "q1"}}
+    assert result.response["result"]["name"] == "row_count"
+    assert result.response["result"]["value"] == 16
+
+
 def test_analyze_keeps_distinct_values_for_dimension_listing_prompt() -> None:
     dataframe = pd.DataFrame(
         {

@@ -725,16 +725,33 @@ def test_planner_rejects_time_value_existence_without_expected_value() -> None:
         planner.build_plan(request, build_profile())
 
 
-def test_planner_rejects_non_month_time_references_for_non_ml_analysis() -> None:
+def test_planner_allows_quarter_time_reference_for_row_count_analysis() -> None:
     planner = AnalysisPlanner()
     request = AnalysisRequest(
-        question="Show revenue in Q1",
+        question="How many rows are in Q1?",
+        intent_name="row_count",
+        prompt_family="row_count",
         task_type_hint="descriptive",
-        target="revenue",
+        aggregation="count",
+        filters={"posted_at": {"op": "quarter_eq", "value": 1, "label": "q1"}},
         time_reference={"type": "quarter", "value": "q1", "quarter": "1"},
     )
 
-    with pytest.raises(PlanningError, match="Only month-based time references"):
+    plan = planner.build_plan(request, build_profile())
+
+    assert plan.steps[0].action == "row_count"
+
+
+def test_planner_rejects_relative_time_references_for_non_period_comparison_analysis() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="Show revenue this quarter",
+        task_type_hint="descriptive",
+        target="revenue",
+        time_reference={"type": "relative_period", "value": "this_quarter"},
+    )
+
+    with pytest.raises(PlanningError, match="Relative time references are only supported for period-comparison analysis"):
         planner.build_plan(request, build_profile())
 
 

@@ -8,7 +8,7 @@ import pytest
 from saida import Saida
 from saida.core.contracts import AnalysisPlan, AnalysisRequest, Dataset
 from saida.core.prompt_family_catalog import build_default_prompt_family_catalog
-from .factories import build_sales_dataset, build_support_dataset, json_safe
+from .factories import build_recurring_time_dataset, build_sales_dataset, build_support_dataset, json_safe
 
 
 _UNSET = object()
@@ -279,6 +279,22 @@ _REPRODUCIBILITY_CASES = [
         expected_primary_result_name="row_count",
         expected_primary_logical_shape="count",
         expected_primary_value=6,
+    ),
+    ReproducibilityCase(
+        family_id="row_count",
+        dataset_factory=build_recurring_time_dataset,
+        prompts=(
+            "How many rows are in Q1?",
+            "Count rows for quarter 1",
+            "What is the row count for the first quarter?",
+        ),
+        expected_intent_name="row_count",
+        expected_aggregation="count",
+        expected_filters={"created_at": {"op": "quarter_eq", "value": 1, "label": "q1"}},
+        expected_step_actions=("row_count",),
+        expected_primary_result_name="row_count",
+        expected_primary_logical_shape="count",
+        expected_primary_value=16,
     ),
     ReproducibilityCase(
         family_id="column_count",

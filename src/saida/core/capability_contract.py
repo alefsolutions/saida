@@ -335,7 +335,7 @@ INTENT_FAMILIES = {
             "group_by": "supported for grouped descriptive analysis",
             "filters": "supported",
             "aggregation": "sum, mean, max, min, count",
-            "time_reference": "month_name supported outside explicit period-comparison family",
+            "time_reference": "month_name and quarter supported outside explicit period-comparison family; relative_period reserved for comparisons",
         },
         "result_shapes": ["aggregate", "timeseries", "table", "distribution", "correlation_matrix"],
     },
