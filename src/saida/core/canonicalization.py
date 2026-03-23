@@ -10,7 +10,7 @@ from saida.config import NlpConfig
 from saida.exceptions import ValidationError
 from saida.llm import IntentProposal
 from saida.core.contracts import AnalysisRequest, Dataset, DatasetProfile, SourceContext
-from saida.core.prompt_family_catalog import derive_prompt_family
+from saida.core.prompt_family_catalog import derive_prompt_family, get_prompt_family_catalog
 
 TASK_LABELS = ["descriptive", "diagnostic", "statistical", "predictive", "forecasting"]
 DISTINCT_VALUE_KEYWORDS = {
@@ -592,19 +592,21 @@ class InputCanonicalizer:
         self._validate_inputs(question, dataset, profile)
         warnings = list(proposal.warnings)
 
-        rule_intent_name = self._detect_intent_name(question, profile)
-        rule_task_type = self._classify_task(question)
-        rule_target = self._resolve_target(question, profile, context, rule_intent_name)
-        rule_aggregation = self._extract_aggregation(question)
-        rule_time_reference = self._extract_time_reference(question)
-        rule_horizon = self._extract_horizon(question)
-        rule_group_by = self._extract_group_by(question, profile)
-        rule_filters = self._extract_filters(question, profile, context)
-        rule_selected_columns = self._extract_selected_columns(question, profile, rule_filters)
-        rule_sort_by, rule_sort_direction = self._extract_sort_request(question, profile, rule_target, rule_group_by)
-        rule_limit = self._extract_tabular_limit(question)
-        rule_page = self._extract_page_number(question)
-        rule_page_size = self._extract_page_size(question)
+        canonical_question = self._resolve_candidate_canonical_question(proposal.canonical_question, question)
+        rule_question = canonical_question or question
+        rule_intent_name = self._detect_intent_name(rule_question, profile)
+        rule_task_type = self._classify_task(rule_question)
+        rule_target = self._resolve_target(rule_question, profile, context, rule_intent_name)
+        rule_aggregation = self._extract_aggregation(rule_question)
+        rule_time_reference = self._extract_time_reference(rule_question)
+        rule_horizon = self._extract_horizon(rule_question)
+        rule_group_by = self._extract_group_by(rule_question, profile)
+        rule_filters = self._extract_filters(rule_question, profile, context)
+        rule_selected_columns = self._extract_selected_columns(rule_question, profile, rule_filters)
+        rule_sort_by, rule_sort_direction = self._extract_sort_request(rule_question, profile, rule_target, rule_group_by)
+        rule_limit = self._extract_tabular_limit(rule_question)
+        rule_page = self._extract_page_number(rule_question)
+        rule_page_size = self._extract_page_size(rule_question)
 
         task_type_hint = self._validate_task_type(proposal.task_type_hint) or rule_task_type
         target = self._resolve_candidate_column(proposal.target, profile, context)
@@ -623,12 +625,12 @@ class InputCanonicalizer:
         horizon = proposal.horizon if proposal.horizon and proposal.horizon > 0 else rule_horizon
 
         options = self._build_request_options(dataset.name, rule_intent_name)
-        self._apply_statistical_options(question, profile, options)
-        rule_intent_name = self._resolve_ranking_intent(question, rule_intent_name, target or rule_target, group_by or rule_group_by, profile, options)
+        self._apply_statistical_options(rule_question, profile, options)
+        rule_intent_name = self._resolve_ranking_intent(rule_question, rule_intent_name, target or rule_target, group_by or rule_group_by, profile, options)
         if rule_intent_name in {"row_ranking", "group_ranking"}:
             aggregation = None
         rule_intent_name = self._resolve_tabular_intent(
-            question,
+            rule_question,
             rule_intent_name,
             target or rule_target,
             group_by or rule_group_by,
@@ -638,13 +640,13 @@ class InputCanonicalizer:
         )
         if rule_intent_name == "grouped_tabular_query" and target in set(group_by or []) and target not in set(profile.measure_columns):
             target = None
-        if self._looks_like_grouped_entity_count_request(question, target, group_by, profile):
+        if self._looks_like_grouped_entity_count_request(rule_question, target, group_by, profile):
             rule_intent_name = "grouped_tabular_query"
             target = None
             aggregation = "count"
         if rule_intent_name == "existence_check":
             target, aggregation, group_by = self._configure_existence_request(
-                question,
+                rule_question,
                 profile,
                 target,
                 aggregation,
@@ -663,24 +665,24 @@ class InputCanonicalizer:
             if isinstance(regression_target, str):
                 target = regression_target
             else:
-                named_columns = self._extract_named_columns(question, profile)
+                named_columns = self._extract_named_columns(rule_question, profile)
                 if named_columns:
                     target = named_columns[0]
         if rule_intent_name in {"time_coverage", "time_bucket_counts", "time_bucket_breakdown", "time_period_comparison"}:
-            options["time_coverage_mode"] = self._time_coverage_mode(question)
+            options["time_coverage_mode"] = self._time_coverage_mode(rule_question)
             if rule_intent_name in {"time_bucket_counts", "time_bucket_breakdown", "time_period_comparison"}:
-                options["time_bucket"] = self._time_bucket_mode(question)
+                options["time_bucket"] = self._time_bucket_mode(rule_question)
             if rule_intent_name in {"time_coverage", "time_bucket_counts"}:
                 target = None
                 aggregation = None
                 group_by = None
         if options.get("statistical_test") == "chi_square":
-            group_by = self._extract_statistical_group_by(question, profile, target)
+            group_by = self._extract_statistical_group_by(rule_question, profile, target)
         elif options.get("statistical_test") == "regression_significance":
             group_by = None
         elif options.get("statistical_test") in {"t_test", "anova", "mann_whitney", "significance_inference", "power_analysis", "sample_size_estimate"} and not group_by:
-            group_by = self._extract_statistical_group_by(question, profile, target)
-        explicit_count_intent = self._resolve_explicit_count_intent(question, profile, target)
+            group_by = self._extract_statistical_group_by(rule_question, profile, target)
+        explicit_count_intent = self._resolve_explicit_count_intent(rule_question, profile, target)
         if explicit_count_intent is not None:
             rule_intent_name = explicit_count_intent
             aggregation = None
@@ -693,8 +695,8 @@ class InputCanonicalizer:
         if rule_intent_name == "representation_ranking" and target is not None:
             group_by = [target]
             aggregation = "count"
-            options["ranking_direction"] = self._representation_direction(question)
-            if question.lower().strip().startswith(("which ", "what ")):
+            options["ranking_direction"] = self._representation_direction(rule_question)
+            if rule_question.lower().strip().startswith(("which ", "what ")):
                 options["ranking_limit"] = 1
         if rule_intent_name is None and target in set(profile.dimension_columns) and aggregation is None and not group_by:
             rule_intent_name = "distinct_values"
@@ -707,6 +709,14 @@ class InputCanonicalizer:
             options["page_size"] = rule_page_size or rule_limit or 50
             if rule_intent_name == "grouped_tabular_query" and aggregation is None:
                 aggregation = "count" if target is None else "sum"
+        prompt_family_hint = self._validate_prompt_family_hint(proposal.prompt_family_hint)
+        if canonical_question is not None:
+            options["canonical_question"] = canonical_question
+            options["canonical_question_used"] = canonical_question != question.strip()
+        if prompt_family_hint is not None:
+            options["prompt_family_hint"] = prompt_family_hint
+        if proposal.confidence is not None:
+            options["llm_confidence"] = proposal.confidence
         options["intent_name"] = rule_intent_name
         proposal_target_source: str | None = None
         if proposal.target and target is not None:
@@ -714,7 +724,7 @@ class InputCanonicalizer:
         elif target is not None:
             proposal_target_source = "rule"
         target = self._resolve_safe_target(
-            question=question,
+            question=rule_question,
             profile=profile,
             task_type_hint=task_type_hint,
             intent_name=rule_intent_name,
@@ -726,7 +736,7 @@ class InputCanonicalizer:
             options=options,
             warnings=warnings,
         )
-        distinct_values = self._should_list_distinct_values(question, target, profile)
+        distinct_values = self._should_list_distinct_values(rule_question, target, profile)
         if rule_intent_name == "distinct_value_count":
             distinct_values = False
         if rule_intent_name == "tabular_query" and self._should_clear_time_reference_for_filters(filters):
@@ -752,6 +762,20 @@ class InputCanonicalizer:
         )
         request.prompt_family = derive_prompt_family(request)
         return request, warnings
+
+    def _resolve_candidate_canonical_question(
+        self,
+        canonical_question: str | None,
+        original_question: str,
+    ) -> str | None:
+        if not isinstance(canonical_question, str):
+            return None
+        normalized = canonical_question.strip()
+        if not normalized:
+            return None
+        if normalized.casefold() == original_question.strip().casefold():
+            return None
+        return normalized
 
     def _resolve_safe_target(
         self,
@@ -1617,6 +1641,16 @@ class InputCanonicalizer:
         if aggregation in AGGREGATION_KEYWORDS:
             return aggregation
         return None
+
+    def _validate_prompt_family_hint(self, prompt_family_hint: str | None) -> str | None:
+        if not isinstance(prompt_family_hint, str):
+            return None
+        normalized = prompt_family_hint.strip()
+        if not normalized:
+            return None
+        if get_prompt_family_catalog().get(normalized) is None:
+            return None
+        return normalized
 
     def _apply_statistical_options(
         self,

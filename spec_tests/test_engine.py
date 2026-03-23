@@ -118,6 +118,32 @@ class YearMonthFilterLlmProvider(BaseLlmProvider):
         return ResponseProposal(status="ready", summary=response_context.deterministic_summary)
 
 
+class CanonicalQuestionLlmProvider(BaseLlmProvider):
+    """Provider that simplifies awkward phrasing into a clearer equivalent prompt."""
+
+    def interpret_prompt(
+        self,
+        question: str,
+        dataset_name: str,
+        profile_summary: str,
+        context_summary: str | None,
+    ) -> IntentProposal | None:
+        _ = question
+        _ = dataset_name
+        _ = profile_summary
+        _ = context_summary
+        return IntentProposal(
+            status="ready",
+            canonical_question="Count rows for Q1",
+            prompt_family_hint="row_count",
+            confidence=0.94,
+            warnings=["llm prompt path used"],
+        )
+
+    def generate_response(self, response_context: ResponseContext) -> ResponseProposal | None:
+        return ResponseProposal(status="ready", summary=response_context.deterministic_summary)
+
+
 def test_engine_load_context_parses_markdown() -> None:
     engine = Saida()
 
@@ -378,6 +404,38 @@ def test_engine_coerces_llm_year_month_filter_on_time_column() -> None:
     assert result.response["result"]["name"] == "tabular_query"
     assert result.response["result"]["row_count"] == 2
     assert result.response["result"]["pagination"]["total_rows"] == 2
+    assert result.artifacts["request"]["options"]["nlp_backend"] == "llm+validation"
+
+
+def test_engine_uses_llm_canonical_question_for_condensed_prompt_routing() -> None:
+    engine = Saida(llm_provider=CanonicalQuestionLlmProvider())
+    engine.config.llm.enabled = True
+    dataset = Dataset(
+        name="support",
+        source_type="pandas",
+        data=pd.DataFrame(
+            {
+                "created_at": ["2025-01-01", "2025-02-01", "2025-03-01", "2025-04-01"],
+                "team": ["Support", "Platform", "Support", "Payments"],
+                "priority": ["High", "Low", "Medium", "High"],
+            }
+        ),
+    )
+
+    result = engine.analyze(dataset, "Count total rows in dataset for Q1")
+
+    assert result.response["status"] == "ok"
+    assert result.response["interpretation"]["intent_name"] == "row_count"
+    assert result.response["interpretation"]["prompt_family"] == "row_count"
+    assert result.response["interpretation"]["filters"] == {
+        "created_at": {"op": "quarter_eq", "value": 1, "label": "q1"}
+    }
+    assert result.response["result"]["name"] == "row_count"
+    assert result.response["result"]["value"] == 3
+    assert result.artifacts["request"]["options"]["canonical_question"] == "Count rows for Q1"
+    assert result.artifacts["request"]["options"]["canonical_question_used"] is True
+    assert result.artifacts["request"]["options"]["prompt_family_hint"] == "row_count"
+    assert result.artifacts["request"]["options"]["llm_confidence"] == 0.94
     assert result.artifacts["request"]["options"]["nlp_backend"] == "llm+validation"
 
 

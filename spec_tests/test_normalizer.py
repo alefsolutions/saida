@@ -6,6 +6,7 @@ import pytest
 from saida.core import RequestNormalizer
 from saida.exceptions import ValidationError
 from saida.core.contracts import ColumnProfile, Dataset, DatasetProfile, SourceContext
+from saida.llm import IntentProposal
 
 
 def build_profile() -> DatasetProfile:
@@ -372,6 +373,36 @@ def test_normalizer_extracts_row_count_quarter_filter_prompt() -> None:
     assert request.aggregation == "count"
     assert request.filters == {"posted_at": {"op": "quarter_eq", "value": 1, "label": "q1"}}
     assert request.time_reference == {"type": "quarter", "value": "q1", "quarter": "1"}
+
+
+def test_normalizer_uses_llm_canonical_question_to_resolve_clearer_prompt_family() -> None:
+    normalizer = RequestNormalizer()
+    proposal = IntentProposal(
+        status="ready",
+        canonical_question="Count rows for Q1",
+        prompt_family_hint="row_count",
+        confidence=0.93,
+        warnings=["llm prompt path used"],
+    )
+
+    request, warnings = normalizer.normalize_with_proposal(
+        "Count total rows in dataset for Q1",
+        build_dataset(),
+        build_profile(),
+        proposal,
+        None,
+    )
+
+    assert warnings == ["llm prompt path used"]
+    assert request.intent_name == "row_count"
+    assert request.prompt_family == "row_count"
+    assert request.aggregation == "count"
+    assert request.filters == {"posted_at": {"op": "quarter_eq", "value": 1, "label": "q1"}}
+    assert request.time_reference == {"type": "quarter", "value": "q1", "quarter": "1"}
+    assert request.options["canonical_question"] == "Count rows for Q1"
+    assert request.options["canonical_question_used"] is True
+    assert request.options["prompt_family_hint"] == "row_count"
+    assert request.options["llm_confidence"] == 0.93
 
 
 def test_normalizer_rejects_empty_question() -> None:

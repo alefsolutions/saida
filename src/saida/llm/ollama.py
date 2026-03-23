@@ -36,6 +36,9 @@ class OllamaLlmProvider(BaseLlmProvider):
 
         return IntentProposal(
             status=str(payload.get("status", "ready")),
+            canonical_question=self._maybe_string(payload.get("canonical_question")),
+            prompt_family_hint=self._maybe_string(payload.get("prompt_family_hint")),
+            confidence=self._maybe_float(payload.get("confidence")),
             candidate_capabilities=self._maybe_string_list(payload.get("candidate_capabilities")),
             task_type_hint=self._maybe_string(payload.get("task_type_hint")),
             target=self._maybe_string(payload.get("target")),
@@ -129,6 +132,14 @@ class OllamaLlmProvider(BaseLlmProvider):
             f"Table index: {json.dumps(response_context.table_index, ensure_ascii=True)}\n"
             f"Warnings: {json.dumps(response_context.warnings, ensure_ascii=True)}\n"
         )
+
+    def _maybe_float(self, value: object) -> float | None:
+        if value is None:
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
 
     def _maybe_int(self, value: object) -> int | None:
         if value is None:

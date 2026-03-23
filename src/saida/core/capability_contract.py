@@ -395,6 +395,9 @@ LLM_INTENT_PROMPT_CONTRACT = {
     "allowed_status_values": ["ready", "clarify", "refuse"],
     "return_keys": [
         "status",
+        "canonical_question",
+        "prompt_family_hint",
+        "confidence",
         "candidate_capabilities",
         "task_type_hint",
         "target",
@@ -408,6 +411,9 @@ LLM_INTENT_PROMPT_CONTRACT = {
     ],
     "routing_rules": [
         "Do not invent columns.",
+        "If the user's wording is verbose or awkward, return canonical_question as a simpler equivalent prompt that preserves the same analytical meaning.",
+        "Use canonical_question only when it is semantically equivalent to the user's request; do not drop constraints or add new ones.",
+        "If you can infer the governed SAIDA prompt family safely, return prompt_family_hint.",
         "If possible, return candidate_capabilities using SAIDA capability-like labels such as ranking, trend, comparative, segmentation, verification, tabular, metadata, significance_inference, top_n_by_metric, grouped_breakdown, period_over_period_comparison, tabular_record_retrieval, null_verification, or forecast_series.",
         "If uncertain, use clarify or refuse.",
         "If a request is supported but underspecified, prefer status=ready and leave unsupported fields null so deterministic normalization can finish the routing.",
