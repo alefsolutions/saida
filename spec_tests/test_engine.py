@@ -152,6 +152,77 @@ class CanonicalQuestionLlmProvider(BaseLlmProvider):
         return ResponseProposal(status="ready", summary=response_context.deterministic_summary)
 
 
+class SemanticIntentLlmProvider(BaseLlmProvider):
+    """Provider that returns structured operation/object semantics."""
+
+    def interpret_prompt(
+        self,
+        question: str,
+        dataset_name: str,
+        profile_summary: str,
+        context_summary: str | None,
+    ) -> IntentProposal | None:
+        _ = dataset_name
+        _ = profile_summary
+        _ = context_summary
+        prompt_mapping = {
+            "Count total rows in dataset for Q1": {
+                "operation": "count",
+                "object_kind": "rows",
+                "expected_result_shape": "count",
+            },
+            "Show every row in dataset for Q1": {
+                "operation": "list",
+                "object_kind": "rows",
+                "expected_result_shape": "recordset",
+            },
+            "Count total columns in dataset": {
+                "operation": "count",
+                "object_kind": "columns",
+                "expected_result_shape": "count",
+            },
+            "Count total unique team values in dataset": {
+                "operation": "count",
+                "object_kind": "distinct_values",
+                "object_ref": "team",
+                "expected_result_shape": "count",
+            },
+        }
+        proposal_fields = prompt_mapping[question]
+        return IntentProposal(status="ready", confidence=0.91, warnings=["llm prompt path used"], **proposal_fields)
+
+    def generate_response(self, response_context: ResponseContext) -> ResponseProposal | None:
+        return ResponseProposal(status="ready", summary=response_context.deterministic_summary)
+
+
+class InvalidSemanticIntentLlmProvider(BaseLlmProvider):
+    """Provider that proposes an invalid object reference so deterministic validation can recover."""
+
+    def interpret_prompt(
+        self,
+        question: str,
+        dataset_name: str,
+        profile_summary: str,
+        context_summary: str | None,
+    ) -> IntentProposal | None:
+        _ = question
+        _ = dataset_name
+        _ = profile_summary
+        _ = context_summary
+        return IntentProposal(
+            status="ready",
+            operation="count",
+            object_kind="distinct_values",
+            object_ref="unknown_field",
+            expected_result_shape="count",
+            confidence=0.42,
+            warnings=["llm prompt path used"],
+        )
+
+    def generate_response(self, response_context: ResponseContext) -> ResponseProposal | None:
+        return ResponseProposal(status="ready", summary=response_context.deterministic_summary)
+
+
 def build_canonical_scalar_support_dataset() -> Dataset:
     return Dataset(
         name="support",
@@ -490,6 +561,52 @@ def test_engine_uses_llm_canonical_question_for_condensed_scalar_prompt_routing(
     assert result.artifacts["request"]["options"]["prompt_family_hint"] == expected_prompt_family
     assert result.artifacts["request"]["options"]["llm_confidence"] == 0.94
     assert result.artifacts["request"]["options"]["nlp_backend"] == "llm+validation"
+
+
+@pytest.mark.parametrize(
+    ("question", "expected_prompt_family", "expected_result_name", "expected_value", "expected_shape"),
+    [
+        ("Count total rows in dataset for Q1", "row_count", "row_count", 3, "count"),
+        ("Show every row in dataset for Q1", "tabular_record_retrieval", "tabular_query", None, "recordset"),
+        ("Count total columns in dataset", "column_count", "column_count", 8, "count"),
+        ("Count total unique team values in dataset", "distinct_value_count", "team_distinct_count", 3, "count"),
+    ],
+)
+def test_engine_uses_llm_semantic_intent_for_operation_object_routing(
+    question: str,
+    expected_prompt_family: str,
+    expected_result_name: str,
+    expected_value: int | None,
+    expected_shape: str,
+) -> None:
+    engine = Saida(llm_provider=SemanticIntentLlmProvider())
+    engine.config.llm.enabled = True
+    dataset = build_canonical_scalar_support_dataset()
+
+    result = engine.analyze(dataset, question)
+
+    assert result.response["status"] == "ok"
+    assert result.response["interpretation"]["prompt_family"] == expected_prompt_family
+    assert result.response["result"]["name"] == expected_result_name
+    assert result.response["result"]["logical_shape"] == expected_shape
+    if expected_value is not None:
+        assert result.response["result"]["value"] == expected_value
+    assert result.response["interpretation"]["semantic_intent"]["operation"] in {"count", "list"}
+    assert result.artifacts["request"]["options"]["semantic_intent"]["source"] == "llm+rules"
+
+
+def test_engine_ignores_invalid_llm_semantic_object_reference_and_recovers_from_rules() -> None:
+    engine = Saida(llm_provider=InvalidSemanticIntentLlmProvider())
+    engine.config.llm.enabled = True
+    dataset = build_canonical_scalar_support_dataset()
+
+    result = engine.analyze(dataset, "Count total unique team values in dataset")
+
+    assert result.response["status"] == "ok"
+    assert result.response["interpretation"]["prompt_family"] == "distinct_value_count"
+    assert result.response["result"]["name"] == "team_distinct_count"
+    assert result.response["result"]["value"] == 3
+    assert result.response["interpretation"]["semantic_intent"]["object_ref"] == "team"
 
 
 def test_engine_passes_context_summary_into_llm_response_stage() -> None:

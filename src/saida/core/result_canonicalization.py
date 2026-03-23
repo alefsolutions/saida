@@ -200,6 +200,7 @@ class ResultCanonicalizer:
             "interpretation": {
                 "prompt_family": request.prompt_family,
                 "intent_name": request.intent_name,
+                "semantic_intent": dict(request.options.get("semantic_intent") or {}),
                 "task_type": plan.task_type,
                 "target": request.target,
                 "aggregation": request.aggregation,

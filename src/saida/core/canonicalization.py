@@ -13,6 +13,21 @@ from saida.core.contracts import AnalysisRequest, Dataset, DatasetProfile, Sourc
 from saida.core.prompt_family_catalog import derive_prompt_family, get_prompt_family_catalog
 
 TASK_LABELS = ["descriptive", "diagnostic", "statistical", "predictive", "forecasting"]
+SEMANTIC_OPERATIONS = {"count", "list", "sum", "mean", "max", "min", "verify", "rank", "compare"}
+SEMANTIC_OBJECT_KINDS = {
+    "rows",
+    "columns",
+    "numeric_columns",
+    "categorical_columns",
+    "measure_columns",
+    "dimension_columns",
+    "time_columns",
+    "identifier_columns",
+    "high_cardinality_columns",
+    "distinct_values",
+    "measure",
+}
+SEMANTIC_RESULT_SHAPES = {"count", "aggregate", "table", "recordset", "verification"}
 DISTINCT_VALUE_KEYWORDS = {
     "list",
     "list of all",
@@ -468,6 +483,26 @@ class InputCanonicalizer:
                 filters = None
                 time_reference = None
 
+        semantic_intent = self._derive_rule_semantic_intent(
+            question,
+            profile,
+            intent_name,
+            target,
+            aggregation,
+            group_by,
+            options.get("statistical_test"),
+        )
+        intent_name, target, aggregation, group_by, filters, time_reference = self._apply_semantic_intent_override(
+            semantic_intent,
+            intent_name,
+            target,
+            aggregation,
+            group_by,
+            filters,
+            time_reference,
+            options,
+        )
+
         if intent_name == "representation_ranking" and target is not None:
             group_by = [target]
             aggregation = "count"
@@ -499,6 +534,17 @@ class InputCanonicalizer:
             options=options,
             warnings=warnings,
         )
+        semantic_intent = self._derive_rule_semantic_intent(
+            question,
+            profile,
+            intent_name,
+            target,
+            aggregation,
+            group_by,
+            options.get("statistical_test"),
+        )
+        if semantic_intent is not None:
+            options["semantic_intent"] = semantic_intent
         distinct_values = self._should_list_distinct_values(question, target, profile)
         if intent_name == "distinct_value_count":
             distinct_values = False
@@ -692,6 +738,27 @@ class InputCanonicalizer:
                 target = None
                 filters = None
                 time_reference = None
+        rule_semantic_intent = self._derive_rule_semantic_intent(
+            rule_question,
+            profile,
+            rule_intent_name,
+            target,
+            aggregation,
+            group_by,
+            options.get("statistical_test"),
+        )
+        proposal_semantic_intent = self._resolve_candidate_semantic_intent(proposal, profile, context)
+        semantic_intent = self._merge_semantic_intents(rule_semantic_intent, proposal_semantic_intent)
+        rule_intent_name, target, aggregation, group_by, filters, time_reference = self._apply_semantic_intent_override(
+            semantic_intent,
+            rule_intent_name,
+            target,
+            aggregation,
+            group_by,
+            filters,
+            time_reference,
+            options,
+        )
         if rule_intent_name == "representation_ranking" and target is not None:
             group_by = [target]
             aggregation = "count"
@@ -717,6 +784,8 @@ class InputCanonicalizer:
             options["prompt_family_hint"] = prompt_family_hint
         if proposal.confidence is not None:
             options["llm_confidence"] = proposal.confidence
+        if semantic_intent is not None:
+            options["semantic_intent"] = semantic_intent
         options["intent_name"] = rule_intent_name
         proposal_target_source: str | None = None
         if proposal.target and target is not None:
@@ -736,6 +805,18 @@ class InputCanonicalizer:
             options=options,
             warnings=warnings,
         )
+        final_rule_semantic_intent = self._derive_rule_semantic_intent(
+            rule_question,
+            profile,
+            rule_intent_name,
+            target,
+            aggregation,
+            group_by,
+            options.get("statistical_test"),
+        )
+        semantic_intent = self._merge_semantic_intents(final_rule_semantic_intent, proposal_semantic_intent)
+        if semantic_intent is not None:
+            options["semantic_intent"] = semantic_intent
         distinct_values = self._should_list_distinct_values(rule_question, target, profile)
         if rule_intent_name == "distinct_value_count":
             distinct_values = False
@@ -1169,6 +1250,13 @@ class InputCanonicalizer:
         quarter_match = re.search(r"\bq([1-4])\b", lowered)
         if quarter_match:
             return {"type": "quarter", "value": quarter_match.group(0), "quarter": quarter_match.group(1)}
+        quarter_number_match = re.search(r"\bquarter\s+([1-4])\b", lowered)
+        if quarter_number_match:
+            return {"type": "quarter", "value": f"q{quarter_number_match.group(1)}", "quarter": quarter_number_match.group(1)}
+        quarter_word_match = re.search(r"\b(?:the\s+)?(first|second|third|fourth)\s+quarter\b", lowered)
+        if quarter_word_match:
+            quarter_value = str(QUARTER_WORD_TO_INT[quarter_word_match.group(1)])
+            return {"type": "quarter", "value": f"q{quarter_value}", "quarter": quarter_value}
         if "this year" in lowered and "last year" in lowered:
             return {"type": "relative_period", "value": "this_year"}
         if "this year" in lowered:
@@ -1516,11 +1604,11 @@ class InputCanonicalizer:
             return {"op": "quarter_eq", "value": int(quarter_match.group(1)), "label": f"q{quarter_match.group(1)}"}
         quarter_number_match = re.search(r"\b(?:in|for|during)\s+quarter\s+([1-4])\b", lowered)
         if quarter_number_match:
-            return {"op": "quarter_eq", "value": int(quarter_number_match.group(1)), "label": f"quarter {quarter_number_match.group(1)}"}
-        quarter_word_match = re.search(r"\b(?:in|for|during)\s+(first|second|third|fourth)\s+quarter\b", lowered)
+            return {"op": "quarter_eq", "value": int(quarter_number_match.group(1)), "label": f"q{quarter_number_match.group(1)}"}
+        quarter_word_match = re.search(r"\b(?:in|for|during)\s+(?:the\s+)?(first|second|third|fourth)\s+quarter\b", lowered)
         if quarter_word_match:
             quarter_value = QUARTER_WORD_TO_INT[quarter_word_match.group(1)]
-            return {"op": "quarter_eq", "value": quarter_value, "label": f"{quarter_word_match.group(1)} quarter"}
+            return {"op": "quarter_eq", "value": quarter_value, "label": f"q{quarter_value}"}
         return None
 
     def _extract_recent_window_filter(self, lowered: str) -> dict[str, object] | None:
@@ -1642,6 +1730,247 @@ class InputCanonicalizer:
             return aggregation
         return None
 
+    def _validate_semantic_operation(self, operation: str | None) -> str | None:
+        if not isinstance(operation, str):
+            return None
+        normalized = operation.strip().lower()
+        if normalized in SEMANTIC_OPERATIONS:
+            return normalized
+        return None
+
+    def _normalize_semantic_object_kind(self, object_kind: str | None) -> str | None:
+        if not isinstance(object_kind, str):
+            return None
+        normalized = object_kind.strip().lower()
+        aliases = {
+            "records": "rows",
+            "recordset": "rows",
+            "fields": "columns",
+            "numeric_fields": "numeric_columns",
+            "categorical_fields": "categorical_columns",
+            "measures": "measure_columns",
+            "metrics": "measure_columns",
+            "dimensions": "dimension_columns",
+            "date_fields": "time_columns",
+            "time_fields": "time_columns",
+            "identifiers": "identifier_columns",
+            "high_cardinality": "high_cardinality_columns",
+        }
+        normalized = aliases.get(normalized, normalized)
+        if normalized in SEMANTIC_OBJECT_KINDS:
+            return normalized
+        return None
+
+    def _validate_semantic_result_shape(self, result_shape: str | None) -> str | None:
+        if not isinstance(result_shape, str):
+            return None
+        normalized = result_shape.strip().lower()
+        if normalized in SEMANTIC_RESULT_SHAPES:
+            return normalized
+        return None
+
+    def _resolve_candidate_semantic_intent(
+        self,
+        proposal: IntentProposal,
+        profile: DatasetProfile,
+        context: SourceContext | None,
+    ) -> dict[str, object] | None:
+        operation = self._validate_semantic_operation(proposal.operation)
+        object_kind = self._normalize_semantic_object_kind(proposal.object_kind)
+        expected_result_shape = self._validate_semantic_result_shape(proposal.expected_result_shape)
+        object_ref: str | None = None
+        if isinstance(proposal.object_ref, str) and proposal.object_ref.strip():
+            lowered_object_ref = proposal.object_ref.strip().lower()
+            if lowered_object_ref not in {"dataset", "rows", "records"}:
+                object_ref = self._resolve_candidate_column(proposal.object_ref, profile, context)
+            else:
+                object_ref = lowered_object_ref
+        if operation is None and object_kind is None and object_ref is None and expected_result_shape is None:
+            return None
+        semantic_intent = {
+            "operation": operation,
+            "object_kind": object_kind,
+            "object_ref": object_ref,
+            "expected_result_shape": expected_result_shape,
+            "source": "llm",
+        }
+        return {key: value for key, value in semantic_intent.items() if value is not None} or None
+
+    def _derive_rule_semantic_intent(
+        self,
+        question: str,
+        profile: DatasetProfile,
+        intent_name: str | None,
+        target: str | None,
+        aggregation: str | None,
+        group_by: list[str] | None,
+        statistical_test: str | None = None,
+    ) -> dict[str, object] | None:
+        if statistical_test is not None:
+            return None
+        lowered = question.lower()
+        countish = "count" in lowered or any(keyword in lowered for keyword in UNSAFE_COUNT_KEYWORDS)
+        row_count_phrases = {
+            "how many rows",
+            "number of rows",
+            "row count",
+            "count rows",
+            "count total rows",
+            "total rows",
+            "record count",
+            "count records",
+            "total records",
+        }
+        if any(phrase in lowered for phrase in row_count_phrases):
+            return {
+                "operation": "count",
+                "object_kind": "rows",
+                "expected_result_shape": "count",
+                "source": "rules",
+            }
+        if countish and target is not None and target in set(profile.dimension_columns) and any(
+            keyword in lowered for keyword in DISTINCT_COUNT_KEYWORDS
+        ):
+            return {
+                "operation": "count",
+                "object_kind": "distinct_values",
+                "object_ref": target,
+                "expected_result_shape": "count",
+                "source": "rules",
+            }
+        if intent_name == "row_count":
+            return {
+                "operation": "count",
+                "object_kind": "rows",
+                "expected_result_shape": "count",
+                "source": "rules",
+            }
+        if intent_name == "tabular_query":
+            return {
+                "operation": "list",
+                "object_kind": "rows",
+                "expected_result_shape": "recordset",
+                "source": "rules",
+            }
+        if intent_name == "distinct_value_count" and target is not None:
+            return {
+                "operation": "count",
+                "object_kind": "distinct_values",
+                "object_ref": target,
+                "expected_result_shape": "count",
+                "source": "rules",
+            }
+        if intent_name == "distinct_values" and target is not None:
+            return {
+                "operation": "list",
+                "object_kind": "distinct_values",
+                "object_ref": target,
+                "expected_result_shape": "table",
+                "source": "rules",
+            }
+        metadata_count_mapping = {
+            "column_count": "columns",
+            "numeric_column_count": "numeric_columns",
+            "categorical_column_count": "categorical_columns",
+            "measure_count": "measure_columns",
+            "dimension_count": "dimension_columns",
+            "time_column_count": "time_columns",
+            "identifier_count": "identifier_columns",
+            "high_cardinality_count": "high_cardinality_columns",
+        }
+        if intent_name in metadata_count_mapping:
+            return {
+                "operation": "count",
+                "object_kind": metadata_count_mapping[intent_name],
+                "expected_result_shape": "count",
+                "source": "rules",
+            }
+        if aggregation in {"sum", "mean", "max", "min"} and target is not None and target in set(profile.measure_columns):
+            return {
+                "operation": aggregation,
+                "object_kind": "measure",
+                "object_ref": target,
+                "expected_result_shape": "aggregate",
+                "source": "rules",
+            }
+        if group_by and target is not None and aggregation == "count":
+            return {
+                "operation": "count",
+                "object_kind": "rows",
+                "expected_result_shape": "table",
+                "source": "rules",
+            }
+        return None
+
+    def _merge_semantic_intents(
+        self,
+        rule_semantic_intent: dict[str, object] | None,
+        proposal_semantic_intent: dict[str, object] | None,
+    ) -> dict[str, object] | None:
+        if rule_semantic_intent is None and proposal_semantic_intent is None:
+            return None
+        if rule_semantic_intent is None:
+            return dict(proposal_semantic_intent or {})
+        if proposal_semantic_intent is None:
+            return dict(rule_semantic_intent)
+        merged = dict(rule_semantic_intent)
+        for key, value in proposal_semantic_intent.items():
+            if value is not None:
+                merged[key] = value
+        merged["source"] = "llm+rules"
+        return merged
+
+    def _apply_semantic_intent_override(
+        self,
+        semantic_intent: dict[str, object] | None,
+        intent_name: str | None,
+        target: str | None,
+        aggregation: str | None,
+        group_by: list[str] | None,
+        filters: dict[str, object] | None,
+        time_reference: dict[str, object] | None,
+        options: dict[str, object],
+    ) -> tuple[str | None, str | None, str | None, list[str] | None, dict[str, object] | None, dict[str, object] | None]:
+        if semantic_intent is None:
+            return intent_name, target, aggregation, group_by, filters, time_reference
+
+        operation = semantic_intent.get("operation")
+        object_kind = semantic_intent.get("object_kind")
+        object_ref = semantic_intent.get("object_ref")
+
+        if operation == "count" and object_kind == "rows":
+            self._clear_existence_options(options)
+            return "row_count", None, "count", None, filters, time_reference
+        if operation == "list" and object_kind == "rows":
+            self._clear_existence_options(options)
+            return "tabular_query", None, None, group_by, filters, time_reference
+
+        metadata_count_mapping = {
+            "columns": "column_count",
+            "numeric_columns": "numeric_column_count",
+            "categorical_columns": "categorical_column_count",
+            "measure_columns": "measure_count",
+            "dimension_columns": "dimension_count",
+            "time_columns": "time_column_count",
+            "identifier_columns": "identifier_count",
+            "high_cardinality_columns": "high_cardinality_count",
+        }
+        if operation == "count" and object_kind in metadata_count_mapping:
+            self._clear_existence_options(options)
+            return metadata_count_mapping[object_kind], None, None, None, None, None
+
+        if object_kind == "distinct_values" and isinstance(object_ref, str):
+            self._clear_existence_options(options)
+            if operation == "count":
+                return "distinct_value_count", object_ref, None, None, filters, time_reference
+            if operation == "list":
+                return "distinct_values", object_ref, None, None, filters, time_reference
+
+        if object_kind == "measure" and isinstance(object_ref, str) and operation in {"sum", "mean", "max", "min"}:
+            self._clear_existence_options(options)
+            return intent_name, object_ref, operation, group_by, filters, time_reference
+
+        return intent_name, target, aggregation, group_by, filters, time_reference
     def _validate_prompt_family_hint(self, prompt_family_hint: str | None) -> str | None:
         if not isinstance(prompt_family_hint, str):
             return None

@@ -405,6 +405,84 @@ def test_normalizer_uses_llm_canonical_question_to_resolve_clearer_prompt_family
     assert request.options["llm_confidence"] == 0.93
 
 
+def test_normalizer_rule_semantic_intent_promotes_count_total_rows_to_row_count() -> None:
+    normalizer = RequestNormalizer()
+
+    request, warnings = normalizer.normalize(
+        "Count total rows in dataset for Q1",
+        build_dataset(),
+        build_profile(),
+        None,
+    )
+
+    assert warnings == []
+    assert request.intent_name == "row_count"
+    assert request.prompt_family == "row_count"
+    assert request.aggregation == "count"
+    assert request.filters == {"posted_at": {"op": "quarter_eq", "value": 1, "label": "q1"}}
+    assert request.time_reference == {"type": "quarter", "value": "q1", "quarter": "1"}
+    assert request.options["semantic_intent"] == {
+        "operation": "count",
+        "object_kind": "rows",
+        "expected_result_shape": "count",
+        "source": "rules",
+    }
+
+
+def test_normalizer_rule_semantic_intent_keeps_show_rows_prompt_tabular() -> None:
+    normalizer = RequestNormalizer()
+
+    request, warnings = normalizer.normalize(
+        "Show every row in dataset for Q1",
+        build_dataset(),
+        build_profile(),
+        None,
+    )
+
+    assert warnings == []
+    assert request.intent_name == "tabular_query"
+    assert request.prompt_family == "tabular_record_retrieval"
+    assert request.filters == {"posted_at": {"op": "quarter_eq", "value": 1, "label": "q1"}}
+    assert request.options["semantic_intent"] == {
+        "operation": "list",
+        "object_kind": "rows",
+        "expected_result_shape": "recordset",
+        "source": "rules",
+    }
+
+
+def test_normalizer_uses_llm_semantic_proposal_without_canonical_question() -> None:
+    normalizer = RequestNormalizer()
+    proposal = IntentProposal(
+        status="ready",
+        operation="count",
+        object_kind="distinct_values",
+        object_ref="region",
+        expected_result_shape="count",
+        warnings=["llm prompt path used"],
+    )
+
+    request, warnings = normalizer.normalize_with_proposal(
+        "Tell me about region variety",
+        build_dataset(),
+        build_profile(),
+        proposal,
+        None,
+    )
+
+    assert warnings == ["llm prompt path used"]
+    assert request.intent_name == "distinct_value_count"
+    assert request.prompt_family == "distinct_value_count"
+    assert request.target == "region"
+    assert request.options["semantic_intent"] == {
+        "operation": "count",
+        "object_kind": "distinct_values",
+        "object_ref": "region",
+        "expected_result_shape": "count",
+        "source": "llm+rules",
+    }
+
+
 def test_normalizer_rejects_empty_question() -> None:
     normalizer = RequestNormalizer()
 

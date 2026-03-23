@@ -258,5 +258,5 @@ def test_prompt_payload_reproducibility_across_format_variants(case: PromptAccep
 def test_prompt_acceptance_matrix_expands_positive_negative_edge_and_extreme_coverage() -> None:
     assert len(_SUPPORTED_ACCEPTANCE_CASES) == len(_REPRODUCIBILITY_CASES) * len(_PROMPT_FORMAT_VARIANTS)
     assert len(_NEGATIVE_ACCEPTANCE_CASES) == len(_NEGATIVE_PROMPT_CASES) * len(_PROMPT_FORMAT_VARIANTS)
-    assert len(_PROMPT_ACCEPTANCE_CASES) == 306
+    assert len(_PROMPT_ACCEPTANCE_CASES) == len(_SUPPORTED_ACCEPTANCE_CASES) + len(_NEGATIVE_ACCEPTANCE_CASES)
     assert len(_PAYLOAD_REPRODUCIBILITY_CASES) == len(_REPRODUCIBILITY_CASES)

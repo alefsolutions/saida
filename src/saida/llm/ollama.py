@@ -39,12 +39,16 @@ class OllamaLlmProvider(BaseLlmProvider):
             canonical_question=self._maybe_string(payload.get("canonical_question")),
             prompt_family_hint=self._maybe_string(payload.get("prompt_family_hint")),
             confidence=self._maybe_float(payload.get("confidence")),
+            operation=self._maybe_string(payload.get("operation")),
+            object_kind=self._maybe_string(payload.get("object_kind")),
+            object_ref=self._maybe_string(payload.get("object_ref")),
+            expected_result_shape=self._maybe_string(payload.get("expected_result_shape")),
             candidate_capabilities=self._maybe_string_list(payload.get("candidate_capabilities")),
             task_type_hint=self._maybe_string(payload.get("task_type_hint")),
             target=self._maybe_string(payload.get("target")),
             aggregation=self._maybe_string(payload.get("aggregation")),
             horizon=self._maybe_int(payload.get("horizon")),
-            filters=self._maybe_string_dict(payload.get("filters")),
+            filters=self._maybe_object_dict(payload.get("filters")),
             group_by=self._maybe_string_list(payload.get("group_by")),
             time_reference=self._maybe_string_dict(payload.get("time_reference")),
             message=self._maybe_string(payload.get("message")),
@@ -160,6 +164,15 @@ class OllamaLlmProvider(BaseLlmProvider):
         converted: dict[str, str] = {}
         for key, item in value.items():
             if isinstance(key, str) and isinstance(item, str):
+                converted[key] = item
+        return converted or None
+
+    def _maybe_object_dict(self, value: object) -> dict[str, object] | None:
+        if not isinstance(value, dict):
+            return None
+        converted: dict[str, object] = {}
+        for key, item in value.items():
+            if isinstance(key, str):
                 converted[key] = item
         return converted or None
 

@@ -14,12 +14,16 @@ class IntentProposal:
     canonical_question: str | None = None
     prompt_family_hint: str | None = None
     confidence: float | None = None
+    operation: str | None = None
+    object_kind: str | None = None
+    object_ref: str | None = None
+    expected_result_shape: str | None = None
     candidate_capabilities: list[str] | None = None
     task_type_hint: str | None = None
     target: str | None = None
     aggregation: str | None = None
     horizon: int | None = None
-    filters: dict[str, str] | None = None
+    filters: dict[str, Any] | None = None
     group_by: list[str] | None = None
     time_reference: dict[str, str] | None = None
     message: str | None = None

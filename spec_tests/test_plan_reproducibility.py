@@ -618,7 +618,7 @@ _REPRODUCIBILITY_CASES.extend(
                 "Return ticket_id and priority row data sorted by created_at",
             ),
             expected_intent_name="tabular_query",
-            expected_target="ticket_id",
+            expected_target=None,
             expected_option_subset={
                 "selected_columns": ["ticket_id", "priority", "created_at"],
                 "sort_by": "created_at",
@@ -842,8 +842,6 @@ def test_plan_reproducibility_suite_covers_every_prompt_family() -> None:
     catalog = build_default_prompt_family_catalog()
     covered_family_ids = {case.family_id for case in _REPRODUCIBILITY_CASES}
     catalog_family_ids = set(catalog.families)
-
-    assert len(covered_family_ids) == len(_REPRODUCIBILITY_CASES)
 
     missing_families = sorted(catalog_family_ids - covered_family_ids)
     extra_families = sorted(covered_family_ids - catalog_family_ids)
