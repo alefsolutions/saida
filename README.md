@@ -12,6 +12,8 @@ SAIDA is a developer-facing analytics framework that turns natural-language requ
 - canonical result objects
 - stable JSON response payloads
 
+I built SAIDA to make BI dashboarding and day-to-day data analysis easier, faster, and less repetitive.
+
 In plain terms:
 
 - you give SAIDA a dataset and a question
@@ -31,13 +33,17 @@ It is a contract-first analytics engine that sits between:
 - compute backends
 - standardized outputs
 
-That means SAIDA is designed to help developers build systems where prompts can be useful without letting prompt interpretation become uncontrolled or opaque.
+The point is simple:
+
+- ask for analysis in normal language
+- get back something structured and reliable
+- move faster when building dashboards, internal tools, and analytics features
 
 ## What The Goal Is
 
 The goal of SAIDA is to make prompt-driven analytics reliable enough to build on.
 
-More specifically, SAIDA aims to give developers:
+At a practical level, SAIDA is meant to help developers:
 
 - a stable way to convert prompts into analysis workflows
 - a predictable JSON result contract
@@ -45,7 +51,7 @@ More specifically, SAIDA aims to give developers:
 - reproducible routing so paraphrases converge to the same plan
 - portability across datasets, APIs, playgrounds, and future backends
 
-The core idea is:
+So the big idea is:
 
 - prompts are user input
 - SAIDA defines the meaning
@@ -125,6 +131,13 @@ This makes SAIDA useful for:
 - web UIs
 - chat or copilot experiences
 - testing and regression suites
+
+It is especially useful if you want to move faster on:
+
+- BI dashboards
+- metric exploration
+- operational reporting
+- prompt-driven internal analytics tools
 
 ## What SAIDA Supports Today
 
