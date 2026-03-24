@@ -13,6 +13,7 @@ from saida.core import (
     PlanBuilder,
     PlanValidator,
     get_analytics_registry,
+    get_prompt_family_catalog,
     ResultCanonicalizer,
     SchemaDiscoveryService,
     SourceContextParser,
@@ -136,7 +137,7 @@ class Saida:
         generation = self._generate_plan_result(question, dataset, profile)
         plan = self._bind_plan_to_dataset(generation.plan, dataset, generation.request, profile)
         if plan.steps:
-            self.validator.validate_plan(plan)
+            self.validator.validate_plan(plan, dataset=dataset, profile=profile, router=self.router)
         return plan
 
     def execute_plan(
@@ -260,7 +261,7 @@ class Saida:
         capability_contract: PromptCapabilityContract | None,
         warning_groups: tuple[list[str], ...] = (),
     ) -> AnalysisResult:
-        self.validator.validate_plan(plan)
+        self.validator.validate_plan(plan, dataset=dataset, profile=profile, router=self.router)
         trace.append(self._trace("planning", "plan validated", {"task_type": plan.task_type, "step_count": len(plan.steps)}))
 
         metrics: list[Metric] = []
@@ -989,47 +990,24 @@ class Saida:
         return None
 
     def _infer_expected_result_shape(self, request: AnalysisRequest, plan: AnalysisPlan) -> str | None:
-        scalar_families = {
-            "row_count",
-            "metric_aggregate",
-            "column_count",
-            "numeric_column_count",
-            "categorical_column_count",
-            "measure_count",
-            "dimension_count",
-            "time_column_count",
-            "identifier_count",
-            "high_cardinality_count",
-            "distinct_value_count",
-        }
-        verification_families = {
-            "row_existence_check",
-            "time_value_existence_check",
-            "null_existence_check",
-            "threshold_existence_check",
-            "column_property_check",
-            "column_presence_check",
-        }
-        if request.prompt_family in scalar_families:
-            return "scalar"
-        if request.prompt_family in verification_families:
-            return "verification"
         if request.prompt_family:
-            return "table"
-        if plan.steps and plan.steps[0].action in {"row_count", "aggregate_value"}:
-            return "scalar"
-        if plan.steps and plan.steps[0].action in {
-            "row_existence",
-            "time_value_exists",
-            "null_check",
-            "threshold_check",
-            "column_property_check",
-            "column_presence_check",
-        }:
-            return "verification"
+            family_spec = get_prompt_family_catalog().get(request.prompt_family)
+            if family_spec is not None and family_spec.primary_result_shapes:
+                return self._normalize_expected_result_shape(family_spec.primary_result_shapes[0])
+        if plan.steps:
+            method_spec = get_analytics_registry().get_method(plan.steps[0].method_id or plan.steps[0].action)
+            if method_spec is not None and method_spec.output_shapes:
+                return self._normalize_expected_result_shape(method_spec.output_shapes[0])
         if plan.steps:
             return "table"
         return None
+
+    def _normalize_expected_result_shape(self, shape: str) -> str:
+        if shape in {"count", "aggregate"}:
+            return "scalar"
+        if shape in {"recordset", "timeseries", "statistical_test"}:
+            return "table"
+        return shape
 
     def _infer_step_expected_output(self, step: object) -> dict[str, object] | None:
         method_spec = get_analytics_registry().get_method(step.method_id or step.action)

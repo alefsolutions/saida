@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import pandas as pd
 
-from saida.core.analytics_registry import get_analytics_registry
+from saida.core.analytics_registry import AnalyticsMethodSpec, get_analytics_registry
+from saida.core.prompt_family_catalog import get_prompt_family_catalog
 from saida.exceptions import PlanningError, ValidationError
-from saida.core.contracts import AnalysisPlan, Dataset
+from saida.core.contracts import AnalysisPlan, Dataset, DatasetProfile
 
 
 class PlanValidator:
@@ -25,12 +26,39 @@ class PlanValidator:
             joined = ", ".join(str(column_name) for column_name in duplicate_columns)
             raise ValidationError(f"Dataset contains duplicate column names: {joined}")
 
-    def validate_plan(self, plan: AnalysisPlan) -> None:
+    def validate_plan(
+        self,
+        plan: AnalysisPlan,
+        dataset: Dataset | None = None,
+        profile: DatasetProfile | None = None,
+        router: object | None = None,
+    ) -> None:
+        """Validate that the plan contains executable and coherent steps."""
+        self._validate_plan(plan, dataset=dataset, profile=profile, router=router)
+
+    def validate_plan_with_context(
+        self,
+        plan: AnalysisPlan,
+        dataset: Dataset | None = None,
+        profile: DatasetProfile | None = None,
+        router: object | None = None,
+    ) -> None:
+        """Validate a plan using all available runtime context."""
+        self.validate_plan(plan, dataset=dataset, profile=profile, router=router)
+
+    def _validate_plan(
+        self,
+        plan: AnalysisPlan,
+        dataset: Dataset | None = None,
+        profile: DatasetProfile | None = None,
+        router: object | None = None,
+    ) -> None:
         """Validate that the plan contains executable and coherent steps."""
         if not plan.steps:
             raise PlanningError("Analysis plan contains no executable steps.")
 
         analytics_registry = get_analytics_registry()
+        resolved_methods: list[tuple[object, AnalyticsMethodSpec, str]] = []
         seen_step_ids: set[str] = set()
         duplicate_step_ids: list[str] = []
         for step in plan.steps:
@@ -59,6 +87,7 @@ class PlanValidator:
                 raise PlanningError(f"Plan step {step.step_id!r} contains duplicate output_refs.")
             if step.step_id in step.depends_on:
                 raise PlanningError(f"Plan step {step.step_id!r} cannot depend on itself.")
+            resolved_methods.append((step, method_spec, method_id))
 
         if duplicate_step_ids:
             joined = ", ".join(sorted(duplicate_step_ids))
@@ -97,3 +126,178 @@ class PlanValidator:
 
         if len(plan.dataset_refs) != len(set(plan.dataset_refs)):
             raise PlanningError("Analysis plan contains duplicate dataset_refs.")
+        if dataset is not None:
+            if plan.dataset_refs and dataset.name not in set(plan.dataset_refs):
+                raise PlanningError(
+                    f"Analysis plan dataset_refs {plan.dataset_refs!r} do not include the provided dataset {dataset.name!r}."
+                )
+            dataset_inputs = [plan_input.ref for plan_input in plan.inputs if plan_input.kind == "dataset"]
+            if dataset_inputs and dataset.name not in set(dataset_inputs):
+                raise PlanningError(
+                    f"Analysis plan inputs {dataset_inputs!r} do not reference the provided dataset {dataset.name!r}."
+                )
+
+        for step, method_spec, method_id in resolved_methods:
+            self._validate_required_inputs(step.step_id, step.parameters, method_spec, dataset)
+            self._validate_expected_output(step.step_id, step.expected_output, method_spec)
+            if profile is not None:
+                self._validate_parameter_fields(step.step_id, step.parameters, method_spec, profile)
+            if router is not None:
+                self._validate_backend_support(step.step_id, step.tool_family, method_id, router)
+
+        self._validate_plan_result_expectation(plan, analytics_registry)
+
+    def _validate_required_inputs(
+        self,
+        step_id: str,
+        parameters: dict[str, object],
+        method_spec: AnalyticsMethodSpec,
+        dataset: Dataset | None,
+    ) -> None:
+        for required_input in method_spec.required_inputs:
+            if required_input == "dataset" and dataset is None:
+                raise PlanningError(f"Plan step {step_id!r} requires a dataset input.")
+            if required_input == "target" and not isinstance(parameters.get("target"), str):
+                raise PlanningError(f"Plan step {step_id!r} requires a target parameter.")
+            if required_input == "aggregation" and not isinstance(parameters.get("aggregation"), str):
+                raise PlanningError(f"Plan step {step_id!r} requires an aggregation parameter.")
+            if required_input == "group_by" and not parameters.get("group_by"):
+                raise PlanningError(f"Plan step {step_id!r} requires at least one group_by column.")
+            if required_input == "time_column" and not isinstance(parameters.get("time_column"), str):
+                raise PlanningError(f"Plan step {step_id!r} requires a time_column parameter.")
+            if required_input == "time_reference" and not isinstance(parameters.get("time_reference"), dict):
+                raise PlanningError(f"Plan step {step_id!r} requires a time_reference parameter.")
+
+    def _validate_expected_output(
+        self,
+        step_id: str,
+        expected_output: dict[str, object] | None,
+        method_spec: AnalyticsMethodSpec,
+    ) -> None:
+        if expected_output is None:
+            return
+        logical_shape = expected_output.get("logical_shape")
+        if logical_shape is None or not method_spec.output_shapes:
+            return
+        if logical_shape not in set(method_spec.output_shapes):
+            raise PlanningError(
+                f"Plan step {step_id!r} expects logical_shape {logical_shape!r}, "
+                f"but method {method_spec.method_id!r} supports {list(method_spec.output_shapes)!r}."
+            )
+
+    def _validate_parameter_fields(
+        self,
+        step_id: str,
+        parameters: dict[str, object],
+        method_spec: AnalyticsMethodSpec,
+        profile: DatasetProfile,
+    ) -> None:
+        profile_columns = {column.name for column in profile.columns}
+        time_columns = set(profile.time_columns)
+
+        target = parameters.get("target")
+        if (
+            isinstance(target, str)
+            and method_spec.method_id not in {"column_property_check"}
+            and target not in profile_columns
+        ):
+            raise PlanningError(f"Plan step {step_id!r} references unknown target column {target!r}.")
+
+        group_by = parameters.get("group_by")
+        if isinstance(group_by, list):
+            invalid_groups = [column for column in group_by if column not in profile_columns]
+            if invalid_groups:
+                raise PlanningError(f"Plan step {step_id!r} references unknown group_by columns: {invalid_groups}.")
+
+        time_column = parameters.get("time_column")
+        if isinstance(time_column, str):
+            if time_column not in profile_columns:
+                raise PlanningError(f"Plan step {step_id!r} references unknown time_column {time_column!r}.")
+            if method_spec.family_id in {"time_series_time_bucketing", "period_comparison"} and time_column not in time_columns:
+                raise PlanningError(f"Plan step {step_id!r} requires a profiled time column, received {time_column!r}.")
+
+        selected_columns = parameters.get("selected_columns")
+        if isinstance(selected_columns, list):
+            invalid_selected = [column for column in selected_columns if column not in profile_columns]
+            if invalid_selected:
+                raise PlanningError(f"Plan step {step_id!r} references unknown selected columns: {invalid_selected}.")
+
+        feature_columns = parameters.get("feature_columns")
+        if isinstance(feature_columns, list):
+            invalid_features = [column for column in feature_columns if column not in profile_columns]
+            if invalid_features:
+                raise PlanningError(f"Plan step {step_id!r} references unknown feature columns: {invalid_features}.")
+
+        comparison_columns = parameters.get("comparison_columns")
+        if isinstance(comparison_columns, list):
+            invalid_comparisons = [column for column in comparison_columns if column not in profile_columns]
+            if invalid_comparisons:
+                raise PlanningError(f"Plan step {step_id!r} references unknown comparison columns: {invalid_comparisons}.")
+
+        filters = parameters.get("filters")
+        if isinstance(filters, dict):
+            invalid_filters = [field_name for field_name in filters if field_name not in profile_columns]
+            if invalid_filters:
+                raise PlanningError(f"Plan step {step_id!r} references unknown filter fields: {invalid_filters}.")
+
+    def _validate_backend_support(
+        self,
+        step_id: str,
+        tool_family: str,
+        method_id: str,
+        router: object,
+    ) -> None:
+        adapter = router.route(tool_family)
+        supports_method = getattr(adapter, "supports_method", None)
+        if callable(supports_method) and not supports_method(method_id):
+            raise PlanningError(
+                f"Plan step {step_id!r} uses tool_family {tool_family!r}, which does not support method {method_id!r}."
+            )
+
+    def _validate_plan_result_expectation(self, plan: AnalysisPlan, analytics_registry: object) -> None:
+        if plan.expected_result_shape is None:
+            return
+        if self._plan_family_can_produce_expected_shape(plan):
+            return
+        step_shapes: set[str] = set()
+        for step in plan.steps:
+            method_spec = analytics_registry.get_method(step.method_id or step.action)
+            if method_spec is not None:
+                step_shapes.update(self._normalize_output_shape(shape) for shape in method_spec.output_shapes)
+        if not step_shapes:
+            return
+        compatible_shapes = {
+            "scalar": {"scalar"},
+            "verification": {"verification"},
+            "table": {"table", "recordset", "timeseries", "statistical_test"},
+        }.get(plan.expected_result_shape, {plan.expected_result_shape})
+        if not compatible_shapes.intersection(step_shapes):
+            raise PlanningError(
+                f"Analysis plan expects result shape {plan.expected_result_shape!r}, "
+                f"but step methods produce {sorted(step_shapes)!r}."
+            )
+
+    def _plan_family_can_produce_expected_shape(self, plan: AnalysisPlan) -> bool:
+        prompt_family = plan.metadata.get("prompt_family") if isinstance(plan.metadata, dict) else None
+        if not isinstance(prompt_family, str):
+            return False
+        family_spec = get_prompt_family_catalog().get(prompt_family)
+        if family_spec is None:
+            return False
+        family_shapes = {
+            self._normalize_output_shape(shape)
+            for shape in family_spec.primary_result_shapes
+        }
+        if plan.expected_result_shape not in family_shapes:
+            return False
+        allowed_actions = set(family_spec.allowed_plan_actions)
+        if not allowed_actions:
+            return False
+        return all((step.method_id or step.action) in allowed_actions for step in plan.steps)
+
+    def _normalize_output_shape(self, shape: str) -> str:
+        if shape in {"count", "aggregate"}:
+            return "scalar"
+        if shape in {"recordset", "timeseries", "statistical_test"}:
+            return "table"
+        return shape
