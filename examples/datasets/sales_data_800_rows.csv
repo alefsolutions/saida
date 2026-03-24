@@ -1,0 +1,801 @@
+order_id,order_date,ship_date,year,quarter,month,weekday,region,country,sales_channel,customer_segment,sales_rep,product_category,product_name,order_status,payment_method,quantity,unit_price,gross_sales,discount_pct,discount_amount,tax_rate,tax_amount,shipping_fee,total_sales
+ORD-202401-00033,2024-01-01,2024-01-06,2024,Q1,Jan,Monday,North,USA,Online,Corporate,L. Nami,Software,Security Suite,Completed,Cash,28,1052.83,29479.24,0.12,3537.51,0.07,1815.92,64.60,27822.25
+ORD-202401-00329,2024-01-01,2024-01-02,2024,Q1,Jan,Monday,West,UK,Online,Corporate,A. Taka,Electronics,Tablet,Completed,Mobile Pay,15,758.65,11379.75,0.15,1706.96,0.12,1160.73,45.80,10879.32
+ORD-202401-00508,2024-01-02,2024-01-08,2024,Q1,Jan,Tuesday,East,Singapore,Online,Government,D. Siroi,Accessories,Docking Station,Completed,Credit Card,16,151.06,2416.96,0.15,362.54,0.10,205.44,59.53,2319.39
+ORD-202401-00717,2024-01-02,2024-01-07,2024,Q1,Jan,Tuesday,North,Canada,Distributor,Consumer,J. Aita,Home,Desk,Completed,Cash,27,210.45,5682.15,0.15,852.32,0.10,482.98,8.96,5321.77
+ORD-202401-00188,2024-01-03,2024-01-06,2024,Q1,Jan,Wednesday,West,France,Wholesale,Government,A. Taka,Software,Support Plan,Completed,Credit Card,12,728.68,8744.16,0.05,437.21,0.10,830.70,47.22,9184.87
+ORD-202401-00390,2024-01-03,2024-01-09,2024,Q1,Jan,Wednesday,West,France,Retail,Small Business,J. Aita,Accessories,Webcam,Completed,Cash,29,185.97,5393.13,0.15,808.97,0.07,320.89,15.32,4920.37
+ORD-202401-00382,2024-01-04,2024-01-06,2024,Q1,Jan,Thursday,East,Singapore,Wholesale,Consumer,L. Nami,Home,Desk,Completed,Mobile Pay,24,127.55,3061.20,0.05,153.06,0.05,145.41,11.88,3065.43
+ORD-202401-00266,2024-01-05,2024-01-07,2024,Q1,Jan,Friday,West,Germany,Wholesale,Consumer,T. Vele,Home,Lamp,Returned,Mobile Pay,21,88.67,1862.07,0.02,37.24,0.05,91.24,53.00,1969.07
+ORD-202401-00048,2024-01-06,2024-01-09,2024,Q1,Jan,Saturday,East,Philippines,Wholesale,Government,P. Kuri,Office Supplies,Paper,Completed,Bank Transfer,28,58.55,1639.40,0.12,196.73,0.05,72.13,63.18,1577.98
+ORD-202401-00443,2024-01-09,2024-01-12,2024,Q1,Jan,Tuesday,West,France,Retail,Corporate,J. Aita,Software,Support Plan,Cancelled,Cash,17,112.82,1917.94,0.00,0.00,0.05,95.90,31.30,2045.14
+ORD-202401-00207,2024-01-10,2024-01-14,2024,Q1,Jan,Wednesday,East,Singapore,Wholesale,Consumer,J. Aita,Home,Shelf,Completed,Mobile Pay,17,161.59,2747.03,0.00,0.00,0.10,274.70,48.72,3070.45
+ORD-202401-00183,2024-01-12,2024-01-16,2024,Q1,Jan,Friday,West,Germany,Wholesale,Small Business,T. Vele,Office Supplies,Paper,Returned,Cash,14,43.86,614.04,0.00,0.00,0.10,61.40,41.25,716.69
+ORD-202401-00212,2024-01-12,2024-01-15,2024,Q1,Jan,Friday,South,New Zealand,Distributor,Government,J. Aita,Accessories,Webcam,Completed,Bank Transfer,11,194.62,2140.82,0.10,214.08,0.07,134.87,12.11,2073.72
+ORD-202401-00444,2024-01-12,2024-01-19,2024,Q1,Jan,Friday,South,Australia,Distributor,Corporate,D. Siroi,Software,Security Suite,Cancelled,Mobile Pay,17,649.75,11045.75,0.15,1656.86,0.12,1126.67,44.78,10560.34
+ORD-202401-00050,2024-01-13,2024-01-18,2024,Q1,Jan,Saturday,Central,UAE,Retail,Small Business,A. Taka,Office Supplies,Pen,Completed,Mobile Pay,20,46.09,921.80,0.15,138.27,0.10,78.35,49.66,911.54
+ORD-202401-00134,2024-01-13,2024-01-17,2024,Q1,Jan,Saturday,North,USA,Distributor,Government,A. Taka,Software,Support Plan,Completed,Cash,4,915.22,3660.88,0.02,73.22,0.05,179.38,64.79,3831.83
+ORD-202401-00187,2024-01-13,2024-01-16,2024,Q1,Jan,Saturday,South,New Zealand,Wholesale,Consumer,P. Kuri,Office Supplies,Paper,Completed,Bank Transfer,13,23.53,305.89,0.12,36.71,0.05,13.46,15.17,297.81
+ORD-202401-00621,2024-01-13,2024-01-14,2024,Q1,Jan,Saturday,Central,South Africa,Online,Government,A. Taka,Accessories,Docking Station,Cancelled,Cash,9,138.46,1246.14,0.12,149.54,0.05,54.83,49.25,1200.68
+ORD-202401-00319,2024-01-15,2024-01-18,2024,Q1,Jan,Monday,East,Singapore,Online,Government,J. Aita,Accessories,Keyboard,Completed,Credit Card,8,43.99,351.92,0.08,28.15,0.05,16.19,64.83,404.79
+ORD-202401-00127,2024-01-17,2024-01-27,2024,Q1,Jan,Wednesday,South,New Zealand,Wholesale,Government,L. Nami,Electronics,Tablet,Completed,Cash,21,807.90,16965.90,0.05,848.30,0.12,1934.11,32.18,18083.89
+ORD-202401-00029,2024-01-19,2024-01-22,2024,Q1,Jan,Friday,North,USA,Online,Corporate,J. Aita,Office Supplies,Paper,Pending,Mobile Pay,12,22.58,270.96,0.08,21.68,0.10,24.93,20.13,294.34
+ORD-202401-00375,2024-01-19,2024-01-24,2024,Q1,Jan,Friday,North,USA,Retail,Government,J. Aita,Home,Cabinet,Completed,Cash,7,431.90,3023.30,0.08,241.86,0.07,194.70,13.91,2990.05
+ORD-202401-00478,2024-01-20,2024-01-26,2024,Q1,Jan,Saturday,East,Japan,Online,Small Business,M. Kila,Electronics,Laptop,Pending,Credit Card,2,392.03,784.06,0.15,117.61,0.12,79.97,19.24,765.66
+ORD-202401-00609,2024-01-20,2024-02-03,2024,Q1,Jan,Saturday,East,Singapore,Wholesale,Small Business,D. Siroi,Office Supplies,Notebook,Cancelled,Cash,11,21.54,236.94,0.12,28.43,0.10,20.85,8.69,238.05
+ORD-202401-00125,2024-01-21,2024-01-31,2024,Q1,Jan,Sunday,South,New Zealand,Distributor,Government,M. Kila,Software,Add-on,Cancelled,Credit Card,17,850.71,14462.07,0.10,1446.21,0.05,650.79,45.58,13712.23
+ORD-202401-00506,2024-01-23,2024-01-26,2024,Q1,Jan,Tuesday,West,France,Wholesale,Corporate,A. Taka,Accessories,Headphones,Pending,Cash,8,33.04,264.32,0.15,39.65,0.10,22.47,22.55,269.69
+ORD-202401-00777,2024-01-23,2024-01-28,2024,Q1,Jan,Tuesday,West,France,Retail,Consumer,M. Kila,Accessories,Keyboard,Completed,Bank Transfer,13,123.62,1607.06,0.08,128.56,0.07,103.50,51.70,1633.70
+ORD-202401-00707,2024-01-24,2024-01-28,2024,Q1,Jan,Wednesday,Central,UAE,Wholesale,Consumer,P. Kuri,Software,License,Completed,Mobile Pay,14,150.67,2109.38,0.15,316.41,0.12,215.16,23.13,2031.26
+ORD-202401-00598,2024-01-26,2024-01-30,2024,Q1,Jan,Friday,West,Germany,Online,Government,P. Kuri,Accessories,Headphones,Completed,Mobile Pay,8,201.19,1609.52,0.10,160.95,0.10,144.86,58.59,1652.02
+ORD-202401-00067,2024-01-27,2024-02-03,2024,Q1,Jan,Saturday,North,USA,Distributor,Corporate,A. Taka,Home,Chair,Returned,Cash,6,142.80,856.80,0.00,0.00,0.07,59.98,18.51,935.29
+ORD-202401-00057,2024-01-29,2024-01-31,2024,Q1,Jan,Monday,West,Germany,Wholesale,Corporate,L. Nami,Office Supplies,Notebook,Completed,Mobile Pay,9,8.57,77.13,0.12,9.26,0.10,6.79,11.12,85.78
+ORD-202401-00778,2024-01-31,2024-02-05,2024,Q1,Jan,Wednesday,South,Australia,Retail,Corporate,M. Kila,Home,Lamp,Completed,Credit Card,15,299.97,4499.55,0.05,224.98,0.07,299.22,30.99,4604.78
+ORD-202402-00341,2024-02-01,2024-02-06,2024,Q1,Feb,Thursday,West,France,Retail,Government,M. Kila,Home,Desk,Completed,Cash,11,177.26,1949.86,0.15,292.48,0.07,116.02,21.54,1794.94
+ORD-202402-00565,2024-02-01,2024-02-11,2024,Q1,Feb,Thursday,West,UK,Distributor,Consumer,T. Vele,Home,Lamp,Completed,Cash,13,186.93,2430.09,0.15,364.51,0.10,206.56,8.56,2280.70
+ORD-202402-00085,2024-02-02,2024-02-05,2024,Q1,Feb,Friday,North,Canada,Retail,Government,A. Taka,Accessories,Docking Station,Completed,Mobile Pay,15,109.46,1641.90,0.08,131.35,0.05,75.53,55.88,1641.96
+ORD-202402-00100,2024-02-04,2024-02-08,2024,Q1,Feb,Sunday,South,New Zealand,Wholesale,Government,A. Taka,Office Supplies,Envelope,Completed,Mobile Pay,21,35.91,754.11,0.02,15.08,0.12,88.68,22.49,850.20
+ORD-202402-00317,2024-02-04,2024-02-11,2024,Q1,Feb,Sunday,North,Canada,Retail,Government,S. Raka,Electronics,Phone,Pending,Bank Transfer,4,626.37,2505.48,0.10,250.55,0.10,225.49,17.38,2497.80
+ORD-202402-00020,2024-02-05,2024-02-11,2024,Q1,Feb,Monday,North,Canada,Retail,Consumer,M. Kila,Electronics,Printer,Returned,Credit Card,1,294.92,294.92,0.02,5.90,0.07,20.23,55.82,365.07
+ORD-202402-00761,2024-02-05,2024-02-11,2024,Q1,Feb,Monday,East,Japan,Wholesale,Government,M. Kila,Office Supplies,Pen,Completed,Bank Transfer,22,8.27,181.94,0.00,0.00,0.07,12.74,43.46,238.14
+ORD-202402-00429,2024-02-06,2024-02-11,2024,Q1,Feb,Tuesday,North,Canada,Wholesale,Consumer,J. Aita,Accessories,Docking Station,Completed,Credit Card,28,54.03,1512.84,0.08,121.03,0.10,139.18,14.56,1545.55
+ORD-202402-00198,2024-02-08,2024-02-14,2024,Q1,Feb,Thursday,Central,India,Retail,Corporate,M. Kila,Office Supplies,Notebook,Completed,Bank Transfer,20,30.94,618.80,0.10,61.88,0.12,66.83,56.34,680.09
+ORD-202402-00385,2024-02-09,2024-02-13,2024,Q1,Feb,Friday,West,France,Distributor,Consumer,L. Nami,Home,Chair,Completed,Cash,13,146.89,1909.57,0.02,38.19,0.07,131.00,60.99,2063.37
+ORD-202402-00730,2024-02-09,2024-02-11,2024,Q1,Feb,Friday,West,Germany,Wholesale,Small Business,S. Raka,Software,License,Cancelled,Credit Card,15,410.69,6160.35,0.10,616.04,0.07,388.10,35.35,5967.76
+ORD-202402-00163,2024-02-10,2024-02-11,2024,Q1,Feb,Saturday,West,Germany,Online,Consumer,P. Kuri,Office Supplies,Envelope,Completed,Bank Transfer,11,55.91,615.01,0.05,30.75,0.12,70.11,48.95,703.32
+ORD-202402-00168,2024-02-10,2024-02-14,2024,Q1,Feb,Saturday,East,Japan,Online,Corporate,D. Siroi,Accessories,Docking Station,Completed,Bank Transfer,8,93.74,749.92,0.15,112.49,0.07,44.62,16.80,698.85
+ORD-202402-00219,2024-02-10,2024-02-13,2024,Q1,Feb,Saturday,Central,UAE,Wholesale,Government,L. Nami,Office Supplies,Envelope,Pending,Credit Card,20,49.47,989.40,0.15,148.41,0.05,42.05,49.77,932.81
+ORD-202402-00774,2024-02-10,2024-02-13,2024,Q1,Feb,Saturday,South,Australia,Wholesale,Government,D. Siroi,Home,Cabinet,Completed,Bank Transfer,5,206.59,1032.95,0.00,0.00,0.05,51.65,17.52,1102.12
+ORD-202402-00613,2024-02-12,2024-02-14,2024,Q1,Feb,Monday,South,New Zealand,Distributor,Corporate,P. Kuri,Accessories,Mouse,Completed,Credit Card,21,164.69,3458.49,0.08,276.68,0.12,381.82,50.63,3614.26
+ORD-202402-00147,2024-02-13,2024-02-17,2024,Q1,Feb,Tuesday,East,Japan,Wholesale,Consumer,L. Nami,Accessories,Headphones,Returned,Mobile Pay,20,31.43,628.60,0.10,62.86,0.10,56.57,23.76,646.07
+ORD-202402-00180,2024-02-14,2024-02-24,2024,Q1,Feb,Wednesday,Central,UAE,Retail,Small Business,D. Siroi,Accessories,Docking Station,Completed,Credit Card,27,62.38,1684.26,0.12,202.11,0.12,177.86,30.87,1690.88
+ORD-202402-00674,2024-02-14,2024-02-17,2024,Q1,Feb,Wednesday,West,France,Distributor,Corporate,D. Siroi,Home,Chair,Cancelled,Credit Card,28,438.49,12277.72,0.02,245.55,0.05,601.61,30.06,12663.84
+ORD-202402-00566,2024-02-18,2024-02-24,2024,Q1,Feb,Sunday,West,UK,Distributor,Corporate,A. Taka,Electronics,Phone,Completed,Cash,20,1104.48,22089.60,0.15,3313.44,0.05,938.81,25.89,19740.86
+ORD-202402-00791,2024-02-19,2024-02-23,2024,Q1,Feb,Monday,South,Australia,Wholesale,Government,M. Kila,Office Supplies,Notebook,Completed,Credit Card,22,29.56,650.32,0.10,65.03,0.12,70.23,14.63,670.15
+ORD-202402-00556,2024-02-20,2024-02-23,2024,Q1,Feb,Tuesday,North,USA,Distributor,Government,A. Taka,Office Supplies,Pen,Completed,Cash,3,46.81,140.43,0.10,14.04,0.10,12.64,41.36,180.39
+ORD-202402-00616,2024-02-21,2024-02-24,2024,Q1,Feb,Wednesday,North,Canada,Retail,Corporate,J. Aita,Accessories,Docking Station,Completed,Credit Card,21,164.31,3450.51,0.10,345.05,0.10,310.55,32.93,3448.94
+ORD-202402-00541,2024-02-22,2024-02-25,2024,Q1,Feb,Thursday,West,Germany,Wholesale,Small Business,L. Nami,Home,Cabinet,Pending,Mobile Pay,23,223.38,5137.74,0.02,102.75,0.07,352.45,50.65,5438.09
+ORD-202402-00793,2024-02-22,2024-02-27,2024,Q1,Feb,Thursday,Central,India,Wholesale,Government,M. Kila,Software,Security Suite,Completed,Credit Card,8,132.30,1058.40,0.02,21.17,0.10,103.72,16.00,1156.95
+ORD-202402-00293,2024-02-23,2024-03-01,2024,Q1,Feb,Friday,South,New Zealand,Distributor,Small Business,D. Siroi,Office Supplies,Pen,Completed,Credit Card,3,20.56,61.68,0.02,1.23,0.05,3.02,46.00,109.47
+ORD-202402-00524,2024-02-24,2024-03-01,2024,Q1,Feb,Saturday,North,USA,Wholesale,Small Business,T. Vele,Accessories,Keyboard,Pending,Bank Transfer,7,118.65,830.55,0.12,99.67,0.05,36.54,27.55,794.97
+ORD-202402-00766,2024-02-24,2024-02-27,2024,Q1,Feb,Saturday,West,UK,Wholesale,Government,T. Vele,Office Supplies,Envelope,Completed,Mobile Pay,8,13.14,105.12,0.02,2.10,0.12,12.36,27.35,142.73
+ORD-202402-00145,2024-02-26,2024-03-02,2024,Q1,Feb,Monday,East,Japan,Wholesale,Consumer,S. Raka,Office Supplies,Pen,Completed,Cash,2,45.46,90.92,0.12,10.91,0.12,9.60,57.71,147.32
+ORD-202402-00357,2024-02-26,2024-02-27,2024,Q1,Feb,Monday,East,Singapore,Distributor,Corporate,M. Kila,Office Supplies,Pen,Completed,Bank Transfer,30,33.76,1012.80,0.15,151.92,0.05,43.04,27.96,931.88
+ORD-202402-00373,2024-02-26,2024-02-29,2024,Q1,Feb,Monday,South,Australia,Wholesale,Consumer,P. Kuri,Home,Cabinet,Pending,Bank Transfer,1,62.54,62.54,0.15,9.38,0.05,2.66,63.09,118.91
+ORD-202402-00585,2024-02-26,2024-03-01,2024,Q1,Feb,Monday,East,Philippines,Distributor,Small Business,T. Vele,Office Supplies,Pen,Pending,Mobile Pay,16,29.13,466.08,0.15,69.91,0.07,27.73,56.59,480.49
+ORD-202402-00316,2024-02-27,2024-02-28,2024,Q1,Feb,Tuesday,South,New Zealand,Wholesale,Government,L. Nami,Electronics,Phone,Completed,Cash,6,1650.98,9905.88,0.05,495.29,0.10,941.06,15.15,10366.80
+ORD-202402-00749,2024-02-28,2024-03-02,2024,Q1,Feb,Wednesday,Central,South Africa,Distributor,Small Business,S. Raka,Accessories,Docking Station,Cancelled,Mobile Pay,8,26.81,214.48,0.02,4.29,0.12,25.22,58.32,293.73
+ORD-202403-00687,2024-03-03,2024-03-05,2024,Q1,Mar,Sunday,South,New Zealand,Online,Consumer,S. Raka,Home,Cabinet,Pending,Bank Transfer,1,122.00,122.00,0.02,2.44,0.10,11.96,55.21,186.73
+ORD-202403-00159,2024-03-05,2024-03-06,2024,Q1,Mar,Tuesday,West,Germany,Wholesale,Consumer,M. Kila,Electronics,Laptop,Pending,Bank Transfer,23,877.29,20177.67,0.02,403.55,0.12,2372.89,21.53,22168.54
+ORD-202403-00657,2024-03-06,2024-03-12,2024,Q1,Mar,Wednesday,East,Philippines,Online,Small Business,A. Taka,Home,Chair,Completed,Bank Transfer,10,360.12,3601.20,0.15,540.18,0.07,214.27,18.16,3293.45
+ORD-202403-00670,2024-03-06,2024-03-09,2024,Q1,Mar,Wednesday,East,Singapore,Distributor,Corporate,P. Kuri,Accessories,Docking Station,Completed,Credit Card,1,185.22,185.22,0.00,0.00,0.10,18.52,56.07,259.81
+ORD-202403-00596,2024-03-08,2024-03-11,2024,Q1,Mar,Friday,North,Canada,Retail,Government,T. Vele,Accessories,Webcam,Completed,Credit Card,1,70.37,70.37,0.02,1.41,0.07,4.83,24.41,98.20
+ORD-202403-00633,2024-03-08,2024-03-11,2024,Q1,Mar,Friday,Central,UAE,Retail,Small Business,J. Aita,Electronics,Phone,Completed,Cash,10,1593.57,15935.70,0.15,2390.36,0.07,948.17,30.33,14523.84
+ORD-202403-00366,2024-03-09,2024-03-12,2024,Q1,Mar,Saturday,North,Canada,Wholesale,Corporate,L. Nami,Software,License,Completed,Credit Card,1,144.28,144.28,0.02,2.89,0.07,9.90,31.41,182.70
+ORD-202403-00632,2024-03-09,2024-03-13,2024,Q1,Mar,Saturday,West,Germany,Online,Corporate,L. Nami,Software,Support Plan,Pending,Cash,6,1104.19,6625.14,0.12,795.02,0.10,583.01,14.43,6427.56
+ORD-202403-00032,2024-03-10,2024-03-15,2024,Q1,Mar,Sunday,East,Japan,Retail,Government,P. Kuri,Office Supplies,Stapler,Cancelled,Bank Transfer,19,26.60,505.40,0.05,25.27,0.05,24.01,45.00,549.14
+ORD-202403-00265,2024-03-10,2024-03-17,2024,Q1,Mar,Sunday,Central,South Africa,Wholesale,Government,A. Taka,Office Supplies,Pen,Completed,Bank Transfer,16,35.72,571.52,0.15,85.73,0.12,58.29,53.66,597.74
+ORD-202403-00547,2024-03-10,2024-03-17,2024,Q1,Mar,Sunday,South,New Zealand,Wholesale,Small Business,A. Taka,Office Supplies,Pen,Cancelled,Mobile Pay,25,4.19,104.75,0.10,10.48,0.10,9.43,9.19,112.89
+ORD-202403-00655,2024-03-10,2024-03-14,2024,Q1,Mar,Sunday,East,Singapore,Retail,Small Business,M. Kila,Electronics,Tablet,Completed,Credit Card,4,1304.09,5216.36,0.05,260.82,0.12,594.66,21.02,5571.22
+ORD-202403-00742,2024-03-11,2024-03-18,2024,Q1,Mar,Monday,West,France,Retail,Small Business,L. Nami,Accessories,Mouse,Pending,Bank Transfer,2,198.30,396.60,0.08,31.73,0.10,36.49,57.00,458.36
+ORD-202403-00148,2024-03-12,2024-03-18,2024,Q1,Mar,Tuesday,Central,India,Online,Government,J. Aita,Accessories,Keyboard,Completed,Credit Card,15,128.03,1920.45,0.02,38.41,0.10,188.20,42.09,2112.33
+ORD-202403-00543,2024-03-12,2024-03-13,2024,Q1,Mar,Tuesday,North,Canada,Wholesale,Small Business,P. Kuri,Office Supplies,Pen,Completed,Bank Transfer,16,48.74,779.84,0.02,15.60,0.05,38.21,54.48,856.93
+ORD-202403-00113,2024-03-13,2024-03-16,2024,Q1,Mar,Wednesday,West,Germany,Online,Small Business,L. Nami,Accessories,Mouse,Returned,Mobile Pay,27,151.28,4084.56,0.08,326.76,0.10,375.78,34.04,4167.62
+ORD-202403-00486,2024-03-13,2024-03-16,2024,Q1,Mar,Wednesday,North,USA,Distributor,Small Business,M. Kila,Accessories,Headphones,Completed,Cash,9,100.84,907.56,0.05,45.38,0.12,103.46,25.67,991.31
+ORD-202403-00509,2024-03-14,2024-03-17,2024,Q1,Mar,Thursday,North,USA,Distributor,Consumer,S. Raka,Home,Cabinet,Completed,Credit Card,17,57.99,985.83,0.12,118.30,0.05,43.38,30.02,940.93
+ORD-202403-00568,2024-03-14,2024-03-16,2024,Q1,Mar,Thursday,East,Japan,Retail,Small Business,J. Aita,Home,Desk,Completed,Mobile Pay,30,141.50,4245.00,0.05,212.25,0.12,483.93,47.03,4563.71
+ORD-202403-00610,2024-03-14,2024-03-15,2024,Q1,Mar,Thursday,North,Canada,Wholesale,Corporate,M. Kila,Home,Chair,Returned,Mobile Pay,26,281.68,7323.68,0.02,146.47,0.07,502.40,36.68,7716.29
+ORD-202403-00243,2024-03-15,2024-03-17,2024,Q1,Mar,Friday,West,France,Distributor,Corporate,T. Vele,Accessories,Keyboard,Returned,Mobile Pay,5,127.38,636.90,0.00,0.00,0.12,76.43,33.82,747.15
+ORD-202403-00137,2024-03-16,2024-03-22,2024,Q1,Mar,Saturday,West,UK,Distributor,Government,M. Kila,Software,Add-on,Completed,Mobile Pay,6,498.28,2989.68,0.00,0.00,0.10,298.97,49.82,3338.47
+ORD-202403-00377,2024-03-16,2024-03-21,2024,Q1,Mar,Saturday,Central,South Africa,Wholesale,Small Business,D. Siroi,Home,Desk,Pending,Cash,21,246.85,5183.85,0.08,414.71,0.07,333.84,40.44,5143.42
+ORD-202403-00392,2024-03-16,2024-03-19,2024,Q1,Mar,Saturday,East,Japan,Wholesale,Government,A. Taka,Software,Subscription,Returned,Mobile Pay,21,615.21,12919.41,0.10,1291.94,0.05,581.37,45.36,12254.20
+ORD-202403-00063,2024-03-18,2024-03-22,2024,Q1,Mar,Monday,Central,South Africa,Online,Government,S. Raka,Electronics,Monitor,Cancelled,Cash,14,1524.96,21349.44,0.02,426.99,0.10,2092.25,44.65,23059.35
+ORD-202403-00371,2024-03-18,2024-03-20,2024,Q1,Mar,Monday,South,Australia,Distributor,Corporate,S. Raka,Office Supplies,Paper,Completed,Bank Transfer,21,3.13,65.73,0.12,7.89,0.10,5.78,32.67,96.29
+ORD-202403-00299,2024-03-19,2024-03-23,2024,Q1,Mar,Tuesday,North,USA,Retail,Small Business,D. Siroi,Office Supplies,Notebook,Completed,Mobile Pay,25,40.26,1006.50,0.12,120.78,0.12,106.29,35.21,1027.22
+ORD-202403-00690,2024-03-19,2024-04-02,2024,Q1,Mar,Tuesday,East,Singapore,Distributor,Government,L. Nami,Accessories,Mouse,Completed,Mobile Pay,20,29.62,592.40,0.15,88.86,0.10,50.35,55.79,609.68
+ORD-202403-00576,2024-03-20,2024-03-21,2024,Q1,Mar,Wednesday,Central,India,Wholesale,Government,T. Vele,Accessories,Mouse,Pending,Cash,28,215.56,6035.68,0.10,603.57,0.07,380.25,17.59,5829.95
+ORD-202403-00064,2024-03-22,2024-03-29,2024,Q1,Mar,Friday,West,UK,Distributor,Corporate,A. Taka,Electronics,Tablet,Completed,Bank Transfer,15,1192.11,17881.65,0.08,1430.53,0.05,822.56,63.55,17337.23
+ORD-202403-00109,2024-03-24,2024-03-28,2024,Q1,Mar,Sunday,North,Canada,Distributor,Small Business,J. Aita,Electronics,Laptop,Completed,Credit Card,7,1501.51,10510.57,0.12,1261.27,0.07,647.45,28.56,9925.31
+ORD-202403-00116,2024-03-24,2024-03-29,2024,Q1,Mar,Sunday,North,USA,Wholesale,Small Business,T. Vele,Accessories,Webcam,Returned,Credit Card,18,45.14,812.52,0.10,81.25,0.07,51.19,21.63,804.09
+ORD-202403-00165,2024-03-24,2024-03-31,2024,Q1,Mar,Sunday,South,New Zealand,Retail,Small Business,D. Siroi,Office Supplies,Stapler,Returned,Cash,12,56.62,679.44,0.02,13.59,0.10,66.59,57.80,790.24
+ORD-202403-00166,2024-03-24,2024-03-29,2024,Q1,Mar,Sunday,East,Japan,Distributor,Consumer,P. Kuri,Accessories,Headphones,Completed,Bank Transfer,21,14.43,303.03,0.12,36.36,0.12,32.00,39.84,338.51
+ORD-202403-00351,2024-03-24,2024-03-31,2024,Q1,Mar,Sunday,Central,India,Retail,Small Business,T. Vele,Electronics,Tablet,Completed,Bank Transfer,11,316.51,3481.61,0.10,348.16,0.10,313.35,50.64,3497.44
+ORD-202403-00369,2024-03-24,2024-03-25,2024,Q1,Mar,Sunday,Central,UAE,Distributor,Government,A. Taka,Accessories,Headphones,Completed,Bank Transfer,28,147.37,4126.36,0.10,412.64,0.07,259.96,8.54,3982.22
+ORD-202403-00738,2024-03-25,2024-03-28,2024,Q1,Mar,Monday,East,Philippines,Online,Small Business,J. Aita,Software,Subscription,Completed,Mobile Pay,18,1051.66,18929.88,0.08,1514.39,0.07,1219.08,8.18,18642.75
+ORD-202403-00249,2024-03-26,2024-04-02,2024,Q1,Mar,Tuesday,North,USA,Wholesale,Corporate,S. Raka,Software,Subscription,Cancelled,Mobile Pay,18,172.67,3108.06,0.15,466.21,0.10,264.19,16.21,2922.25
+ORD-202403-00784,2024-03-26,2024-03-31,2024,Q1,Mar,Tuesday,Central,UAE,Distributor,Corporate,A. Taka,Electronics,Phone,Returned,Bank Transfer,26,1164.35,30273.10,0.12,3632.77,0.10,2664.03,30.21,29334.57
+ORD-202403-00388,2024-03-27,2024-03-29,2024,Q1,Mar,Wednesday,West,UK,Wholesale,Corporate,D. Siroi,Electronics,Laptop,Returned,Credit Card,22,1127.76,24810.72,0.10,2481.07,0.10,2232.97,43.43,24606.05
+ORD-202403-00280,2024-03-30,2024-04-01,2024,Q1,Mar,Saturday,Central,UAE,Wholesale,Corporate,M. Kila,Accessories,Webcam,Pending,Mobile Pay,28,81.06,2269.68,0.15,340.45,0.05,96.46,39.51,2065.20
+ORD-202403-00348,2024-03-30,2024-04-03,2024,Q1,Mar,Saturday,South,Australia,Distributor,Small Business,T. Vele,Electronics,Printer,Completed,Credit Card,1,1392.75,1392.75,0.05,69.64,0.07,92.62,22.37,1438.10
+ORD-202404-00574,2024-04-02,2024-04-16,2024,Q2,Apr,Tuesday,South,New Zealand,Wholesale,Consumer,S. Raka,Office Supplies,Stapler,Completed,Credit Card,24,13.87,332.88,0.15,49.93,0.12,33.95,51.19,368.09
+ORD-202404-00643,2024-04-02,2024-04-05,2024,Q2,Apr,Tuesday,Central,India,Wholesale,Government,J. Aita,Electronics,Laptop,Cancelled,Bank Transfer,27,458.95,12391.65,0.08,991.33,0.07,798.02,40.10,12238.44
+ORD-202404-00023,2024-04-05,2024-04-09,2024,Q2,Apr,Friday,North,USA,Distributor,Government,J. Aita,Software,Add-on,Returned,Mobile Pay,16,658.70,10539.20,0.10,1053.92,0.07,663.97,27.49,10176.74
+ORD-202404-00233,2024-04-05,2024-04-06,2024,Q2,Apr,Friday,West,Germany,Wholesale,Consumer,M. Kila,Home,Lamp,Returned,Bank Transfer,11,385.35,4238.85,0.15,635.83,0.12,432.36,53.77,4089.15
+ORD-202404-00451,2024-04-05,2024-04-09,2024,Q2,Apr,Friday,North,USA,Online,Consumer,L. Nami,Software,Support Plan,Pending,Cash,20,657.02,13140.40,0.05,657.02,0.12,1498.01,9.20,13990.59
+ORD-202404-00225,2024-04-06,2024-04-09,2024,Q2,Apr,Saturday,East,Philippines,Distributor,Corporate,A. Taka,Software,Security Suite,Pending,Bank Transfer,29,297.13,8616.77,0.02,172.34,0.10,844.44,17.14,9306.01
+ORD-202404-00258,2024-04-07,2024-04-09,2024,Q2,Apr,Sunday,West,UK,Wholesale,Government,S. Raka,Office Supplies,Stapler,Completed,Mobile Pay,15,55.07,826.05,0.08,66.08,0.05,38.00,20.01,817.98
+ORD-202404-00305,2024-04-07,2024-04-13,2024,Q2,Apr,Sunday,South,Australia,Online,Government,D. Siroi,Software,Support Plan,Completed,Credit Card,22,578.83,12734.26,0.05,636.71,0.12,1451.71,9.20,13558.46
+ORD-202404-00007,2024-04-08,2024-04-12,2024,Q2,Apr,Monday,East,Japan,Distributor,Government,P. Kuri,Home,Desk,Completed,Bank Transfer,22,233.61,5139.42,0.02,102.79,0.10,503.66,14.15,5554.44
+ORD-202404-00078,2024-04-08,2024-04-12,2024,Q2,Apr,Monday,Central,South Africa,Wholesale,Government,L. Nami,Office Supplies,Stapler,Completed,Bank Transfer,17,45.98,781.66,0.05,39.08,0.07,51.98,34.07,828.63
+ORD-202404-00122,2024-04-10,2024-04-15,2024,Q2,Apr,Wednesday,East,Philippines,Distributor,Consumer,T. Vele,Office Supplies,Envelope,Completed,Bank Transfer,20,51.18,1023.60,0.15,153.54,0.07,60.90,30.06,961.02
+ORD-202404-00104,2024-04-11,2024-04-14,2024,Q2,Apr,Thursday,South,Australia,Retail,Consumer,P. Kuri,Accessories,Webcam,Returned,Mobile Pay,6,192.73,1156.38,0.00,0.00,0.12,138.77,40.12,1335.27
+ORD-202404-00001,2024-04-12,2024-04-18,2024,Q2,Apr,Friday,North,USA,Retail,Consumer,M. Kila,Office Supplies,Notebook,Pending,Credit Card,15,11.05,165.75,0.10,16.57,0.12,17.90,8.04,175.12
+ORD-202404-00260,2024-04-13,2024-04-23,2024,Q2,Apr,Saturday,West,UK,Distributor,Government,T. Vele,Accessories,Webcam,Completed,Credit Card,28,140.88,3944.64,0.10,394.46,0.10,355.02,46.65,3951.85
+ORD-202404-00422,2024-04-13,2024-04-19,2024,Q2,Apr,Saturday,North,Canada,Online,Corporate,M. Kila,Electronics,Printer,Cancelled,Mobile Pay,8,1023.83,8190.64,0.02,163.81,0.10,802.68,13.81,8843.32
+ORD-202404-00261,2024-04-14,2024-04-17,2024,Q2,Apr,Sunday,South,New Zealand,Wholesale,Corporate,J. Aita,Electronics,Monitor,Completed,Cash,28,1783.98,49951.44,0.00,0.00,0.07,3496.60,60.93,53508.97
+ORD-202404-00364,2024-04-14,2024-04-20,2024,Q2,Apr,Sunday,North,Canada,Online,Government,S. Raka,Electronics,Laptop,Completed,Credit Card,19,511.78,9723.82,0.05,486.19,0.07,646.63,29.50,9913.76
+ORD-202404-00108,2024-04-15,2024-04-20,2024,Q2,Apr,Monday,Central,India,Online,Corporate,L. Nami,Office Supplies,Stapler,Completed,Cash,18,49.74,895.32,0.08,71.63,0.07,57.66,60.31,941.66
+ORD-202404-00479,2024-04-15,2024-04-17,2024,Q2,Apr,Monday,South,New Zealand,Distributor,Government,P. Kuri,Software,Support Plan,Completed,Mobile Pay,1,652.91,652.91,0.12,78.35,0.05,28.73,60.14,663.43
+ORD-202404-00111,2024-04-17,2024-04-24,2024,Q2,Apr,Wednesday,West,France,Retail,Government,T. Vele,Home,Chair,Completed,Cash,23,113.16,2602.68,0.05,130.13,0.07,173.08,42.03,2687.66
+ORD-202404-00360,2024-04-17,2024-05-01,2024,Q2,Apr,Wednesday,South,New Zealand,Retail,Corporate,M. Kila,Accessories,Headphones,Returned,Bank Transfer,13,189.00,2457.00,0.08,196.56,0.12,271.25,18.94,2550.63
+ORD-202404-00209,2024-04-18,2024-04-28,2024,Q2,Apr,Thursday,East,Philippines,Retail,Consumer,P. Kuri,Office Supplies,Stapler,Completed,Bank Transfer,1,31.39,31.39,0.00,0.00,0.10,3.14,13.56,48.09
+ORD-202404-00733,2024-04-18,2024-04-25,2024,Q2,Apr,Thursday,West,France,Retail,Government,J. Aita,Home,Cabinet,Completed,Cash,10,228.26,2282.60,0.00,0.00,0.10,228.26,29.03,2539.89
+ORD-202404-00734,2024-04-20,2024-04-22,2024,Q2,Apr,Saturday,West,France,Distributor,Government,M. Kila,Accessories,Headphones,Completed,Mobile Pay,7,153.99,1077.93,0.12,129.35,0.10,94.86,49.88,1093.32
+ORD-202404-00401,2024-04-21,2024-04-27,2024,Q2,Apr,Sunday,Central,South Africa,Online,Small Business,P. Kuri,Accessories,Headphones,Completed,Cash,4,41.41,165.64,0.12,19.88,0.12,17.49,54.82,218.07
+ORD-202404-00406,2024-04-21,2024-05-05,2024,Q2,Apr,Sunday,West,UK,Wholesale,Corporate,M. Kila,Software,Support Plan,Completed,Cash,6,345.21,2071.26,0.02,41.43,0.12,243.58,37.74,2311.15
+ORD-202404-00629,2024-04-22,2024-04-26,2024,Q2,Apr,Monday,South,Australia,Online,Small Business,L. Nami,Home,Chair,Returned,Mobile Pay,23,214.48,4933.04,0.12,591.96,0.07,303.88,29.23,4674.19
+ORD-202404-00337,2024-04-23,2024-04-25,2024,Q2,Apr,Tuesday,West,France,Retail,Consumer,J. Aita,Software,Add-on,Pending,Mobile Pay,20,613.71,12274.20,0.08,981.94,0.10,1129.23,59.82,12481.31
+ORD-202404-00407,2024-04-23,2024-04-26,2024,Q2,Apr,Tuesday,Central,India,Online,Corporate,T. Vele,Home,Cabinet,Cancelled,Credit Card,3,146.87,440.61,0.08,35.25,0.05,20.27,16.19,441.82
+ORD-202404-00107,2024-04-26,2024-05-03,2024,Q2,Apr,Friday,South,Australia,Wholesale,Consumer,P. Kuri,Software,Add-on,Cancelled,Mobile Pay,25,616.69,15417.25,0.12,1850.07,0.05,678.36,41.11,14286.65
+ORD-202404-00304,2024-04-26,2024-04-30,2024,Q2,Apr,Friday,South,Australia,Distributor,Corporate,D. Siroi,Office Supplies,Envelope,Returned,Mobile Pay,20,9.37,187.40,0.12,22.49,0.05,8.25,23.07,196.23
+ORD-202404-00370,2024-04-26,2024-04-29,2024,Q2,Apr,Friday,Central,South Africa,Wholesale,Consumer,P. Kuri,Office Supplies,Stapler,Pending,Credit Card,2,28.49,56.98,0.02,1.14,0.07,3.91,62.80,122.55
+ORD-202404-00398,2024-04-26,2024-04-27,2024,Q2,Apr,Friday,South,Australia,Distributor,Government,T. Vele,Home,Desk,Cancelled,Cash,30,363.46,10903.80,0.10,1090.38,0.07,686.94,19.86,10520.22
+ORD-202404-00677,2024-04-26,2024-05-06,2024,Q2,Apr,Friday,West,France,Retail,Government,A. Taka,Accessories,Webcam,Completed,Mobile Pay,15,128.53,1927.95,0.02,38.56,0.12,226.73,20.50,2136.62
+ORD-202404-00138,2024-04-27,2024-05-02,2024,Q2,Apr,Saturday,West,Germany,Retail,Consumer,M. Kila,Office Supplies,Pen,Cancelled,Mobile Pay,17,12.34,209.78,0.08,16.78,0.10,19.30,17.42,229.72
+ORD-202404-00190,2024-04-28,2024-05-04,2024,Q2,Apr,Sunday,North,USA,Wholesale,Government,S. Raka,Office Supplies,Pen,Returned,Mobile Pay,15,51.71,775.65,0.15,116.35,0.07,46.15,50.12,755.57
+ORD-202404-00763,2024-04-29,2024-05-02,2024,Q2,Apr,Monday,Central,South Africa,Retail,Government,P. Kuri,Electronics,Phone,Completed,Bank Transfer,2,1365.20,2730.40,0.08,218.43,0.05,125.60,46.07,2683.64
+ORD-202404-00278,2024-04-30,2024-05-03,2024,Q2,Apr,Tuesday,Central,India,Online,Consumer,S. Raka,Office Supplies,Paper,Cancelled,Bank Transfer,22,2.56,56.32,0.12,6.76,0.05,2.48,63.51,115.55
+ORD-202405-00171,2024-05-01,2024-05-03,2024,Q2,May,Wednesday,West,UK,Distributor,Small Business,D. Siroi,Office Supplies,Envelope,Pending,Mobile Pay,10,27.76,277.60,0.10,27.76,0.05,12.49,63.87,326.20
+ORD-202405-00492,2024-05-01,2024-05-03,2024,Q2,May,Wednesday,East,Japan,Wholesale,Consumer,J. Aita,Accessories,Mouse,Cancelled,Cash,26,28.34,736.84,0.05,36.84,0.12,84.00,42.42,826.42
+ORD-202405-00724,2024-05-01,2024-05-15,2024,Q2,May,Wednesday,North,USA,Distributor,Consumer,T. Vele,Home,Desk,Returned,Cash,26,135.42,3520.92,0.02,70.42,0.05,172.53,31.77,3654.80
+ORD-202405-00012,2024-05-02,2024-05-05,2024,Q2,May,Thursday,South,Australia,Online,Consumer,S. Raka,Accessories,Webcam,Returned,Cash,6,30.78,184.68,0.00,0.00,0.05,9.23,8.95,202.86
+ORD-202405-00290,2024-05-02,2024-05-04,2024,Q2,May,Thursday,East,Singapore,Wholesale,Government,T. Vele,Electronics,Tablet,Completed,Credit Card,5,1252.17,6260.85,0.00,0.00,0.05,313.04,34.26,6608.15
+ORD-202405-00504,2024-05-02,2024-05-08,2024,Q2,May,Thursday,Central,UAE,Retail,Corporate,S. Raka,Software,Subscription,Completed,Cash,10,242.32,2423.20,0.05,121.16,0.10,230.20,15.47,2547.71
+ORD-202405-00519,2024-05-02,2024-05-03,2024,Q2,May,Thursday,West,France,Retail,Government,M. Kila,Electronics,Laptop,Completed,Mobile Pay,11,584.84,6433.24,0.10,643.32,0.10,578.99,32.18,6401.09
+ORD-202405-00130,2024-05-03,2024-05-06,2024,Q2,May,Friday,South,Australia,Retail,Corporate,M. Kila,Office Supplies,Notebook,Returned,Bank Transfer,18,9.05,162.90,0.10,16.29,0.10,14.66,44.26,205.53
+ORD-202405-00389,2024-05-07,2024-05-11,2024,Q2,May,Tuesday,Central,South Africa,Wholesale,Corporate,M. Kila,Accessories,Keyboard,Completed,Bank Transfer,15,185.67,2785.05,0.02,55.70,0.12,327.52,64.87,3121.74
+ORD-202405-00223,2024-05-08,2024-05-14,2024,Q2,May,Wednesday,South,Australia,Retail,Government,P. Kuri,Accessories,Headphones,Completed,Cash,14,119.42,1671.88,0.00,0.00,0.07,117.03,53.93,1842.84
+ORD-202405-00224,2024-05-08,2024-05-11,2024,Q2,May,Wednesday,South,New Zealand,Distributor,Corporate,T. Vele,Home,Shelf,Pending,Cash,28,266.89,7472.92,0.00,0.00,0.05,373.65,36.82,7883.39
+ORD-202405-00322,2024-05-09,2024-05-23,2024,Q2,May,Thursday,Central,South Africa,Distributor,Small Business,J. Aita,Office Supplies,Pen,Cancelled,Mobile Pay,26,31.26,812.76,0.12,97.53,0.12,85.83,52.65,853.71
+ORD-202405-00003,2024-05-10,2024-05-17,2024,Q2,May,Friday,Central,India,Wholesale,Corporate,D. Siroi,Home,Shelf,Completed,Cash,7,66.67,466.69,0.00,0.00,0.07,32.67,9.96,509.32
+ORD-202405-00070,2024-05-10,2024-05-11,2024,Q2,May,Friday,East,Philippines,Online,Government,P. Kuri,Accessories,Headphones,Completed,Bank Transfer,12,31.05,372.60,0.05,18.63,0.05,17.70,57.76,429.43
+ORD-202405-00052,2024-05-11,2024-05-14,2024,Q2,May,Saturday,Central,India,Wholesale,Corporate,S. Raka,Electronics,Phone,Completed,Credit Card,10,815.76,8157.60,0.12,978.91,0.05,358.93,38.98,7576.60
+ORD-202405-00135,2024-05-11,2024-05-14,2024,Q2,May,Saturday,North,Canada,Online,Small Business,P. Kuri,Accessories,Mouse,Completed,Credit Card,4,97.83,391.32,0.15,58.70,0.05,16.63,57.83,407.08
+ORD-202405-00216,2024-05-13,2024-05-16,2024,Q2,May,Monday,East,Japan,Distributor,Consumer,S. Raka,Software,Security Suite,Completed,Bank Transfer,10,668.85,6688.50,0.02,133.77,0.05,327.74,61.53,6944.00
+ORD-202405-00464,2024-05-13,2024-05-18,2024,Q2,May,Monday,South,New Zealand,Online,Corporate,J. Aita,Office Supplies,Notebook,Completed,Bank Transfer,18,23.53,423.54,0.12,50.82,0.05,18.64,12.05,403.41
+ORD-202405-00762,2024-05-14,2024-05-17,2024,Q2,May,Tuesday,West,France,Wholesale,Government,D. Siroi,Software,Support Plan,Completed,Credit Card,10,533.71,5337.10,0.10,533.71,0.10,480.34,51.09,5334.82
+ORD-202405-00051,2024-05-16,2024-05-18,2024,Q2,May,Thursday,West,France,Distributor,Consumer,L. Nami,Home,Cabinet,Pending,Credit Card,3,343.86,1031.58,0.00,0.00,0.05,51.58,37.81,1120.97
+ORD-202405-00058,2024-05-16,2024-05-18,2024,Q2,May,Thursday,North,Canada,Wholesale,Consumer,S. Raka,Home,Lamp,Completed,Bank Transfer,25,176.73,4418.25,0.02,88.36,0.10,432.99,16.03,4778.91
+ORD-202405-00228,2024-05-16,2024-05-19,2024,Q2,May,Thursday,Central,South Africa,Online,Government,P. Kuri,Office Supplies,Pen,Cancelled,Mobile Pay,30,25.89,776.70,0.02,15.53,0.10,76.12,36.26,873.55
+ORD-202405-00041,2024-05-17,2024-05-27,2024,Q2,May,Friday,South,Australia,Distributor,Corporate,P. Kuri,Home,Chair,Cancelled,Cash,10,67.16,671.60,0.12,80.59,0.10,59.10,30.82,680.93
+ORD-202405-00485,2024-05-18,2024-05-28,2024,Q2,May,Saturday,West,France,Retail,Corporate,L. Nami,Accessories,Mouse,Completed,Credit Card,21,139.99,2939.79,0.15,440.97,0.07,174.92,10.25,2683.99
+ORD-202405-00447,2024-05-19,2024-05-24,2024,Q2,May,Sunday,South,New Zealand,Retail,Consumer,S. Raka,Office Supplies,Stapler,Pending,Cash,23,14.14,325.22,0.15,48.78,0.05,13.82,22.06,312.32
+ORD-202405-00775,2024-05-24,2024-05-30,2024,Q2,May,Friday,South,Australia,Retail,Consumer,D. Siroi,Home,Chair,Completed,Credit Card,17,335.47,5702.99,0.10,570.30,0.05,256.63,62.92,5452.24
+ORD-202405-00334,2024-05-25,2024-06-08,2024,Q2,May,Saturday,North,USA,Wholesale,Small Business,T. Vele,Accessories,Docking Station,Pending,Cash,8,191.49,1531.92,0.10,153.19,0.05,68.94,9.04,1456.71
+ORD-202405-00376,2024-05-25,2024-05-27,2024,Q2,May,Saturday,Central,UAE,Retail,Consumer,J. Aita,Home,Lamp,Completed,Bank Transfer,19,192.10,3649.90,0.15,547.49,0.12,372.29,27.50,3502.20
+ORD-202405-00552,2024-05-25,2024-06-08,2024,Q2,May,Saturday,East,Singapore,Retail,Consumer,P. Kuri,Home,Chair,Cancelled,Cash,9,384.08,3456.72,0.02,69.13,0.10,338.76,11.08,3737.43
+ORD-202405-00739,2024-05-25,2024-05-29,2024,Q2,May,Saturday,West,Germany,Retail,Small Business,J. Aita,Accessories,Docking Station,Pending,Cash,5,76.71,383.55,0.02,7.67,0.10,37.59,38.98,452.45
+ORD-202405-00081,2024-05-26,2024-06-02,2024,Q2,May,Sunday,East,Japan,Retail,Consumer,J. Aita,Office Supplies,Paper,Pending,Bank Transfer,28,43.09,1206.52,0.02,24.13,0.12,141.89,9.67,1333.95
+ORD-202405-00700,2024-05-26,2024-05-30,2024,Q2,May,Sunday,East,Japan,Distributor,Government,S. Raka,Software,Subscription,Returned,Credit Card,3,993.72,2981.16,0.12,357.74,0.05,131.17,61.96,2816.55
+ORD-202405-00069,2024-05-27,2024-05-29,2024,Q2,May,Monday,North,Canada,Distributor,Consumer,T. Vele,Accessories,Webcam,Completed,Credit Card,20,172.35,3447.00,0.10,344.70,0.05,155.12,22.04,3279.46
+ORD-202405-00129,2024-05-28,2024-05-30,2024,Q2,May,Tuesday,Central,UAE,Retail,Corporate,P. Kuri,Electronics,Printer,Cancelled,Credit Card,27,1767.55,47723.85,0.08,3817.91,0.07,3073.42,32.63,47011.99
+ORD-202405-00663,2024-05-29,2024-06-02,2024,Q2,May,Wednesday,North,Canada,Retail,Small Business,S. Raka,Software,Support Plan,Pending,Bank Transfer,24,1055.82,25339.68,0.15,3800.95,0.07,1507.71,62.41,23108.85
+ORD-202405-00263,2024-05-31,2024-06-06,2024,Q2,May,Friday,South,New Zealand,Retail,Consumer,A. Taka,Office Supplies,Paper,Completed,Credit Card,26,28.82,749.32,0.15,112.40,0.07,44.58,14.10,695.60
+ORD-202405-00705,2024-05-31,2024-06-02,2024,Q2,May,Friday,West,UK,Wholesale,Small Business,D. Siroi,Accessories,Docking Station,Completed,Bank Transfer,26,65.70,1708.20,0.08,136.66,0.10,157.15,50.87,1779.56
+ORD-202406-00146,2024-06-02,2024-06-05,2024,Q2,Jun,Sunday,Central,UAE,Distributor,Government,A. Taka,Electronics,Tablet,Completed,Mobile Pay,14,1401.65,19623.10,0.12,2354.77,0.10,1726.83,13.37,19008.53
+ORD-202406-00197,2024-06-02,2024-06-03,2024,Q2,Jun,Sunday,North,Canada,Online,Small Business,M. Kila,Home,Shelf,Pending,Bank Transfer,12,412.24,4946.88,0.02,98.94,0.07,339.36,44.52,5231.82
+ORD-202406-00246,2024-06-03,2024-06-08,2024,Q2,Jun,Monday,South,New Zealand,Distributor,Government,S. Raka,Electronics,Printer,Pending,Cash,24,1613.02,38712.48,0.15,5806.87,0.10,3290.56,32.82,36228.99
+ORD-202406-00345,2024-06-05,2024-06-08,2024,Q2,Jun,Wednesday,Central,South Africa,Distributor,Consumer,A. Taka,Electronics,Monitor,Cancelled,Bank Transfer,18,993.25,17878.50,0.05,893.93,0.10,1698.46,22.92,18705.95
+ORD-202406-00118,2024-06-06,2024-06-13,2024,Q2,Jun,Thursday,East,Philippines,Wholesale,Government,S. Raka,Home,Desk,Completed,Bank Transfer,30,97.92,2937.60,0.05,146.88,0.07,195.35,40.78,3026.85
+ORD-202406-00150,2024-06-10,2024-06-12,2024,Q2,Jun,Monday,West,France,Retail,Corporate,P. Kuri,Software,License,Completed,Mobile Pay,6,849.28,5095.68,0.08,407.65,0.05,234.40,24.90,4947.33
+ORD-202406-00539,2024-06-11,2024-06-15,2024,Q2,Jun,Tuesday,West,Germany,Retail,Consumer,L. Nami,Software,License,Cancelled,Credit Card,3,429.11,1287.33,0.00,0.00,0.05,64.37,46.65,1398.35
+ORD-202406-00124,2024-06-12,2024-06-15,2024,Q2,Jun,Wednesday,South,Australia,Distributor,Consumer,T. Vele,Electronics,Tablet,Pending,Cash,17,1067.69,18150.73,0.08,1452.06,0.07,1168.91,34.19,17901.77
+ORD-202406-00143,2024-06-13,2024-06-27,2024,Q2,Jun,Thursday,South,New Zealand,Wholesale,Corporate,S. Raka,Office Supplies,Pen,Pending,Cash,18,13.09,235.62,0.10,23.56,0.12,25.45,13.06,250.57
+ORD-202406-00218,2024-06-14,2024-06-16,2024,Q2,Jun,Friday,North,USA,Wholesale,Government,S. Raka,Electronics,Phone,Pending,Mobile Pay,18,1383.38,24900.84,0.15,3735.13,0.10,2116.57,39.17,23321.45
+ORD-202406-00361,2024-06-17,2024-06-19,2024,Q2,Jun,Monday,South,New Zealand,Online,Small Business,S. Raka,Software,Security Suite,Completed,Bank Transfer,18,530.66,9551.88,0.15,1432.78,0.12,974.29,64.74,9158.13
+ORD-202406-00799,2024-06-17,2024-06-20,2024,Q2,Jun,Monday,Central,South Africa,Distributor,Corporate,L. Nami,Office Supplies,Notebook,Returned,Mobile Pay,4,30.34,121.36,0.02,2.43,0.07,8.33,46.94,174.20
+ORD-202406-00384,2024-06-19,2024-06-26,2024,Q2,Jun,Wednesday,West,UK,Distributor,Government,M. Kila,Software,Support Plan,Cancelled,Bank Transfer,22,579.89,12757.58,0.08,1020.61,0.10,1173.70,16.91,12927.58
+ORD-202406-00432,2024-06-19,2024-07-03,2024,Q2,Jun,Wednesday,North,USA,Online,Small Business,J. Aita,Electronics,Tablet,Pending,Mobile Pay,16,1534.45,24551.20,0.08,1964.10,0.12,2710.45,11.01,25308.56
+ORD-202406-00672,2024-06-19,2024-06-21,2024,Q2,Jun,Wednesday,South,New Zealand,Online,Small Business,M. Kila,Electronics,Tablet,Cancelled,Cash,18,862.24,15520.32,0.10,1552.03,0.07,977.78,60.14,15006.21
+ORD-202406-00408,2024-06-20,2024-06-22,2024,Q2,Jun,Thursday,North,USA,Online,Corporate,L. Nami,Electronics,Monitor,Completed,Bank Transfer,12,1454.14,17449.68,0.02,348.99,0.12,2052.08,41.19,19193.96
+ORD-202406-00120,2024-06-21,2024-06-25,2024,Q2,Jun,Friday,East,Philippines,Distributor,Corporate,T. Vele,Office Supplies,Paper,Cancelled,Cash,28,27.49,769.72,0.10,76.97,0.10,69.28,34.21,796.24
+ORD-202406-00156,2024-06-21,2024-07-05,2024,Q2,Jun,Friday,North,USA,Retail,Consumer,S. Raka,Office Supplies,Notebook,Cancelled,Credit Card,9,18.33,164.97,0.12,19.80,0.05,7.26,25.17,177.60
+ORD-202406-00630,2024-06-21,2024-06-27,2024,Q2,Jun,Friday,West,Germany,Retail,Consumer,L. Nami,Home,Desk,Completed,Credit Card,25,226.80,5670.00,0.05,283.50,0.12,646.38,39.85,6072.73
+ORD-202406-00102,2024-06-23,2024-06-28,2024,Q2,Jun,Sunday,West,Germany,Online,Small Business,A. Taka,Accessories,Keyboard,Cancelled,Bank Transfer,23,184.82,4250.86,0.15,637.63,0.12,433.59,61.63,4108.45
+ORD-202406-00665,2024-06-23,2024-06-28,2024,Q2,Jun,Sunday,West,UK,Retail,Government,M. Kila,Accessories,Mouse,Completed,Mobile Pay,28,13.17,368.76,0.15,55.31,0.12,37.61,18.21,369.27
+ORD-202406-00403,2024-06-24,2024-06-29,2024,Q2,Jun,Monday,South,New Zealand,Wholesale,Consumer,A. Taka,Electronics,Monitor,Completed,Credit Card,27,1290.76,34850.52,0.00,0.00,0.10,3485.05,12.46,38348.03
+ORD-202406-00782,2024-06-24,2024-06-28,2024,Q2,Jun,Monday,North,USA,Wholesale,Corporate,T. Vele,Office Supplies,Envelope,Pending,Bank Transfer,14,21.09,295.26,0.10,29.53,0.10,26.57,47.53,339.83
+ORD-202406-00786,2024-06-24,2024-06-29,2024,Q2,Jun,Monday,East,Japan,Retail,Small Business,L. Nami,Software,Subscription,Pending,Mobile Pay,8,194.17,1553.36,0.08,124.27,0.12,171.49,30.45,1631.03
+ORD-202406-00062,2024-06-26,2024-07-03,2024,Q2,Jun,Wednesday,West,Germany,Wholesale,Corporate,A. Taka,Electronics,Monitor,Completed,Mobile Pay,8,223.90,1791.20,0.12,214.94,0.05,78.81,21.86,1676.93
+ORD-202406-00480,2024-06-26,2024-06-28,2024,Q2,Jun,Wednesday,West,France,Online,Consumer,M. Kila,Electronics,Printer,Completed,Cash,26,1013.41,26348.66,0.12,3161.84,0.07,1623.08,14.11,24824.01
+ORD-202406-00676,2024-06-26,2024-07-02,2024,Q2,Jun,Wednesday,North,USA,Retail,Corporate,D. Siroi,Software,Support Plan,Cancelled,Cash,24,501.55,12037.20,0.05,601.86,0.05,571.77,35.28,12042.39
+ORD-202406-00025,2024-06-28,2024-07-01,2024,Q2,Jun,Friday,West,UK,Wholesale,Corporate,M. Kila,Software,License,Completed,Mobile Pay,26,846.04,21997.04,0.15,3299.56,0.07,1308.82,44.67,20050.97
+ORD-202406-00764,2024-06-28,2024-07-03,2024,Q2,Jun,Friday,Central,India,Distributor,Government,S. Raka,Electronics,Laptop,Pending,Bank Transfer,6,665.96,3995.76,0.15,599.36,0.10,339.64,38.53,3774.57
+ORD-202406-00715,2024-06-29,2024-07-13,2024,Q2,Jun,Saturday,South,Australia,Wholesale,Consumer,L. Nami,Accessories,Mouse,Completed,Cash,27,75.53,2039.31,0.02,40.79,0.12,239.82,43.87,2282.21
+ORD-202406-00286,2024-06-30,2024-07-04,2024,Q2,Jun,Sunday,West,France,Distributor,Consumer,M. Kila,Accessories,Docking Station,Completed,Cash,16,15.82,253.12,0.02,5.06,0.12,29.77,45.07,322.90
+ORD-202407-00737,2024-07-02,2024-07-05,2024,Q3,Jul,Tuesday,Central,South Africa,Distributor,Corporate,D. Siroi,Accessories,Headphones,Completed,Mobile Pay,25,114.78,2869.50,0.00,0.00,0.12,344.34,13.11,3226.95
+ORD-202407-00254,2024-07-03,2024-07-09,2024,Q3,Jul,Wednesday,South,Australia,Online,Consumer,T. Vele,Electronics,Printer,Returned,Mobile Pay,3,1701.01,5103.03,0.10,510.30,0.07,321.49,41.57,4955.79
+ORD-202407-00340,2024-07-03,2024-07-08,2024,Q3,Jul,Wednesday,North,USA,Wholesale,Consumer,L. Nami,Home,Cabinet,Returned,Mobile Pay,2,84.56,169.12,0.02,3.38,0.10,16.57,58.59,240.90
+ORD-202407-00484,2024-07-04,2024-07-07,2024,Q3,Jul,Thursday,Central,India,Online,Corporate,P. Kuri,Accessories,Docking Station,Completed,Bank Transfer,30,170.67,5120.10,0.08,409.61,0.10,471.05,11.97,5193.51
+ORD-202407-00503,2024-07-04,2024-07-07,2024,Q3,Jul,Thursday,North,USA,Online,Government,A. Taka,Software,Add-on,Completed,Mobile Pay,13,479.16,6229.08,0.10,622.91,0.12,672.74,15.68,6294.59
+ORD-202407-00591,2024-07-04,2024-07-07,2024,Q3,Jul,Thursday,West,France,Wholesale,Government,M. Kila,Accessories,Headphones,Cancelled,Cash,19,160.25,3044.75,0.10,304.48,0.12,328.83,49.48,3118.58
+ORD-202407-00770,2024-07-04,2024-07-11,2024,Q3,Jul,Thursday,Central,South Africa,Wholesale,Consumer,S. Raka,Accessories,Headphones,Completed,Credit Card,5,136.05,680.25,0.15,102.04,0.12,69.39,60.30,707.90
+ORD-202407-00272,2024-07-05,2024-07-06,2024,Q3,Jul,Friday,West,UK,Distributor,Consumer,L. Nami,Electronics,Printer,Pending,Cash,16,247.90,3966.40,0.12,475.97,0.12,418.85,61.26,3970.54
+ORD-202407-00284,2024-07-05,2024-07-08,2024,Q3,Jul,Friday,South,New Zealand,Wholesale,Consumer,M. Kila,Home,Shelf,Completed,Bank Transfer,2,312.80,625.60,0.15,93.84,0.10,53.18,22.45,607.39
+ORD-202407-00179,2024-07-06,2024-07-11,2024,Q3,Jul,Saturday,North,USA,Distributor,Consumer,A. Taka,Home,Shelf,Pending,Cash,1,291.58,291.58,0.08,23.33,0.07,18.78,47.77,334.80
+ORD-202407-00522,2024-07-07,2024-07-17,2024,Q3,Jul,Sunday,North,USA,Online,Corporate,J. Aita,Accessories,Mouse,Completed,Bank Transfer,26,159.25,4140.50,0.10,414.05,0.05,186.32,23.27,3936.04
+ORD-202407-00704,2024-07-07,2024-07-21,2024,Q3,Jul,Sunday,North,Canada,Distributor,Corporate,J. Aita,Software,Support Plan,Completed,Cash,1,773.67,773.67,0.05,38.68,0.10,73.50,31.36,839.85
+ORD-202407-00268,2024-07-09,2024-07-14,2024,Q3,Jul,Tuesday,South,New Zealand,Distributor,Small Business,A. Taka,Accessories,Mouse,Returned,Bank Transfer,10,87.41,874.10,0.15,131.12,0.05,37.15,55.93,836.06
+ORD-202407-00326,2024-07-09,2024-07-11,2024,Q3,Jul,Tuesday,South,Australia,Wholesale,Small Business,L. Nami,Office Supplies,Notebook,Completed,Cash,22,11.79,259.38,0.05,12.97,0.12,29.57,18.78,294.76
+ORD-202407-00084,2024-07-10,2024-07-15,2024,Q3,Jul,Wednesday,West,UK,Retail,Small Business,M. Kila,Accessories,Headphones,Completed,Credit Card,22,189.30,4164.60,0.12,499.75,0.12,439.78,11.74,4116.37
+ORD-202407-00417,2024-07-10,2024-07-15,2024,Q3,Jul,Wednesday,South,Australia,Wholesale,Consumer,A. Taka,Accessories,Webcam,Completed,Credit Card,19,42.49,807.31,0.05,40.37,0.07,53.69,29.02,849.65
+ORD-202407-00502,2024-07-10,2024-07-14,2024,Q3,Jul,Wednesday,Central,South Africa,Retail,Corporate,P. Kuri,Office Supplies,Notebook,Pending,Credit Card,19,20.24,384.56,0.02,7.69,0.07,26.38,34.12,437.37
+ORD-202407-00671,2024-07-11,2024-07-17,2024,Q3,Jul,Thursday,Central,South Africa,Wholesale,Consumer,D. Siroi,Office Supplies,Stapler,Cancelled,Cash,18,13.97,251.46,0.02,5.03,0.07,17.25,27.22,290.90
+ORD-202407-00061,2024-07-12,2024-07-16,2024,Q3,Jul,Friday,North,Canada,Distributor,Government,T. Vele,Office Supplies,Stapler,Completed,Credit Card,17,11.00,187.00,0.15,28.05,0.10,15.89,16.90,191.74
+ORD-202407-00561,2024-07-12,2024-07-15,2024,Q3,Jul,Friday,Central,India,Online,Consumer,J. Aita,Home,Lamp,Completed,Credit Card,16,159.88,2558.08,0.05,127.90,0.05,121.51,13.26,2564.95
+ORD-202407-00795,2024-07-13,2024-07-17,2024,Q3,Jul,Saturday,North,Canada,Distributor,Corporate,L. Nami,Electronics,Phone,Pending,Bank Transfer,9,467.24,4205.16,0.05,210.26,0.10,399.49,41.62,4436.01
+ORD-202407-00590,2024-07-14,2024-07-28,2024,Q3,Jul,Sunday,East,Japan,Retail,Small Business,A. Taka,Accessories,Webcam,Completed,Cash,15,78.18,1172.70,0.05,58.64,0.12,133.69,31.89,1279.64
+ORD-202407-00684,2024-07-14,2024-07-28,2024,Q3,Jul,Sunday,North,Canada,Wholesale,Consumer,S. Raka,Accessories,Headphones,Pending,Mobile Pay,19,204.46,3884.74,0.15,582.71,0.05,165.10,51.37,3518.50
+ORD-202407-00560,2024-07-15,2024-07-17,2024,Q3,Jul,Monday,North,USA,Online,Government,L. Nami,Home,Lamp,Returned,Mobile Pay,27,166.99,4508.73,0.10,450.87,0.07,284.05,39.91,4381.82
+ORD-202407-00208,2024-07-16,2024-07-26,2024,Q3,Jul,Tuesday,West,Germany,Retail,Corporate,P. Kuri,Software,Support Plan,Cancelled,Bank Transfer,23,114.56,2634.88,0.00,0.00,0.05,131.74,46.25,2812.87
+ORD-202407-00374,2024-07-16,2024-07-19,2024,Q3,Jul,Tuesday,Central,UAE,Distributor,Corporate,A. Taka,Accessories,Mouse,Completed,Bank Transfer,13,153.38,1993.94,0.12,239.27,0.10,175.47,47.24,1977.38
+ORD-202407-00466,2024-07-16,2024-07-23,2024,Q3,Jul,Tuesday,North,Canada,Wholesale,Consumer,L. Nami,Software,Support Plan,Completed,Cash,11,848.00,9328.00,0.15,1399.20,0.10,792.88,22.32,8744.00
+ORD-202407-00367,2024-07-17,2024-07-20,2024,Q3,Jul,Wednesday,West,UK,Retail,Government,D. Siroi,Electronics,Printer,Pending,Bank Transfer,17,1300.59,22110.03,0.05,1105.50,0.10,2100.45,57.27,23162.25
+ORD-202407-00295,2024-07-18,2024-08-01,2024,Q3,Jul,Thursday,South,New Zealand,Distributor,Corporate,L. Nami,Office Supplies,Paper,Completed,Mobile Pay,16,18.12,289.92,0.15,43.49,0.10,24.64,10.37,281.44
+ORD-202407-00455,2024-07-18,2024-07-21,2024,Q3,Jul,Thursday,West,UK,Wholesale,Corporate,M. Kila,Software,Subscription,Cancelled,Credit Card,20,756.25,15125.00,0.12,1815.00,0.10,1331.00,20.64,14661.64
+ORD-202407-00527,2024-07-18,2024-07-24,2024,Q3,Jul,Thursday,West,Germany,Retail,Government,A. Taka,Accessories,Webcam,Pending,Bank Transfer,21,82.25,1727.25,0.02,34.55,0.12,203.12,62.67,1958.49
+ORD-202407-00731,2024-07-20,2024-07-23,2024,Q3,Jul,Saturday,Central,UAE,Retail,Government,A. Taka,Accessories,Docking Station,Cancelled,Cash,9,90.29,812.61,0.08,65.01,0.12,89.71,49.81,887.12
+ORD-202407-00748,2024-07-20,2024-07-23,2024,Q3,Jul,Saturday,North,USA,Wholesale,Small Business,P. Kuri,Home,Cabinet,Completed,Mobile Pay,9,229.33,2063.97,0.15,309.60,0.10,175.44,42.07,1971.88
+ORD-202407-00157,2024-07-21,2024-07-22,2024,Q3,Jul,Sunday,West,Germany,Distributor,Small Business,S. Raka,Accessories,Docking Station,Completed,Bank Transfer,9,189.27,1703.43,0.00,0.00,0.05,85.17,53.29,1841.89
+ORD-202407-00004,2024-07-24,2024-07-27,2024,Q3,Jul,Wednesday,East,Japan,Online,Government,M. Kila,Home,Lamp,Completed,Cash,18,167.80,3020.40,0.15,453.06,0.07,179.71,13.04,2760.09
+ORD-202407-00571,2024-07-26,2024-07-28,2024,Q3,Jul,Friday,Central,India,Wholesale,Consumer,S. Raka,Electronics,Laptop,Completed,Credit Card,10,832.50,8325.00,0.05,416.25,0.12,949.05,59.05,8916.85
+ORD-202407-00618,2024-07-26,2024-07-28,2024,Q3,Jul,Friday,West,UK,Retail,Government,J. Aita,Home,Chair,Completed,Cash,16,54.97,879.52,0.15,131.93,0.12,89.71,63.18,900.48
+ORD-202407-00456,2024-07-27,2024-08-10,2024,Q3,Jul,Saturday,West,UK,Wholesale,Government,J. Aita,Software,License,Returned,Cash,7,174.94,1224.58,0.08,97.97,0.12,135.19,56.19,1317.99
+ORD-202407-00498,2024-07-28,2024-08-02,2024,Q3,Jul,Sunday,South,New Zealand,Distributor,Consumer,P. Kuri,Software,Support Plan,Completed,Cash,7,1154.11,8078.77,0.08,646.30,0.10,743.25,49.06,8224.78
+ORD-202408-00090,2024-08-01,2024-08-06,2024,Q3,Aug,Thursday,South,Australia,Wholesale,Government,M. Kila,Electronics,Phone,Completed,Bank Transfer,9,572.11,5148.99,0.08,411.92,0.05,236.85,27.99,5001.91
+ORD-202408-00535,2024-08-01,2024-08-06,2024,Q3,Aug,Thursday,Central,India,Online,Government,S. Raka,Software,Security Suite,Completed,Bank Transfer,12,726.11,8713.32,0.02,174.27,0.07,597.73,11.21,9147.99
+ORD-202408-00181,2024-08-02,2024-08-12,2024,Q3,Aug,Friday,Central,India,Distributor,Consumer,P. Kuri,Home,Cabinet,Completed,Credit Card,30,49.03,1470.90,0.12,176.51,0.05,64.72,49.03,1408.14
+ORD-202408-00298,2024-08-02,2024-08-08,2024,Q3,Aug,Friday,South,New Zealand,Online,Small Business,D. Siroi,Home,Cabinet,Completed,Mobile Pay,18,437.42,7873.56,0.08,629.88,0.07,507.06,30.84,7781.58
+ORD-202408-00323,2024-08-03,2024-08-09,2024,Q3,Aug,Saturday,North,Canada,Distributor,Government,T. Vele,Office Supplies,Paper,Completed,Credit Card,15,51.08,766.20,0.15,114.93,0.07,45.59,26.07,722.93
+ORD-202408-00355,2024-08-03,2024-08-06,2024,Q3,Aug,Saturday,South,New Zealand,Online,Corporate,D. Siroi,Office Supplies,Stapler,Completed,Cash,9,4.13,37.17,0.15,5.58,0.07,2.21,63.43,97.23
+ORD-202408-00056,2024-08-05,2024-08-09,2024,Q3,Aug,Monday,West,France,Wholesale,Government,A. Taka,Accessories,Docking Station,Completed,Mobile Pay,30,33.26,997.80,0.08,79.82,0.05,45.90,32.18,996.06
+ORD-202408-00654,2024-08-06,2024-08-07,2024,Q3,Aug,Tuesday,East,Philippines,Retail,Small Business,L. Nami,Home,Lamp,Pending,Credit Card,16,125.29,2004.64,0.00,0.00,0.10,200.46,41.64,2246.74
+ORD-202408-00024,2024-08-07,2024-08-08,2024,Q3,Aug,Wednesday,North,USA,Online,Corporate,T. Vele,Software,Add-on,Pending,Credit Card,17,99.22,1686.74,0.10,168.67,0.10,151.81,58.54,1728.42
+ORD-202408-00106,2024-08-08,2024-08-11,2024,Q3,Aug,Thursday,Central,India,Online,Consumer,S. Raka,Electronics,Monitor,Completed,Mobile Pay,12,421.37,5056.44,0.15,758.47,0.07,300.86,59.11,4657.94
+ORD-202408-00136,2024-08-08,2024-08-13,2024,Q3,Aug,Thursday,Central,South Africa,Distributor,Consumer,T. Vele,Office Supplies,Stapler,Completed,Cash,24,42.77,1026.48,0.12,123.18,0.07,63.23,47.64,1014.17
+ORD-202408-00282,2024-08-08,2024-08-11,2024,Q3,Aug,Thursday,East,Japan,Distributor,Small Business,D. Siroi,Office Supplies,Stapler,Completed,Credit Card,20,15.34,306.80,0.15,46.02,0.10,26.08,50.06,336.92
+ORD-202408-00507,2024-08-08,2024-08-15,2024,Q3,Aug,Thursday,West,Germany,Distributor,Corporate,L. Nami,Home,Chair,Completed,Credit Card,4,180.70,722.80,0.02,14.46,0.05,35.42,50.96,794.72
+ORD-202408-00669,2024-08-08,2024-08-10,2024,Q3,Aug,Thursday,North,USA,Online,Corporate,A. Taka,Home,Chair,Pending,Credit Card,7,232.31,1626.17,0.12,195.14,0.07,100.17,44.34,1575.54
+ORD-202408-00500,2024-08-09,2024-08-15,2024,Q3,Aug,Friday,North,Canada,Distributor,Small Business,A. Taka,Software,License,Cancelled,Bank Transfer,22,396.59,8724.98,0.12,1047.00,0.07,537.46,46.14,8261.58
+ORD-202408-00709,2024-08-09,2024-08-14,2024,Q3,Aug,Friday,West,UK,Distributor,Consumer,J. Aita,Accessories,Keyboard,Completed,Mobile Pay,27,202.51,5467.77,0.10,546.78,0.12,590.52,57.09,5568.60
+ORD-202408-00092,2024-08-10,2024-08-14,2024,Q3,Aug,Saturday,East,Philippines,Online,Consumer,L. Nami,Office Supplies,Paper,Pending,Credit Card,18,38.27,688.86,0.15,103.33,0.10,58.55,10.32,654.40
+ORD-202408-00167,2024-08-10,2024-08-14,2024,Q3,Aug,Saturday,South,Australia,Retail,Corporate,S. Raka,Office Supplies,Stapler,Completed,Credit Card,24,42.16,1011.84,0.15,151.78,0.05,43.00,56.88,959.94
+ORD-202408-00276,2024-08-12,2024-08-16,2024,Q3,Aug,Monday,West,France,Online,Consumer,A. Taka,Software,Subscription,Cancelled,Credit Card,27,329.40,8893.80,0.15,1334.07,0.07,529.18,49.28,8138.19
+ORD-202408-00729,2024-08-13,2024-08-18,2024,Q3,Aug,Tuesday,South,New Zealand,Online,Corporate,M. Kila,Home,Desk,Cancelled,Bank Transfer,9,213.56,1922.04,0.00,0.00,0.12,230.64,10.39,2163.07
+ORD-202408-00252,2024-08-14,2024-08-20,2024,Q3,Aug,Wednesday,North,Canada,Distributor,Corporate,T. Vele,Software,Security Suite,Completed,Mobile Pay,16,221.12,3537.92,0.00,0.00,0.05,176.90,21.10,3735.92
+ORD-202408-00578,2024-08-14,2024-08-19,2024,Q3,Aug,Wednesday,North,USA,Retail,Corporate,M. Kila,Electronics,Phone,Completed,Cash,18,1249.83,22496.94,0.10,2249.69,0.05,1012.36,19.64,21279.25
+ORD-202408-00546,2024-08-15,2024-08-22,2024,Q3,Aug,Thursday,South,New Zealand,Distributor,Consumer,S. Raka,Software,Security Suite,Completed,Cash,28,1034.72,28972.16,0.10,2897.22,0.05,1303.75,19.59,27398.28
+ORD-202408-00768,2024-08-15,2024-08-20,2024,Q3,Aug,Thursday,West,France,Online,Government,M. Kila,Home,Desk,Pending,Bank Transfer,13,239.00,3107.00,0.02,62.14,0.07,213.14,22.06,3280.06
+ORD-202408-00034,2024-08-16,2024-08-19,2024,Q3,Aug,Friday,East,Japan,Wholesale,Government,L. Nami,Home,Lamp,Pending,Credit Card,19,254.47,4834.93,0.10,483.49,0.07,304.60,58.75,4714.79
+ORD-202408-00031,2024-08-17,2024-08-19,2024,Q3,Aug,Saturday,South,Australia,Distributor,Small Business,T. Vele,Accessories,Headphones,Returned,Bank Transfer,13,118.77,1544.01,0.12,185.28,0.10,135.87,41.74,1536.34
+ORD-202408-00751,2024-08-17,2024-08-19,2024,Q3,Aug,Saturday,East,Singapore,Retail,Corporate,S. Raka,Software,License,Cancelled,Bank Transfer,25,298.87,7471.75,0.02,149.44,0.07,512.56,17.44,7852.31
+ORD-202408-00624,2024-08-18,2024-08-22,2024,Q3,Aug,Sunday,Central,UAE,Distributor,Consumer,M. Kila,Accessories,Mouse,Completed,Mobile Pay,9,44.89,404.01,0.12,48.48,0.10,35.55,14.36,405.44
+ORD-202408-00446,2024-08-19,2024-08-29,2024,Q3,Aug,Monday,North,USA,Online,Small Business,M. Kila,Office Supplies,Pen,Completed,Credit Card,2,5.76,11.52,0.10,1.15,0.10,1.04,55.32,66.73
+ORD-202408-00043,2024-08-20,2024-08-23,2024,Q3,Aug,Tuesday,West,UK,Wholesale,Corporate,T. Vele,Home,Shelf,Completed,Bank Transfer,14,246.40,3449.60,0.00,0.00,0.07,241.47,53.95,3745.02
+ORD-202408-00783,2024-08-21,2024-08-25,2024,Q3,Aug,Wednesday,Central,UAE,Online,Corporate,L. Nami,Electronics,Printer,Completed,Credit Card,29,1152.35,33418.15,0.00,0.00,0.12,4010.18,46.03,37474.36
+ORD-202408-00642,2024-08-23,2024-08-28,2024,Q3,Aug,Friday,South,Australia,Wholesale,Small Business,L. Nami,Home,Lamp,Pending,Cash,20,109.33,2186.60,0.00,0.00,0.12,262.39,62.72,2511.71
+ORD-202408-00287,2024-08-24,2024-08-28,2024,Q3,Aug,Saturday,Central,UAE,Wholesale,Consumer,L. Nami,Accessories,Docking Station,Completed,Mobile Pay,20,135.58,2711.60,0.08,216.93,0.12,299.36,35.51,2829.54
+ORD-202408-00075,2024-08-26,2024-08-29,2024,Q3,Aug,Monday,West,UK,Wholesale,Small Business,J. Aita,Office Supplies,Pen,Pending,Bank Transfer,30,44.78,1343.40,0.12,161.21,0.12,141.86,64.30,1388.35
+ORD-202408-00755,2024-08-27,2024-09-01,2024,Q3,Aug,Tuesday,South,New Zealand,Online,Small Business,A. Taka,Office Supplies,Notebook,Completed,Bank Transfer,5,17.66,88.30,0.08,7.06,0.05,4.06,28.56,113.86
+ORD-202408-00760,2024-08-28,2024-08-31,2024,Q3,Aug,Wednesday,Central,South Africa,Distributor,Government,P. Kuri,Electronics,Tablet,Completed,Credit Card,30,337.41,10122.30,0.15,1518.34,0.07,602.28,13.96,9220.20
+ORD-202408-00433,2024-08-30,2024-09-02,2024,Q3,Aug,Friday,North,USA,Online,Government,D. Siroi,Electronics,Laptop,Completed,Mobile Pay,17,1535.03,26095.51,0.10,2609.55,0.07,1644.02,9.25,25139.23
+ORD-202408-00593,2024-08-30,2024-09-03,2024,Q3,Aug,Friday,West,UK,Online,Corporate,P. Kuri,Office Supplies,Envelope,Pending,Bank Transfer,9,13.47,121.23,0.10,12.12,0.10,10.91,13.76,133.78
+ORD-202409-00549,2024-09-01,2024-09-08,2024,Q3,Sep,Sunday,North,USA,Online,Corporate,D. Siroi,Home,Lamp,Completed,Credit Card,12,177.74,2132.88,0.02,42.66,0.10,209.02,47.44,2346.68
+ORD-202409-00096,2024-09-02,2024-09-05,2024,Q3,Sep,Monday,East,Singapore,Distributor,Government,D. Siroi,Office Supplies,Paper,Completed,Cash,3,44.52,133.56,0.12,16.03,0.10,11.75,32.92,162.20
+ORD-202409-00264,2024-09-02,2024-09-04,2024,Q3,Sep,Monday,Central,South Africa,Retail,Small Business,D. Siroi,Home,Shelf,Completed,Bank Transfer,30,287.56,8626.80,0.10,862.68,0.05,388.21,44.04,8196.37
+ORD-202409-00634,2024-09-02,2024-09-09,2024,Q3,Sep,Monday,North,Canada,Online,Government,S. Raka,Office Supplies,Paper,Completed,Cash,13,10.02,130.26,0.08,10.42,0.05,5.99,54.69,180.52
+ORD-202409-00722,2024-09-03,2024-09-10,2024,Q3,Sep,Tuesday,North,USA,Retail,Consumer,J. Aita,Software,Support Plan,Returned,Credit Card,28,982.81,27518.68,0.12,3302.24,0.07,1695.15,44.78,25956.37
+ORD-202409-00796,2024-09-03,2024-09-06,2024,Q3,Sep,Tuesday,Central,UAE,Distributor,Corporate,L. Nami,Electronics,Printer,Returned,Mobile Pay,4,1408.70,5634.80,0.00,0.00,0.05,281.74,15.71,5932.25
+ORD-202409-00204,2024-09-04,2024-09-07,2024,Q3,Sep,Wednesday,Central,India,Online,Corporate,S. Raka,Home,Lamp,Returned,Credit Card,13,92.43,1201.59,0.12,144.19,0.07,74.02,21.13,1152.55
+ORD-202409-00217,2024-09-04,2024-09-08,2024,Q3,Sep,Wednesday,West,Germany,Wholesale,Corporate,D. Siroi,Office Supplies,Envelope,Pending,Credit Card,2,38.39,76.78,0.00,0.00,0.12,9.21,20.24,106.23
+ORD-202409-00356,2024-09-04,2024-09-06,2024,Q3,Sep,Wednesday,Central,South Africa,Retail,Small Business,L. Nami,Electronics,Monitor,Cancelled,Credit Card,25,563.31,14082.75,0.08,1126.62,0.12,1554.74,34.58,14545.45
+ORD-202409-00747,2024-09-05,2024-09-09,2024,Q3,Sep,Thursday,Central,UAE,Distributor,Consumer,L. Nami,Software,Add-on,Completed,Mobile Pay,5,387.61,1938.05,0.12,232.57,0.07,119.38,45.13,1869.99
+ORD-202409-00072,2024-09-06,2024-09-09,2024,Q3,Sep,Friday,West,France,Retail,Government,A. Taka,Home,Shelf,Completed,Bank Transfer,15,161.91,2428.65,0.02,48.57,0.10,238.01,41.99,2660.08
+ORD-202409-00142,2024-09-06,2024-09-10,2024,Q3,Sep,Friday,Central,India,Retail,Consumer,L. Nami,Electronics,Tablet,Completed,Mobile Pay,21,1042.52,21892.92,0.05,1094.65,0.12,2495.79,43.59,23337.65
+ORD-202409-00164,2024-09-06,2024-09-11,2024,Q3,Sep,Friday,Central,South Africa,Wholesale,Small Business,M. Kila,Software,Add-on,Pending,Credit Card,25,146.67,3666.75,0.02,73.34,0.07,251.54,31.88,3876.83
+ORD-202409-00359,2024-09-07,2024-09-10,2024,Q3,Sep,Saturday,North,Canada,Wholesale,Small Business,M. Kila,Home,Shelf,Completed,Mobile Pay,1,211.85,211.85,0.02,4.24,0.07,14.53,50.85,272.99
+ORD-202409-00119,2024-09-09,2024-09-16,2024,Q3,Sep,Monday,South,New Zealand,Wholesale,Small Business,A. Taka,Accessories,Docking Station,Cancelled,Credit Card,4,78.05,312.20,0.05,15.61,0.05,14.83,21.26,332.68
+ORD-202409-00544,2024-09-11,2024-09-14,2024,Q3,Sep,Wednesday,West,UK,Retail,Small Business,P. Kuri,Office Supplies,Envelope,Completed,Credit Card,1,57.76,57.76,0.15,8.66,0.12,5.89,24.10,79.09
+ORD-202409-00586,2024-09-12,2024-09-18,2024,Q3,Sep,Thursday,Central,UAE,Wholesale,Government,A. Taka,Software,Security Suite,Completed,Bank Transfer,6,671.14,4026.84,0.00,0.00,0.12,483.22,53.02,4563.08
+ORD-202409-00393,2024-09-13,2024-09-14,2024,Q3,Sep,Friday,East,Japan,Retail,Government,P. Kuri,Accessories,Webcam,Completed,Bank Transfer,3,28.01,84.03,0.12,10.08,0.10,7.40,21.86,103.21
+ORD-202409-00239,2024-09-14,2024-09-19,2024,Q3,Sep,Saturday,North,USA,Wholesale,Consumer,L. Nami,Home,Shelf,Completed,Credit Card,1,67.57,67.57,0.15,10.14,0.10,5.74,31.44,94.61
+ORD-202409-00440,2024-09-14,2024-09-24,2024,Q3,Sep,Saturday,South,Australia,Wholesale,Consumer,M. Kila,Office Supplies,Pen,Cancelled,Mobile Pay,2,57.77,115.54,0.00,0.00,0.10,11.55,29.88,156.97
+ORD-202409-00521,2024-09-16,2024-09-20,2024,Q3,Sep,Monday,Central,UAE,Distributor,Corporate,L. Nami,Home,Shelf,Completed,Cash,12,312.13,3745.56,0.10,374.56,0.07,235.97,23.94,3630.91
+ORD-202409-00601,2024-09-16,2024-09-23,2024,Q3,Sep,Monday,North,USA,Retail,Consumer,P. Kuri,Electronics,Phone,Returned,Bank Transfer,11,507.37,5581.07,0.12,669.73,0.10,491.13,20.30,5422.77
+ORD-202409-00436,2024-09-17,2024-09-19,2024,Q3,Sep,Tuesday,North,USA,Retail,Corporate,P. Kuri,Software,License,Returned,Bank Transfer,2,249.58,499.16,0.15,74.87,0.12,50.91,64.20,539.40
+ORD-202409-00653,2024-09-19,2024-09-22,2024,Q3,Sep,Thursday,Central,UAE,Online,Small Business,J. Aita,Office Supplies,Stapler,Pending,Cash,5,23.34,116.70,0.15,17.50,0.05,4.96,64.38,168.54
+ORD-202409-00530,2024-09-20,2024-09-24,2024,Q3,Sep,Friday,West,France,Retail,Small Business,P. Kuri,Office Supplies,Paper,Completed,Mobile Pay,5,31.46,157.30,0.12,18.88,0.10,13.84,55.44,207.70
+ORD-202409-00532,2024-09-21,2024-09-26,2024,Q3,Sep,Saturday,East,Japan,Retail,Corporate,M. Kila,Home,Chair,Completed,Bank Transfer,27,316.80,8553.60,0.00,0.00,0.12,1026.43,64.44,9644.47
+ORD-202409-00201,2024-09-22,2024-09-28,2024,Q3,Sep,Sunday,East,Philippines,Distributor,Corporate,S. Raka,Electronics,Monitor,Cancelled,Bank Transfer,9,243.07,2187.63,0.10,218.76,0.12,236.26,24.10,2229.23
+ORD-202409-00538,2024-09-22,2024-09-29,2024,Q3,Sep,Sunday,East,Singapore,Distributor,Government,P. Kuri,Home,Shelf,Completed,Credit Card,15,111.59,1673.85,0.08,133.91,0.07,107.80,17.83,1665.57
+ORD-202409-00352,2024-09-23,2024-09-28,2024,Q3,Sep,Monday,East,Philippines,Retail,Consumer,D. Siroi,Software,License,Completed,Credit Card,10,885.55,8855.50,0.08,708.44,0.10,814.71,38.35,9000.12
+ORD-202409-00247,2024-09-24,2024-09-30,2024,Q3,Sep,Tuesday,West,Germany,Distributor,Consumer,D. Siroi,Accessories,Headphones,Completed,Bank Transfer,10,55.84,558.40,0.02,11.17,0.10,54.72,63.47,665.42
+ORD-202409-00465,2024-09-24,2024-09-28,2024,Q3,Sep,Tuesday,West,UK,Retail,Corporate,L. Nami,Accessories,Docking Station,Returned,Mobile Pay,7,209.16,1464.12,0.00,0.00,0.12,175.69,42.31,1682.12
+ORD-202409-00488,2024-09-24,2024-10-01,2024,Q3,Sep,Tuesday,East,Philippines,Wholesale,Government,P. Kuri,Electronics,Phone,Pending,Mobile Pay,14,1056.04,14784.56,0.00,0.00,0.07,1034.92,28.64,15848.12
+ORD-202409-00501,2024-09-25,2024-10-01,2024,Q3,Sep,Wednesday,West,France,Retail,Corporate,T. Vele,Electronics,Printer,Completed,Mobile Pay,3,394.77,1184.31,0.12,142.12,0.07,72.95,58.74,1173.88
+ORD-202409-00661,2024-09-25,2024-10-05,2024,Q3,Sep,Wednesday,East,Philippines,Retail,Corporate,L. Nami,Software,Support Plan,Completed,Credit Card,21,146.65,3079.65,0.08,246.37,0.10,283.33,47.70,3164.31
+ORD-202409-00505,2024-09-27,2024-10-07,2024,Q3,Sep,Friday,Central,UAE,Online,Small Business,S. Raka,Accessories,Mouse,Pending,Credit Card,18,202.34,3642.12,0.05,182.11,0.07,242.20,59.44,3761.65
+ORD-202409-00513,2024-09-27,2024-10-03,2024,Q3,Sep,Friday,South,Australia,Distributor,Corporate,J. Aita,Office Supplies,Envelope,Returned,Bank Transfer,11,59.38,653.18,0.00,0.00,0.12,78.38,11.88,743.44
+ORD-202409-00745,2024-09-27,2024-09-30,2024,Q3,Sep,Friday,West,UK,Retail,Consumer,M. Kila,Electronics,Monitor,Completed,Bank Transfer,17,1537.82,26142.94,0.15,3921.44,0.05,1111.08,48.88,23381.46
+ORD-202409-00626,2024-09-28,2024-10-02,2024,Q3,Sep,Saturday,South,New Zealand,Distributor,Small Business,P. Kuri,Accessories,Mouse,Returned,Cash,11,215.85,2374.35,0.08,189.95,0.05,109.22,13.02,2306.64
+ORD-202410-00679,2024-10-02,2024-10-03,2024,Q4,Oct,Wednesday,Central,South Africa,Online,Small Business,M. Kila,Office Supplies,Paper,Pending,Mobile Pay,3,19.29,57.87,0.00,0.00,0.10,5.79,21.16,84.82
+ORD-202410-00002,2024-10-03,2024-10-08,2024,Q4,Oct,Thursday,West,UK,Retail,Consumer,T. Vele,Electronics,Laptop,Returned,Credit Card,26,1030.11,26782.86,0.08,2142.63,0.12,2956.83,41.77,27638.83
+ORD-202410-00193,2024-10-04,2024-10-07,2024,Q4,Oct,Friday,North,USA,Distributor,Corporate,A. Taka,Office Supplies,Pen,Completed,Cash,27,53.97,1457.19,0.05,72.86,0.10,138.43,54.16,1576.92
+ORD-202410-00410,2024-10-04,2024-10-07,2024,Q4,Oct,Friday,West,UK,Wholesale,Corporate,L. Nami,Software,Security Suite,Returned,Bank Transfer,30,646.77,19403.10,0.00,0.00,0.10,1940.31,8.49,21351.90
+ORD-202410-00037,2024-10-08,2024-10-11,2024,Q4,Oct,Tuesday,West,Germany,Distributor,Consumer,J. Aita,Electronics,Laptop,Completed,Bank Transfer,22,1523.25,33511.50,0.10,3351.15,0.12,3619.24,41.35,33820.94
+ORD-202410-00625,2024-10-08,2024-10-11,2024,Q4,Oct,Tuesday,Central,South Africa,Distributor,Small Business,A. Taka,Accessories,Mouse,Completed,Mobile Pay,23,112.44,2586.12,0.00,0.00,0.05,129.31,43.07,2758.50
+ORD-202410-00427,2024-10-09,2024-10-15,2024,Q4,Oct,Wednesday,West,UK,Retail,Consumer,P. Kuri,Electronics,Printer,Cancelled,Bank Transfer,2,304.13,608.26,0.15,91.24,0.05,25.85,46.95,589.82
+ORD-202410-00496,2024-10-09,2024-10-19,2024,Q4,Oct,Wednesday,Central,UAE,Retail,Government,P. Kuri,Software,License,Completed,Credit Card,23,163.36,3757.28,0.00,0.00,0.12,450.87,51.61,4259.76
+ORD-202410-00439,2024-10-10,2024-10-15,2024,Q4,Oct,Thursday,North,Canada,Wholesale,Government,J. Aita,Home,Shelf,Completed,Bank Transfer,15,401.96,6029.40,0.02,120.59,0.10,590.88,61.63,6561.32
+ORD-202410-00554,2024-10-10,2024-10-17,2024,Q4,Oct,Thursday,Central,India,Wholesale,Government,T. Vele,Accessories,Webcam,Cancelled,Bank Transfer,6,58.00,348.00,0.15,52.20,0.10,29.58,30.50,355.88
+ORD-202410-00612,2024-10-12,2024-10-19,2024,Q4,Oct,Saturday,Central,India,Retail,Corporate,T. Vele,Software,Security Suite,Cancelled,Credit Card,12,816.20,9794.40,0.05,489.72,0.12,1116.56,33.54,10454.78
+ORD-202410-00785,2024-10-12,2024-10-18,2024,Q4,Oct,Saturday,North,USA,Distributor,Corporate,D. Siroi,Office Supplies,Stapler,Completed,Credit Card,18,47.05,846.90,0.12,101.63,0.05,37.26,11.24,793.77
+ORD-202410-00798,2024-10-13,2024-10-16,2024,Q4,Oct,Sunday,West,Germany,Distributor,Consumer,J. Aita,Office Supplies,Stapler,Completed,Mobile Pay,19,59.45,1129.55,0.15,169.43,0.10,96.01,32.20,1088.33
+ORD-202410-00301,2024-10-18,2024-10-22,2024,Q4,Oct,Friday,West,UK,Wholesale,Small Business,A. Taka,Electronics,Phone,Cancelled,Bank Transfer,27,1278.99,34532.73,0.05,1726.64,0.10,3280.61,34.79,36121.49
+ORD-202410-00468,2024-10-18,2024-10-21,2024,Q4,Oct,Friday,North,USA,Online,Consumer,D. Siroi,Home,Cabinet,Completed,Mobile Pay,24,274.25,6582.00,0.02,131.64,0.12,774.04,38.19,7262.59
+ORD-202410-00307,2024-10-20,2024-10-24,2024,Q4,Oct,Sunday,South,New Zealand,Distributor,Government,D. Siroi,Electronics,Tablet,Pending,Bank Transfer,19,1611.37,30616.03,0.05,1530.80,0.05,1454.26,14.47,30553.96
+ORD-202410-00773,2024-10-21,2024-10-22,2024,Q4,Oct,Monday,South,New Zealand,Wholesale,Consumer,P. Kuri,Office Supplies,Pen,Cancelled,Bank Transfer,26,56.82,1477.32,0.08,118.19,0.12,163.10,29.00,1551.23
+ORD-202410-00551,2024-10-22,2024-10-26,2024,Q4,Oct,Tuesday,East,Philippines,Distributor,Corporate,T. Vele,Home,Desk,Returned,Bank Transfer,5,208.31,1041.55,0.02,20.83,0.10,102.07,19.04,1141.83
+ORD-202410-00692,2024-10-22,2024-10-28,2024,Q4,Oct,Tuesday,Central,South Africa,Wholesale,Small Business,L. Nami,Office Supplies,Stapler,Cancelled,Bank Transfer,26,14.17,368.42,0.00,0.00,0.12,44.21,28.83,441.46
+ORD-202410-00471,2024-10-25,2024-10-26,2024,Q4,Oct,Friday,East,Philippines,Online,Government,D. Siroi,Home,Chair,Completed,Credit Card,6,219.49,1316.94,0.10,131.69,0.10,118.53,13.11,1316.89
+ORD-202410-00154,2024-10-28,2024-11-03,2024,Q4,Oct,Monday,West,France,Wholesale,Corporate,P. Kuri,Electronics,Monitor,Cancelled,Bank Transfer,4,1591.35,6365.40,0.00,0.00,0.07,445.58,57.28,6868.26
+ORD-202410-00347,2024-10-28,2024-11-01,2024,Q4,Oct,Monday,Central,UAE,Retail,Government,P. Kuri,Electronics,Laptop,Completed,Cash,24,1548.96,37175.04,0.02,743.50,0.12,4371.78,39.10,40842.42
+ORD-202410-00442,2024-10-28,2024-10-29,2024,Q4,Oct,Monday,North,Canada,Online,Government,A. Taka,Office Supplies,Notebook,Completed,Mobile Pay,16,47.12,753.92,0.05,37.70,0.12,85.95,46.23,848.40
+ORD-202410-00098,2024-10-29,2024-11-01,2024,Q4,Oct,Tuesday,South,New Zealand,Online,Corporate,S. Raka,Software,Support Plan,Completed,Cash,10,457.44,4574.40,0.00,0.00,0.05,228.72,10.09,4813.21
+ORD-202410-00555,2024-10-29,2024-11-04,2024,Q4,Oct,Tuesday,North,Canada,Distributor,Corporate,L. Nami,Office Supplies,Pen,Completed,Bank Transfer,24,4.86,116.64,0.10,11.66,0.07,7.35,18.17,130.50
+ORD-202411-00321,2024-11-03,2024-11-07,2024,Q4,Nov,Sunday,Central,South Africa,Distributor,Consumer,M. Kila,Office Supplies,Stapler,Completed,Mobile Pay,22,58.64,1290.08,0.12,154.81,0.07,79.47,15.45,1230.19
+ORD-202411-00526,2024-11-04,2024-11-05,2024,Q4,Nov,Monday,North,USA,Wholesale,Small Business,L. Nami,Accessories,Keyboard,Returned,Cash,5,214.08,1070.40,0.00,0.00,0.05,53.52,40.00,1163.92
+ORD-202411-00383,2024-11-05,2024-11-08,2024,Q4,Nov,Tuesday,South,Australia,Online,Consumer,D. Siroi,Office Supplies,Pen,Completed,Cash,24,51.78,1242.72,0.00,0.00,0.12,149.13,26.77,1418.62
+ORD-202411-00074,2024-11-06,2024-11-10,2024,Q4,Nov,Wednesday,West,France,Wholesale,Government,P. Kuri,Accessories,Webcam,Completed,Cash,2,178.15,356.30,0.15,53.45,0.07,21.20,57.80,381.85
+ORD-202411-00520,2024-11-06,2024-11-09,2024,Q4,Nov,Wednesday,East,Japan,Online,Government,L. Nami,Office Supplies,Paper,Returned,Mobile Pay,1,33.52,33.52,0.08,2.68,0.12,3.70,34.74,69.28
+ORD-202411-00220,2024-11-09,2024-11-13,2024,Q4,Nov,Saturday,East,Philippines,Distributor,Government,J. Aita,Accessories,Docking Station,Completed,Bank Transfer,16,183.18,2930.88,0.05,146.54,0.10,278.43,37.72,3100.49
+ORD-202411-00234,2024-11-09,2024-11-15,2024,Q4,Nov,Saturday,Central,UAE,Retail,Corporate,J. Aita,Accessories,Headphones,Cancelled,Mobile Pay,3,52.55,157.65,0.08,12.61,0.07,10.15,58.68,213.87
+ORD-202411-00381,2024-11-09,2024-11-12,2024,Q4,Nov,Saturday,Central,UAE,Distributor,Small Business,M. Kila,Accessories,Headphones,Completed,Credit Card,2,57.26,114.52,0.12,13.74,0.07,7.05,39.05,146.88
+ORD-202411-00400,2024-11-10,2024-11-14,2024,Q4,Nov,Sunday,East,Philippines,Distributor,Government,S. Raka,Software,Subscription,Completed,Cash,12,815.35,9784.20,0.15,1467.63,0.12,997.99,18.73,9333.29
+ORD-202411-00512,2024-11-11,2024-11-14,2024,Q4,Nov,Monday,West,Germany,Online,Corporate,L. Nami,Office Supplies,Envelope,Completed,Mobile Pay,18,26.96,485.28,0.08,38.82,0.12,53.58,63.11,563.15
+ORD-202411-00229,2024-11-12,2024-11-15,2024,Q4,Nov,Tuesday,South,New Zealand,Online,Government,L. Nami,Electronics,Tablet,Returned,Bank Transfer,24,1301.16,31227.84,0.00,0.00,0.10,3122.78,39.96,34390.58
+ORD-202411-00476,2024-11-12,2024-11-15,2024,Q4,Nov,Tuesday,South,New Zealand,Online,Consumer,M. Kila,Accessories,Headphones,Completed,Credit Card,23,183.78,4226.94,0.12,507.23,0.12,446.37,25.83,4191.91
+ORD-202411-00631,2024-11-14,2024-11-18,2024,Q4,Nov,Thursday,West,Germany,Online,Corporate,T. Vele,Software,Security Suite,Pending,Mobile Pay,21,133.00,2793.00,0.08,223.44,0.05,128.48,17.21,2715.25
+ORD-202411-00350,2024-11-17,2024-11-24,2024,Q4,Nov,Sunday,Central,UAE,Distributor,Small Business,P. Kuri,Software,Subscription,Completed,Bank Transfer,14,156.65,2193.10,0.12,263.17,0.07,135.10,56.71,2121.74
+ORD-202411-00079,2024-11-18,2024-11-21,2024,Q4,Nov,Monday,East,Japan,Wholesale,Corporate,T. Vele,Electronics,Phone,Completed,Cash,29,1619.77,46973.33,0.10,4697.33,0.10,4227.60,36.26,46539.86
+ORD-202411-00055,2024-11-19,2024-11-24,2024,Q4,Nov,Tuesday,South,New Zealand,Retail,Government,S. Raka,Electronics,Printer,Cancelled,Cash,2,199.77,399.54,0.08,31.96,0.10,36.76,43.05,447.39
+ORD-202411-00331,2024-11-20,2024-11-23,2024,Q4,Nov,Wednesday,West,UK,Online,Government,P. Kuri,Home,Desk,Returned,Credit Card,16,274.01,4384.16,0.05,219.21,0.12,499.79,57.94,4722.68
+ORD-202411-00693,2024-11-20,2024-11-22,2024,Q4,Nov,Wednesday,North,Canada,Distributor,Corporate,P. Kuri,Accessories,Webcam,Returned,Credit Card,19,73.55,1397.45,0.10,139.75,0.12,150.92,48.91,1457.53
+ORD-202411-00639,2024-11-21,2024-11-23,2024,Q4,Nov,Thursday,Central,South Africa,Retail,Government,A. Taka,Accessories,Keyboard,Cancelled,Mobile Pay,13,20.70,269.10,0.05,13.46,0.12,30.68,30.67,316.99
+ORD-202411-00308,2024-11-22,2024-11-24,2024,Q4,Nov,Friday,North,Canada,Retail,Consumer,S. Raka,Office Supplies,Stapler,Completed,Bank Transfer,6,32.44,194.64,0.12,23.36,0.12,20.55,37.56,229.39
+ORD-202411-00332,2024-11-22,2024-12-02,2024,Q4,Nov,Friday,South,Australia,Distributor,Consumer,M. Kila,Software,Security Suite,Completed,Credit Card,1,161.76,161.76,0.00,0.00,0.12,19.41,50.76,231.93
+ORD-202411-00800,2024-11-24,2024-11-27,2024,Q4,Nov,Sunday,West,Germany,Distributor,Government,S. Raka,Electronics,Printer,Pending,Mobile Pay,26,651.20,16931.20,0.12,2031.74,0.07,1042.96,33.59,15976.01
+ORD-202411-00320,2024-11-25,2024-11-27,2024,Q4,Nov,Monday,South,Australia,Wholesale,Government,A. Taka,Home,Chair,Completed,Credit Card,9,60.18,541.62,0.05,27.08,0.05,25.73,51.21,591.48
+ORD-202411-00196,2024-11-26,2024-12-02,2024,Q4,Nov,Tuesday,East,Philippines,Wholesale,Corporate,M. Kila,Software,License,Completed,Mobile Pay,11,792.92,8722.12,0.05,436.11,0.07,580.02,20.20,8886.23
+ORD-202411-00603,2024-11-26,2024-11-30,2024,Q4,Nov,Tuesday,Central,South Africa,Distributor,Consumer,D. Siroi,Office Supplies,Envelope,Pending,Credit Card,9,2.08,18.72,0.12,2.25,0.07,1.15,16.82,34.44
+ORD-202411-00780,2024-11-26,2024-11-29,2024,Q4,Nov,Tuesday,Central,South Africa,Online,Consumer,M. Kila,Electronics,Monitor,Completed,Bank Transfer,30,1703.00,51090.00,0.02,1021.80,0.10,5006.82,46.23,55121.25
+ORD-202411-00232,2024-11-28,2024-12-04,2024,Q4,Nov,Thursday,East,Philippines,Retail,Corporate,D. Siroi,Software,Subscription,Returned,Cash,15,579.95,8699.25,0.12,1043.91,0.12,918.64,27.95,8601.93
+ORD-202411-00416,2024-11-28,2024-12-02,2024,Q4,Nov,Thursday,East,Singapore,Wholesale,Corporate,S. Raka,Office Supplies,Pen,Pending,Bank Transfer,5,24.58,122.90,0.12,14.75,0.05,5.41,58.13,171.69
+ORD-202411-00623,2024-11-29,2024-12-03,2024,Q4,Nov,Friday,East,Singapore,Wholesale,Corporate,D. Siroi,Software,Add-on,Completed,Mobile Pay,10,478.96,4789.60,0.12,574.75,0.12,505.78,56.38,4777.01
+ORD-202412-00516,2024-12-01,2024-12-15,2024,Q4,Dec,Sunday,East,Philippines,Distributor,Corporate,P. Kuri,Software,License,Pending,Mobile Pay,25,300.76,7519.00,0.08,601.52,0.05,345.87,56.77,7320.12
+ORD-202412-00344,2024-12-02,2024-12-04,2024,Q4,Dec,Monday,East,Philippines,Wholesale,Small Business,M. Kila,Electronics,Laptop,Completed,Mobile Pay,18,1744.65,31403.70,0.02,628.07,0.05,1538.78,58.74,32373.15
+ORD-202412-00697,2024-12-02,2024-12-04,2024,Q4,Dec,Monday,Central,UAE,Retail,Corporate,L. Nami,Software,Security Suite,Completed,Cash,24,558.70,13408.80,0.02,268.18,0.12,1576.87,53.44,14770.93
+ORD-202412-00771,2024-12-02,2024-12-06,2024,Q4,Dec,Monday,West,France,Retail,Small Business,P. Kuri,Home,Lamp,Completed,Cash,11,303.01,3333.11,0.08,266.65,0.07,214.65,46.21,3327.32
+ORD-202412-00584,2024-12-04,2024-12-09,2024,Q4,Dec,Wednesday,West,UK,Distributor,Corporate,A. Taka,Home,Chair,Completed,Bank Transfer,24,394.33,9463.92,0.12,1135.67,0.05,416.41,34.37,8779.03
+ORD-202412-00339,2024-12-05,2024-12-10,2024,Q4,Dec,Thursday,Central,India,Online,Small Business,M. Kila,Software,Support Plan,Completed,Credit Card,15,543.14,8147.10,0.02,162.94,0.05,399.21,30.36,8413.73
+ORD-202412-00753,2024-12-05,2024-12-06,2024,Q4,Dec,Thursday,East,Japan,Online,Small Business,S. Raka,Home,Cabinet,Completed,Bank Transfer,8,309.15,2473.20,0.10,247.32,0.05,111.29,50.89,2388.06
+ORD-202412-00597,2024-12-06,2024-12-13,2024,Q4,Dec,Friday,West,France,Retail,Consumer,L. Nami,Accessories,Mouse,Cancelled,Credit Card,11,210.83,2319.13,0.02,46.38,0.10,227.28,32.31,2532.34
+ORD-202412-00114,2024-12-07,2024-12-12,2024,Q4,Dec,Saturday,West,France,Wholesale,Government,A. Taka,Office Supplies,Stapler,Completed,Credit Card,23,59.74,1374.02,0.12,164.88,0.12,145.10,31.34,1385.58
+ORD-202412-00314,2024-12-08,2024-12-12,2024,Q4,Dec,Sunday,North,Canada,Wholesale,Government,A. Taka,Home,Cabinet,Pending,Credit Card,23,424.85,9771.55,0.15,1465.73,0.10,830.58,34.96,9171.36
+ORD-202412-00628,2024-12-08,2024-12-09,2024,Q4,Dec,Sunday,Central,South Africa,Distributor,Corporate,P. Kuri,Home,Shelf,Pending,Cash,7,398.80,2791.60,0.02,55.83,0.10,273.58,52.18,3061.53
+ORD-202412-00686,2024-12-13,2024-12-15,2024,Q4,Dec,Friday,North,USA,Distributor,Corporate,L. Nami,Accessories,Mouse,Cancelled,Bank Transfer,9,64.59,581.31,0.10,58.13,0.12,62.78,44.78,630.74
+ORD-202412-00088,2024-12-14,2024-12-16,2024,Q4,Dec,Saturday,Central,India,Retail,Small Business,A. Taka,Office Supplies,Paper,Completed,Bank Transfer,21,12.76,267.96,0.15,40.19,0.05,11.39,45.14,284.30
+ORD-202412-00573,2024-12-14,2024-12-16,2024,Q4,Dec,Saturday,South,New Zealand,Distributor,Government,T. Vele,Electronics,Monitor,Pending,Bank Transfer,4,1234.40,4937.60,0.00,0.00,0.12,592.51,8.10,5538.21
+ORD-202412-00651,2024-12-14,2024-12-18,2024,Q4,Dec,Saturday,West,France,Wholesale,Consumer,S. Raka,Accessories,Keyboard,Completed,Credit Card,5,139.08,695.40,0.08,55.63,0.12,76.77,40.21,756.75
+ORD-202412-00772,2024-12-17,2024-12-24,2024,Q4,Dec,Tuesday,East,Japan,Online,Corporate,M. Kila,Office Supplies,Pen,Pending,Credit Card,13,4.44,57.72,0.10,5.77,0.05,2.60,23.56,78.11
+ORD-202412-00719,2024-12-19,2024-12-29,2024,Q4,Dec,Thursday,West,Germany,Online,Government,M. Kila,Home,Chair,Returned,Credit Card,2,406.75,813.50,0.10,81.35,0.10,73.22,60.52,865.89
+ORD-202412-00250,2024-12-20,2024-12-21,2024,Q4,Dec,Friday,West,Germany,Distributor,Consumer,S. Raka,Software,Support Plan,Returned,Mobile Pay,28,423.24,11850.72,0.02,237.01,0.05,580.69,52.29,12246.69
+ORD-202412-00685,2024-12-20,2024-12-24,2024,Q4,Dec,Friday,North,Canada,Wholesale,Small Business,J. Aita,Office Supplies,Notebook,Returned,Bank Transfer,17,26.44,449.48,0.12,53.94,0.10,39.55,32.60,467.69
+ORD-202412-00140,2024-12-21,2024-12-23,2024,Q4,Dec,Saturday,North,Canada,Online,Small Business,P. Kuri,Office Supplies,Stapler,Completed,Bank Transfer,4,54.74,218.96,0.00,0.00,0.07,15.33,8.76,243.05
+ORD-202412-00580,2024-12-22,2024-12-27,2024,Q4,Dec,Sunday,South,Australia,Distributor,Government,J. Aita,Electronics,Phone,Completed,Cash,7,281.61,1971.27,0.08,157.70,0.12,217.63,20.87,2052.07
+ORD-202412-00380,2024-12-23,2024-12-29,2024,Q4,Dec,Monday,East,Japan,Distributor,Corporate,P. Kuri,Home,Desk,Cancelled,Cash,7,222.33,1556.31,0.12,186.76,0.05,68.48,41.98,1480.01
+ORD-202412-00563,2024-12-26,2024-12-29,2024,Q4,Dec,Thursday,North,Canada,Distributor,Government,P. Kuri,Home,Lamp,Completed,Bank Transfer,14,44.38,621.32,0.08,49.71,0.07,40.01,23.34,634.96
+ORD-202412-00703,2024-12-26,2024-12-29,2024,Q4,Dec,Thursday,South,Australia,Wholesale,Small Business,D. Siroi,Electronics,Monitor,Pending,Credit Card,12,1239.32,14871.84,0.10,1487.18,0.12,1606.16,13.68,15004.50
+ORD-202412-00133,2024-12-27,2024-12-31,2024,Q4,Dec,Friday,East,Philippines,Distributor,Consumer,L. Nami,Accessories,Headphones,Completed,Credit Card,8,95.51,764.08,0.02,15.28,0.07,52.42,28.26,829.48
+ORD-202412-00449,2024-12-27,2024-12-31,2024,Q4,Dec,Friday,North,USA,Distributor,Consumer,A. Taka,Accessories,Webcam,Completed,Credit Card,27,120.72,3259.44,0.12,391.13,0.07,200.78,30.58,3099.67
+ORD-202412-00065,2024-12-29,2024-12-31,2024,Q4,Dec,Sunday,East,Singapore,Wholesale,Government,J. Aita,Office Supplies,Stapler,Returned,Cash,10,29.32,293.20,0.00,0.00,0.07,20.52,32.04,345.76
+ORD-202412-00294,2024-12-29,2025-01-03,2024,Q4,Dec,Sunday,West,Germany,Retail,Consumer,A. Taka,Electronics,Printer,Returned,Credit Card,13,595.92,7746.96,0.05,387.35,0.05,367.98,21.25,7748.84
+ORD-202412-00437,2024-12-29,2025-01-01,2024,Q4,Dec,Sunday,West,Germany,Distributor,Government,P. Kuri,Home,Desk,Completed,Credit Card,7,41.62,291.34,0.05,14.57,0.12,33.21,20.60,330.58
+ORD-202412-00714,2024-12-29,2025-01-01,2024,Q4,Dec,Sunday,South,New Zealand,Wholesale,Corporate,P. Kuri,Office Supplies,Stapler,Cancelled,Cash,22,51.25,1127.50,0.00,0.00,0.05,56.38,60.97,1244.85
+ORD-202412-00269,2024-12-31,2025-01-02,2024,Q4,Dec,Tuesday,West,Germany,Retail,Government,S. Raka,Home,Lamp,Pending,Credit Card,8,377.69,3021.52,0.05,151.08,0.12,344.45,35.11,3250.00
+ORD-202501-00558,2025-01-01,2025-01-02,2025,Q1,Jan,Wednesday,Central,India,Retail,Government,T. Vele,Software,License,Completed,Mobile Pay,3,1199.71,3599.13,0.12,431.90,0.10,316.72,9.49,3493.44
+ORD-202501-00790,2025-01-02,2025-01-05,2025,Q1,Jan,Thursday,Central,South Africa,Retail,Government,M. Kila,Electronics,Laptop,Returned,Mobile Pay,27,666.05,17983.35,0.12,2158.00,0.07,1107.77,62.00,16995.12
+ORD-202501-00387,2025-01-03,2025-01-09,2025,Q1,Jan,Friday,North,USA,Distributor,Government,S. Raka,Office Supplies,Envelope,Pending,Cash,5,48.79,243.95,0.12,29.27,0.05,10.73,64.95,290.36
+ORD-202501-00311,2025-01-04,2025-01-07,2025,Q1,Jan,Saturday,South,New Zealand,Retail,Government,J. Aita,Office Supplies,Notebook,Cancelled,Bank Transfer,12,22.30,267.60,0.10,26.76,0.07,16.86,63.76,321.46
+ORD-202501-00273,2025-01-05,2025-01-08,2025,Q1,Jan,Sunday,East,Japan,Retail,Consumer,S. Raka,Accessories,Webcam,Completed,Cash,29,152.91,4434.39,0.10,443.44,0.10,399.10,56.15,4446.20
+ORD-202501-00588,2025-01-05,2025-01-06,2025,Q1,Jan,Sunday,South,Australia,Wholesale,Consumer,J. Aita,Office Supplies,Paper,Completed,Credit Card,17,58.58,995.86,0.05,49.79,0.07,66.22,48.13,1060.42
+ORD-202501-00662,2025-01-08,2025-01-10,2025,Q1,Jan,Wednesday,West,UK,Distributor,Consumer,M. Kila,Office Supplies,Pen,Completed,Mobile Pay,16,15.78,252.48,0.15,37.87,0.12,25.75,43.70,284.06
+ORD-202501-00572,2025-01-10,2025-01-15,2025,Q1,Jan,Friday,South,New Zealand,Distributor,Consumer,D. Siroi,Accessories,Keyboard,Completed,Credit Card,3,212.26,636.78,0.02,12.74,0.05,31.20,47.08,702.32
+ORD-202501-00698,2025-01-10,2025-01-13,2025,Q1,Jan,Friday,West,France,Wholesale,Small Business,L. Nami,Electronics,Monitor,Completed,Mobile Pay,26,1351.63,35142.38,0.05,1757.12,0.07,2336.97,18.12,35740.35
+ORD-202501-00047,2025-01-11,2025-01-14,2025,Q1,Jan,Saturday,North,Canada,Retail,Government,M. Kila,Electronics,Printer,Returned,Bank Transfer,22,545.04,11990.88,0.12,1438.91,0.10,1055.20,64.84,11672.01
+ORD-202501-00548,2025-01-11,2025-01-14,2025,Q1,Jan,Saturday,East,Philippines,Distributor,Corporate,S. Raka,Accessories,Docking Station,Cancelled,Mobile Pay,19,64.73,1229.87,0.00,0.00,0.10,122.99,49.47,1402.33
+ORD-202501-00637,2025-01-11,2025-01-16,2025,Q1,Jan,Saturday,South,Australia,Distributor,Corporate,J. Aita,Office Supplies,Pen,Completed,Credit Card,6,45.79,274.74,0.10,27.47,0.07,17.31,35.81,300.39
+ORD-202501-00237,2025-01-12,2025-01-15,2025,Q1,Jan,Sunday,North,Canada,Wholesale,Consumer,P. Kuri,Home,Shelf,Cancelled,Credit Card,27,148.50,4009.50,0.15,601.42,0.10,340.81,9.78,3758.67
+ORD-202501-00372,2025-01-12,2025-01-15,2025,Q1,Jan,Sunday,South,Australia,Online,Government,P. Kuri,Office Supplies,Envelope,Cancelled,Credit Card,6,30.27,181.62,0.12,21.79,0.10,15.98,26.49,202.30
+ORD-202501-00206,2025-01-13,2025-01-27,2025,Q1,Jan,Monday,Central,India,Distributor,Government,L. Nami,Home,Cabinet,Returned,Cash,4,349.24,1396.96,0.05,69.85,0.10,132.71,62.28,1522.10
+ORD-202501-00452,2025-01-13,2025-01-18,2025,Q1,Jan,Monday,Central,UAE,Wholesale,Corporate,A. Taka,Software,Add-on,Completed,Cash,14,622.32,8712.48,0.12,1045.50,0.12,920.04,18.90,8605.92
+ORD-202501-00726,2025-01-13,2025-01-19,2025,Q1,Jan,Monday,North,Canada,Retail,Corporate,D. Siroi,Home,Desk,Completed,Mobile Pay,25,69.66,1741.50,0.08,139.32,0.10,160.22,29.67,1792.07
+ORD-202501-00435,2025-01-14,2025-01-15,2025,Q1,Jan,Tuesday,North,Canada,Retail,Consumer,M. Kila,Accessories,Docking Station,Completed,Mobile Pay,21,65.78,1381.38,0.02,27.63,0.07,94.76,27.99,1476.50
+ORD-202501-00648,2025-01-14,2025-01-16,2025,Q1,Jan,Tuesday,East,Philippines,Wholesale,Consumer,A. Taka,Office Supplies,Paper,Completed,Mobile Pay,12,42.52,510.24,0.02,10.20,0.10,50.00,44.11,594.15
+ORD-202501-00483,2025-01-16,2025-01-26,2025,Q1,Jan,Thursday,South,New Zealand,Retail,Consumer,J. Aita,Office Supplies,Paper,Pending,Cash,11,50.84,559.24,0.00,0.00,0.10,55.92,14.58,629.74
+ORD-202501-00600,2025-01-16,2025-01-17,2025,Q1,Jan,Thursday,West,France,Online,Corporate,P. Kuri,Home,Shelf,Completed,Credit Card,15,318.62,4779.30,0.10,477.93,0.05,215.07,38.90,4555.34
+ORD-202501-00710,2025-01-16,2025-01-20,2025,Q1,Jan,Thursday,North,Canada,Online,Government,S. Raka,Electronics,Monitor,Returned,Credit Card,14,205.21,2872.94,0.15,430.94,0.12,293.04,11.72,2746.76
+ORD-202501-00594,2025-01-17,2025-01-21,2025,Q1,Jan,Friday,South,Australia,Distributor,Corporate,D. Siroi,Electronics,Monitor,Completed,Cash,16,1741.77,27868.32,0.05,1393.42,0.05,1323.75,35.93,27834.58
+ORD-202501-00173,2025-01-19,2025-01-23,2025,Q1,Jan,Sunday,East,Philippines,Online,Consumer,S. Raka,Electronics,Printer,Completed,Bank Transfer,24,1799.54,43188.96,0.05,2159.45,0.12,4923.54,16.44,45969.49
+ORD-202501-00528,2025-01-21,2025-01-26,2025,Q1,Jan,Tuesday,North,Canada,Online,Corporate,T. Vele,Electronics,Tablet,Cancelled,Mobile Pay,18,1067.14,19208.52,0.15,2881.28,0.07,1142.91,31.07,17501.22
+ORD-202501-00255,2025-01-22,2025-01-23,2025,Q1,Jan,Wednesday,North,Canada,Retail,Corporate,L. Nami,Software,License,Completed,Cash,10,250.29,2502.90,0.15,375.44,0.05,106.37,19.83,2253.66
+ORD-202501-00275,2025-01-22,2025-01-25,2025,Q1,Jan,Wednesday,Central,UAE,Online,Consumer,D. Siroi,Home,Lamp,Completed,Cash,17,181.78,3090.26,0.08,247.22,0.07,199.01,45.59,3087.64
+ORD-202501-00404,2025-01-23,2025-01-29,2025,Q1,Jan,Thursday,East,Japan,Wholesale,Government,M. Kila,Office Supplies,Pen,Cancelled,Bank Transfer,10,57.26,572.60,0.08,45.81,0.12,63.21,26.00,616.00
+ORD-202501-00184,2025-01-24,2025-01-27,2025,Q1,Jan,Friday,North,Canada,Wholesale,Corporate,A. Taka,Home,Desk,Returned,Bank Transfer,25,421.66,10541.50,0.02,210.83,0.12,1239.68,61.37,11631.72
+ORD-202501-00300,2025-01-25,2025-01-29,2025,Q1,Jan,Saturday,Central,South Africa,Wholesale,Government,M. Kila,Accessories,Mouse,Completed,Cash,18,45.83,824.94,0.00,0.00,0.12,98.99,40.89,964.82
+ORD-202501-00718,2025-01-25,2025-01-29,2025,Q1,Jan,Saturday,North,Canada,Retail,Corporate,L. Nami,Software,Support Plan,Pending,Credit Card,29,651.12,18882.48,0.02,377.65,0.05,925.24,53.20,19483.27
+ORD-202501-00046,2025-01-28,2025-02-03,2025,Q1,Jan,Tuesday,Central,India,Distributor,Government,T. Vele,Office Supplies,Pen,Completed,Cash,13,44.74,581.62,0.08,46.53,0.10,53.51,36.40,625.00
+ORD-202501-00553,2025-01-29,2025-01-31,2025,Q1,Jan,Wednesday,East,Singapore,Wholesale,Corporate,S. Raka,Software,Security Suite,Pending,Mobile Pay,24,315.25,7566.00,0.15,1134.90,0.05,321.56,35.96,6788.62
+ORD-202501-00409,2025-01-31,2025-02-01,2025,Q1,Jan,Friday,West,France,Online,Small Business,A. Taka,Software,Subscription,Pending,Credit Card,25,746.86,18671.50,0.00,0.00,0.12,2240.58,8.95,20921.03
+ORD-202502-00587,2025-02-01,2025-02-05,2025,Q1,Feb,Saturday,North,USA,Online,Small Business,J. Aita,Office Supplies,Envelope,Completed,Credit Card,19,25.02,475.38,0.12,57.05,0.07,29.28,17.73,465.34
+ORD-202502-00251,2025-02-02,2025-02-04,2025,Q1,Feb,Sunday,East,Japan,Distributor,Corporate,J. Aita,Home,Cabinet,Cancelled,Credit Card,15,384.44,5766.60,0.05,288.33,0.05,273.91,28.60,5780.78
+ORD-202502-00426,2025-02-03,2025-02-05,2025,Q1,Feb,Monday,South,New Zealand,Distributor,Government,D. Siroi,Electronics,Phone,Completed,Mobile Pay,29,904.71,26236.59,0.12,3148.39,0.12,2770.58,36.36,25895.14
+ORD-202502-00779,2025-02-03,2025-02-09,2025,Q1,Feb,Monday,North,USA,Distributor,Corporate,M. Kila,Electronics,Monitor,Completed,Cash,5,366.02,1830.10,0.05,91.50,0.07,121.70,57.37,1917.67
+ORD-202502-00463,2025-02-04,2025-02-08,2025,Q1,Feb,Tuesday,North,USA,Retail,Consumer,T. Vele,Electronics,Monitor,Completed,Cash,21,1146.16,24069.36,0.05,1203.47,0.12,2743.91,22.13,25631.93
+ORD-202502-00550,2025-02-04,2025-02-08,2025,Q1,Feb,Tuesday,North,USA,Online,Government,M. Kila,Software,Security Suite,Completed,Cash,9,600.45,5404.05,0.05,270.20,0.07,359.37,53.04,5546.26
+ORD-202502-00438,2025-02-06,2025-02-11,2025,Q1,Feb,Thursday,North,USA,Distributor,Consumer,M. Kila,Electronics,Laptop,Returned,Credit Card,16,852.55,13640.80,0.00,0.00,0.10,1364.08,10.12,15015.00
+ORD-202502-00200,2025-02-07,2025-02-13,2025,Q1,Feb,Friday,North,USA,Distributor,Government,M. Kila,Office Supplies,Stapler,Completed,Mobile Pay,3,17.98,53.94,0.10,5.39,0.12,5.83,63.54,117.92
+ORD-202502-00035,2025-02-11,2025-02-16,2025,Q1,Feb,Tuesday,Central,UAE,Online,Small Business,M. Kila,Accessories,Keyboard,Completed,Credit Card,8,67.32,538.56,0.10,53.86,0.05,24.23,42.36,551.29
+ORD-202502-00141,2025-02-11,2025-02-12,2025,Q1,Feb,Tuesday,Central,South Africa,Distributor,Consumer,P. Kuri,Home,Chair,Cancelled,Credit Card,30,153.05,4591.50,0.12,550.98,0.10,404.05,11.57,4456.14
+ORD-202502-00379,2025-02-12,2025-02-19,2025,Q1,Feb,Wednesday,East,Japan,Wholesale,Corporate,D. Siroi,Accessories,Docking Station,Completed,Credit Card,2,22.74,45.48,0.08,3.64,0.10,4.18,18.96,64.98
+ORD-202502-00054,2025-02-14,2025-02-19,2025,Q1,Feb,Friday,West,Germany,Retail,Consumer,D. Siroi,Software,License,Completed,Cash,30,925.19,27755.70,0.10,2775.57,0.10,2498.01,35.72,27513.86
+ORD-202502-00750,2025-02-15,2025-02-17,2025,Q1,Feb,Saturday,East,Japan,Distributor,Small Business,J. Aita,Office Supplies,Notebook,Completed,Bank Transfer,4,11.61,46.44,0.10,4.64,0.10,4.18,24.37,70.35
+ORD-202502-00744,2025-02-16,2025-02-23,2025,Q1,Feb,Sunday,Central,UAE,Wholesale,Small Business,M. Kila,Software,Security Suite,Completed,Mobile Pay,19,652.65,12400.35,0.08,992.03,0.12,1369.00,59.46,12836.78
+ORD-202502-00794,2025-02-16,2025-02-26,2025,Q1,Feb,Sunday,East,Singapore,Retail,Consumer,J. Aita,Software,License,Cancelled,Cash,1,279.62,279.62,0.05,13.98,0.12,31.88,62.24,359.76
+ORD-202502-00570,2025-02-17,2025-02-19,2025,Q1,Feb,Monday,Central,UAE,Retail,Government,M. Kila,Office Supplies,Paper,Returned,Credit Card,26,32.17,836.42,0.12,100.37,0.05,36.80,31.04,803.89
+ORD-202502-00445,2025-02-18,2025-02-23,2025,Q1,Feb,Tuesday,East,Philippines,Distributor,Consumer,D. Siroi,Electronics,Phone,Completed,Mobile Pay,23,856.69,19703.87,0.10,1970.39,0.12,2128.02,63.20,19924.70
+ORD-202502-00434,2025-02-19,2025-02-25,2025,Q1,Feb,Wednesday,Central,India,Retail,Small Business,D. Siroi,Software,License,Returned,Cash,19,193.05,3667.95,0.15,550.19,0.10,311.78,12.13,3441.67
+ORD-202502-00675,2025-02-19,2025-02-22,2025,Q1,Feb,Wednesday,East,Singapore,Retail,Consumer,M. Kila,Home,Lamp,Returned,Credit Card,14,135.75,1900.50,0.02,38.01,0.10,186.25,42.37,2091.11
+ORD-202502-00511,2025-02-20,2025-02-24,2025,Q1,Feb,Thursday,Central,UAE,Distributor,Consumer,D. Siroi,Software,Security Suite,Completed,Bank Transfer,9,1142.24,10280.16,0.10,1028.02,0.12,1110.26,17.04,10379.44
+ORD-202502-00015,2025-02-23,2025-03-02,2025,Q1,Feb,Sunday,West,UK,Retail,Small Business,T. Vele,Office Supplies,Envelope,Completed,Cash,20,56.53,1130.60,0.12,135.67,0.07,69.65,36.15,1100.73
+ORD-202502-00309,2025-02-23,2025-02-26,2025,Q1,Feb,Sunday,North,USA,Retail,Corporate,D. Siroi,Office Supplies,Paper,Completed,Bank Transfer,11,4.72,51.92,0.08,4.15,0.07,3.34,31.58,82.69
+ORD-202502-00365,2025-02-23,2025-02-28,2025,Q1,Feb,Sunday,East,Japan,Online,Government,D. Siroi,Electronics,Monitor,Completed,Credit Card,9,1588.64,14297.76,0.00,0.00,0.07,1000.84,11.33,15309.93
+ORD-202502-00579,2025-02-23,2025-02-26,2025,Q1,Feb,Sunday,South,Australia,Distributor,Small Business,J. Aita,Electronics,Printer,Completed,Mobile Pay,26,347.47,9034.22,0.12,1084.11,0.10,795.01,42.47,8787.59
+ORD-202502-00746,2025-02-23,2025-02-26,2025,Q1,Feb,Sunday,East,Japan,Retail,Consumer,L. Nami,Home,Shelf,Completed,Credit Card,1,238.87,238.87,0.12,28.66,0.05,10.51,26.16,246.88
+ORD-202502-00769,2025-02-23,2025-02-28,2025,Q1,Feb,Sunday,East,Philippines,Distributor,Government,M. Kila,Software,Security Suite,Completed,Bank Transfer,24,868.80,20851.20,0.12,2502.14,0.05,917.45,15.45,19281.96
+ORD-202502-00448,2025-02-25,2025-03-01,2025,Q1,Feb,Tuesday,West,Germany,Distributor,Corporate,P. Kuri,Home,Desk,Completed,Bank Transfer,30,154.70,4641.00,0.05,232.05,0.05,220.45,33.11,4662.51
+ORD-202502-00611,2025-02-27,2025-03-04,2025,Q1,Feb,Thursday,West,France,Distributor,Corporate,D. Siroi,Accessories,Mouse,Completed,Credit Card,12,187.81,2253.72,0.00,0.00,0.12,270.45,20.54,2544.71
+ORD-202503-00101,2025-03-02,2025-03-06,2025,Q1,Mar,Sunday,West,France,Retail,Consumer,L. Nami,Home,Shelf,Cancelled,Credit Card,12,91.55,1098.60,0.08,87.89,0.10,101.07,62.91,1174.69
+ORD-202503-00296,2025-03-02,2025-03-05,2025,Q1,Mar,Sunday,East,Philippines,Distributor,Government,A. Taka,Home,Shelf,Pending,Cash,6,166.19,997.14,0.05,49.86,0.12,113.67,48.00,1108.95
+ORD-202503-00378,2025-03-03,2025-03-07,2025,Q1,Mar,Monday,North,Canada,Retail,Government,A. Taka,Office Supplies,Pen,Returned,Credit Card,30,9.62,288.60,0.00,0.00,0.07,20.20,55.73,364.53
+ORD-202503-00231,2025-03-04,2025-03-08,2025,Q1,Mar,Tuesday,Central,UAE,Retail,Consumer,M. Kila,Home,Desk,Completed,Credit Card,11,199.01,2189.11,0.12,262.69,0.07,134.85,12.22,2073.49
+ORD-202503-00244,2025-03-05,2025-03-07,2025,Q1,Mar,Wednesday,Central,UAE,Wholesale,Consumer,J. Aita,Accessories,Webcam,Cancelled,Cash,20,106.61,2132.20,0.08,170.58,0.07,137.31,55.53,2154.46
+ORD-202503-00315,2025-03-07,2025-03-11,2025,Q1,Mar,Friday,Central,UAE,Wholesale,Consumer,A. Taka,Accessories,Headphones,Pending,Bank Transfer,6,118.74,712.44,0.10,71.24,0.05,32.06,18.42,691.68
+ORD-202503-00346,2025-03-08,2025-03-12,2025,Q1,Mar,Saturday,Central,UAE,Wholesale,Consumer,T. Vele,Office Supplies,Notebook,Returned,Cash,21,34.11,716.31,0.15,107.45,0.10,60.89,43.52,713.27
+ORD-202503-00525,2025-03-08,2025-03-12,2025,Q1,Mar,Saturday,South,New Zealand,Online,Corporate,D. Siroi,Software,Security Suite,Pending,Bank Transfer,23,990.73,22786.79,0.10,2278.68,0.12,2460.97,20.13,22989.21
+ORD-202503-00170,2025-03-09,2025-03-13,2025,Q1,Mar,Sunday,South,New Zealand,Distributor,Corporate,L. Nami,Accessories,Keyboard,Cancelled,Credit Card,24,55.44,1330.56,0.05,66.53,0.12,151.68,15.41,1431.12
+ORD-202503-00402,2025-03-09,2025-03-11,2025,Q1,Mar,Sunday,East,Singapore,Distributor,Corporate,L. Nami,Software,Security Suite,Completed,Cash,18,784.18,14115.24,0.12,1693.83,0.07,869.50,17.33,13308.24
+ORD-202503-00534,2025-03-12,2025-03-14,2025,Q1,Mar,Wednesday,Central,India,Wholesale,Corporate,S. Raka,Software,License,Completed,Mobile Pay,25,795.17,19879.25,0.10,1987.93,0.12,2146.96,27.80,20066.08
+ORD-202503-00754,2025-03-12,2025-03-15,2025,Q1,Mar,Wednesday,West,France,Wholesale,Consumer,D. Siroi,Home,Cabinet,Completed,Cash,19,331.06,6290.14,0.10,629.01,0.05,283.06,42.05,5986.24
+ORD-202503-00039,2025-03-13,2025-03-19,2025,Q1,Mar,Thursday,South,Australia,Retail,Corporate,J. Aita,Office Supplies,Envelope,Completed,Mobile Pay,27,58.14,1569.78,0.00,0.00,0.12,188.37,59.48,1817.63
+ORD-202503-00245,2025-03-13,2025-03-17,2025,Q1,Mar,Thursday,Central,South Africa,Retail,Small Business,A. Taka,Home,Cabinet,Completed,Credit Card,8,283.57,2268.56,0.00,0.00,0.12,272.23,63.64,2604.43
+ORD-202503-00318,2025-03-14,2025-03-17,2025,Q1,Mar,Friday,South,Australia,Wholesale,Corporate,P. Kuri,Home,Desk,Returned,Bank Transfer,25,281.08,7027.00,0.15,1054.05,0.10,597.29,54.28,6624.52
+ORD-202503-00758,2025-03-14,2025-03-18,2025,Q1,Mar,Friday,East,Japan,Retail,Corporate,J. Aita,Accessories,Mouse,Completed,Bank Transfer,3,40.02,120.06,0.05,6.00,0.12,13.69,18.50,146.25
+ORD-202503-00727,2025-03-16,2025-03-19,2025,Q1,Mar,Sunday,North,Canada,Online,Corporate,T. Vele,Accessories,Webcam,Pending,Mobile Pay,4,116.67,466.68,0.15,70.00,0.12,47.60,52.28,496.56
+ORD-202503-00689,2025-03-17,2025-03-21,2025,Q1,Mar,Monday,East,Japan,Online,Government,D. Siroi,Office Supplies,Paper,Completed,Credit Card,16,16.45,263.20,0.12,31.58,0.05,11.58,64.80,308.00
+ORD-202503-00732,2025-03-18,2025-03-22,2025,Q1,Mar,Tuesday,South,New Zealand,Online,Corporate,T. Vele,Software,Add-on,Completed,Mobile Pay,11,778.25,8560.75,0.12,1027.29,0.10,753.35,42.21,8329.02
+ORD-202503-00743,2025-03-18,2025-03-21,2025,Q1,Mar,Tuesday,West,Germany,Wholesale,Government,A. Taka,Electronics,Laptop,Pending,Bank Transfer,30,1167.50,35025.00,0.12,4203.00,0.05,1541.10,50.65,32413.75
+ORD-202503-00267,2025-03-20,2025-03-23,2025,Q1,Mar,Thursday,South,Australia,Distributor,Corporate,T. Vele,Office Supplies,Envelope,Completed,Bank Transfer,28,58.24,1630.72,0.15,244.61,0.10,138.61,22.41,1547.13
+ORD-202503-00533,2025-03-20,2025-03-23,2025,Q1,Mar,Thursday,North,Canada,Online,Small Business,P. Kuri,Accessories,Headphones,Completed,Mobile Pay,26,132.69,3449.94,0.00,0.00,0.10,344.99,20.04,3814.97
+ORD-202503-00425,2025-03-21,2025-03-28,2025,Q1,Mar,Friday,South,New Zealand,Distributor,Corporate,S. Raka,Electronics,Laptop,Pending,Bank Transfer,7,1077.78,7544.46,0.12,905.34,0.10,663.91,14.06,7317.09
+ORD-202503-00386,2025-03-22,2025-03-26,2025,Q1,Mar,Saturday,East,Singapore,Wholesale,Government,S. Raka,Electronics,Laptop,Returned,Credit Card,25,265.41,6635.25,0.12,796.23,0.05,291.95,33.00,6163.97
+ORD-202503-00083,2025-03-23,2025-03-27,2025,Q1,Mar,Sunday,West,Germany,Wholesale,Consumer,M. Kila,Home,Desk,Completed,Mobile Pay,3,156.17,468.51,0.08,37.48,0.12,51.72,62.00,544.75
+ORD-202503-00117,2025-03-24,2025-03-27,2025,Q1,Mar,Monday,South,New Zealand,Online,Government,J. Aita,Home,Desk,Pending,Bank Transfer,20,426.38,8527.60,0.15,1279.14,0.07,507.39,43.79,7799.64
+ORD-202503-00542,2025-03-25,2025-03-27,2025,Q1,Mar,Tuesday,Central,UAE,Retail,Corporate,L. Nami,Software,Subscription,Completed,Cash,16,983.28,15732.48,0.05,786.62,0.12,1793.50,49.44,16788.80
+ORD-202503-00368,2025-03-27,2025-04-06,2025,Q1,Mar,Thursday,West,UK,Distributor,Government,T. Vele,Electronics,Tablet,Returned,Credit Card,30,805.40,24162.00,0.15,3624.30,0.12,2464.52,55.11,23057.33
+ORD-202503-00666,2025-03-28,2025-04-01,2025,Q1,Mar,Friday,South,New Zealand,Wholesale,Corporate,M. Kila,Software,Security Suite,Returned,Credit Card,6,658.66,3951.96,0.12,474.24,0.12,417.33,41.49,3936.54
+ORD-202503-00080,2025-03-29,2025-04-12,2025,Q1,Mar,Saturday,West,Germany,Wholesale,Corporate,L. Nami,Accessories,Docking Station,Completed,Cash,16,111.96,1791.36,0.10,179.14,0.10,161.22,58.08,1831.52
+ORD-202503-00160,2025-03-30,2025-04-01,2025,Q1,Mar,Sunday,Central,South Africa,Online,Corporate,P. Kuri,Software,Support Plan,Pending,Mobile Pay,4,1144.59,4578.36,0.15,686.75,0.05,194.58,34.93,4121.12
+ORD-202503-00457,2025-03-30,2025-04-01,2025,Q1,Mar,Sunday,Central,UAE,Retail,Consumer,J. Aita,Software,Support Plan,Pending,Mobile Pay,29,1178.45,34175.05,0.15,5126.26,0.12,3485.85,9.41,32544.05
+ORD-202503-00010,2025-03-31,2025-04-04,2025,Q1,Mar,Monday,East,Singapore,Retail,Corporate,A. Taka,Office Supplies,Paper,Completed,Bank Transfer,30,21.58,647.40,0.00,0.00,0.12,77.69,25.15,750.24
+ORD-202503-00199,2025-03-31,2025-04-06,2025,Q1,Mar,Monday,South,Australia,Wholesale,Government,S. Raka,Software,Subscription,Pending,Bank Transfer,22,821.93,18082.46,0.00,0.00,0.07,1265.77,29.19,19377.42
+ORD-202503-00702,2025-03-31,2025-04-04,2025,Q1,Mar,Monday,East,Japan,Online,Government,J. Aita,Electronics,Laptop,Completed,Bank Transfer,2,995.20,1990.40,0.12,238.85,0.07,122.61,16.67,1890.83
+ORD-202504-00240,2025-04-03,2025-04-06,2025,Q2,Apr,Thursday,South,New Zealand,Wholesale,Small Business,P. Kuri,Office Supplies,Pen,Returned,Cash,19,6.65,126.35,0.15,18.95,0.07,7.52,8.30,123.22
+ORD-202504-00517,2025-04-03,2025-04-05,2025,Q2,Apr,Thursday,Central,India,Wholesale,Corporate,M. Kila,Office Supplies,Pen,Returned,Mobile Pay,16,19.29,308.64,0.00,0.00,0.10,30.86,36.60,376.10
+ORD-202504-00646,2025-04-04,2025-04-07,2025,Q2,Apr,Friday,East,Philippines,Retail,Small Business,M. Kila,Accessories,Headphones,Completed,Bank Transfer,10,80.52,805.20,0.05,40.26,0.10,76.49,24.61,866.04
+ORD-202504-00660,2025-04-04,2025-04-06,2025,Q2,Apr,Friday,South,Australia,Retail,Government,M. Kila,Software,Security Suite,Completed,Cash,25,1084.16,27104.00,0.02,542.08,0.12,3187.43,29.39,29778.74
+ORD-202504-00281,2025-04-05,2025-04-09,2025,Q2,Apr,Saturday,East,Japan,Retail,Small Business,D. Siroi,Electronics,Monitor,Cancelled,Cash,5,1411.46,7057.30,0.12,846.88,0.12,745.25,19.03,6974.70
+ORD-202504-00489,2025-04-07,2025-04-11,2025,Q2,Apr,Monday,East,Philippines,Wholesale,Government,S. Raka,Accessories,Mouse,Completed,Bank Transfer,20,72.84,1456.80,0.10,145.68,0.10,131.11,49.10,1491.33
+ORD-202504-00176,2025-04-09,2025-04-16,2025,Q2,Apr,Wednesday,South,Australia,Wholesale,Corporate,J. Aita,Office Supplies,Paper,Completed,Credit Card,14,36.92,516.88,0.05,25.84,0.12,58.92,21.70,571.66
+ORD-202504-00310,2025-04-12,2025-04-16,2025,Q2,Apr,Saturday,Central,UAE,Distributor,Government,S. Raka,Accessories,Webcam,Pending,Credit Card,4,163.56,654.24,0.15,98.14,0.07,38.93,41.50,636.53
+ORD-202504-00797,2025-04-12,2025-04-16,2025,Q2,Apr,Saturday,West,Germany,Wholesale,Consumer,D. Siroi,Accessories,Keyboard,Completed,Cash,14,77.19,1080.66,0.02,21.61,0.07,74.13,32.87,1166.05
+ORD-202504-00678,2025-04-14,2025-04-20,2025,Q2,Apr,Monday,East,Japan,Online,Corporate,L. Nami,Home,Shelf,Completed,Mobile Pay,19,321.14,6101.66,0.02,122.03,0.10,597.96,12.26,6589.85
+ORD-202504-00756,2025-04-14,2025-04-16,2025,Q2,Apr,Monday,Central,South Africa,Distributor,Consumer,A. Taka,Home,Cabinet,Completed,Bank Transfer,14,407.97,5711.58,0.10,571.16,0.12,616.85,51.53,5808.80
+ORD-202504-00423,2025-04-15,2025-04-17,2025,Q2,Apr,Tuesday,West,France,Online,Corporate,T. Vele,Office Supplies,Stapler,Completed,Credit Card,13,42.41,551.33,0.00,0.00,0.07,38.59,32.37,622.29
+ORD-202504-00333,2025-04-16,2025-04-17,2025,Q2,Apr,Wednesday,North,Canada,Wholesale,Corporate,L. Nami,Office Supplies,Stapler,Returned,Credit Card,13,44.87,583.31,0.00,0.00,0.10,58.33,54.06,695.70
+ORD-202504-00256,2025-04-18,2025-04-24,2025,Q2,Apr,Friday,Central,India,Wholesale,Small Business,S. Raka,Accessories,Docking Station,Returned,Credit Card,13,113.35,1473.55,0.02,29.47,0.10,144.41,17.73,1606.22
+ORD-202504-00424,2025-04-18,2025-04-23,2025,Q2,Apr,Friday,West,France,Wholesale,Consumer,A. Taka,Software,License,Completed,Credit Card,23,294.67,6777.41,0.05,338.87,0.05,321.93,53.91,6814.38
+ORD-202504-00720,2025-04-18,2025-04-21,2025,Q2,Apr,Friday,East,Singapore,Retail,Consumer,M. Kila,Software,Subscription,Pending,Credit Card,30,885.32,26559.60,0.08,2124.77,0.07,1710.44,64.83,26210.10
+ORD-202504-00606,2025-04-19,2025-04-23,2025,Q2,Apr,Saturday,East,Philippines,Distributor,Small Business,A. Taka,Software,License,Cancelled,Cash,15,692.22,10383.30,0.00,0.00,0.07,726.83,51.77,11161.90
+ORD-202504-00736,2025-04-19,2025-04-21,2025,Q2,Apr,Saturday,East,Japan,Distributor,Corporate,A. Taka,Electronics,Laptop,Cancelled,Bank Transfer,2,1135.99,2271.98,0.00,0.00,0.05,113.60,48.64,2434.22
+ORD-202504-00481,2025-04-21,2025-04-26,2025,Q2,Apr,Monday,Central,UAE,Online,Government,D. Siroi,Office Supplies,Pen,Completed,Bank Transfer,30,23.48,704.40,0.15,105.66,0.07,41.91,16.68,657.33
+ORD-202504-00640,2025-04-22,2025-04-27,2025,Q2,Apr,Tuesday,South,Australia,Online,Consumer,A. Taka,Office Supplies,Notebook,Returned,Cash,13,43.71,568.23,0.15,85.23,0.12,57.96,41.44,582.40
+ORD-202504-00649,2025-04-23,2025-04-30,2025,Q2,Apr,Wednesday,East,Singapore,Wholesale,Consumer,P. Kuri,Office Supplies,Notebook,Cancelled,Credit Card,29,16.05,465.45,0.12,55.85,0.12,49.15,10.55,469.30
+ORD-202504-00735,2025-04-25,2025-04-30,2025,Q2,Apr,Friday,West,UK,Online,Corporate,S. Raka,Electronics,Printer,Completed,Mobile Pay,29,851.81,24702.49,0.08,1976.20,0.07,1590.84,48.52,24365.65
+ORD-202504-00325,2025-04-26,2025-04-27,2025,Q2,Apr,Saturday,North,Canada,Retail,Government,J. Aita,Electronics,Laptop,Completed,Mobile Pay,11,1575.50,17330.50,0.12,2079.66,0.10,1525.08,48.19,16824.11
+ORD-202504-00153,2025-04-27,2025-05-02,2025,Q2,Apr,Sunday,South,New Zealand,Distributor,Corporate,D. Siroi,Office Supplies,Paper,Pending,Cash,28,40.01,1120.28,0.15,168.04,0.10,95.22,25.32,1072.78
+ORD-202504-00327,2025-04-28,2025-05-02,2025,Q2,Apr,Monday,East,Philippines,Distributor,Corporate,D. Siroi,Home,Desk,Returned,Bank Transfer,27,228.97,6182.19,0.12,741.86,0.10,544.03,49.35,6033.71
+ORD-202504-00235,2025-04-29,2025-05-03,2025,Q2,Apr,Tuesday,West,Germany,Online,Small Business,M. Kila,Home,Lamp,Completed,Cash,30,234.31,7029.30,0.05,351.47,0.05,333.89,18.71,7030.43
+ORD-202504-00701,2025-04-29,2025-05-02,2025,Q2,Apr,Tuesday,West,UK,Distributor,Consumer,A. Taka,Home,Cabinet,Returned,Credit Card,7,176.49,1235.43,0.15,185.31,0.07,73.51,49.55,1173.18
+ORD-202504-00151,2025-04-30,2025-05-04,2025,Q2,Apr,Wednesday,West,France,Online,Consumer,P. Kuri,Electronics,Monitor,Pending,Mobile Pay,19,1410.52,26799.88,0.02,536.00,0.07,1838.47,13.74,28116.09
+ORD-202505-00636,2025-05-01,2025-05-07,2025,Q2,May,Thursday,East,Singapore,Online,Consumer,L. Nami,Office Supplies,Stapler,Completed,Mobile Pay,22,9.65,212.30,0.10,21.23,0.10,19.11,49.19,259.37
+ORD-202505-00172,2025-05-03,2025-05-07,2025,Q2,May,Saturday,Central,India,Retail,Consumer,A. Taka,Home,Chair,Cancelled,Bank Transfer,2,141.23,282.46,0.10,28.25,0.10,25.42,39.06,318.69
+ORD-202505-00302,2025-05-03,2025-05-09,2025,Q2,May,Saturday,South,New Zealand,Online,Government,P. Kuri,Office Supplies,Stapler,Completed,Mobile Pay,30,55.12,1653.60,0.15,248.04,0.10,140.56,42.39,1588.51
+ORD-202505-00262,2025-05-06,2025-05-08,2025,Q2,May,Tuesday,West,France,Online,Corporate,T. Vele,Accessories,Docking Station,Completed,Cash,15,104.92,1573.80,0.02,31.48,0.10,154.23,40.94,1737.49
+ORD-202505-00723,2025-05-06,2025-05-20,2025,Q2,May,Tuesday,East,Singapore,Wholesale,Government,J. Aita,Home,Shelf,Completed,Bank Transfer,9,119.05,1071.45,0.08,85.72,0.05,49.29,9.63,1044.65
+ORD-202505-00274,2025-05-08,2025-05-10,2025,Q2,May,Thursday,South,New Zealand,Distributor,Small Business,D. Siroi,Office Supplies,Pen,Completed,Cash,29,50.96,1477.84,0.10,147.78,0.07,93.10,63.77,1486.93
+ORD-202505-00277,2025-05-08,2025-05-11,2025,Q2,May,Thursday,West,France,Online,Corporate,T. Vele,Office Supplies,Envelope,Cancelled,Cash,23,11.26,258.98,0.05,12.95,0.10,24.60,23.83,294.46
+ORD-202505-00362,2025-05-10,2025-05-13,2025,Q2,May,Saturday,West,Germany,Retail,Government,M. Kila,Accessories,Docking Station,Cancelled,Cash,17,171.96,2923.32,0.08,233.87,0.12,322.73,58.46,3070.64
+ORD-202505-00018,2025-05-11,2025-05-15,2025,Q2,May,Sunday,North,USA,Retail,Government,T. Vele,Home,Shelf,Pending,Bank Transfer,3,70.89,212.67,0.05,10.63,0.12,24.24,19.91,246.19
+ORD-202505-00708,2025-05-11,2025-05-14,2025,Q2,May,Sunday,North,Canada,Online,Consumer,T. Vele,Home,Chair,Completed,Credit Card,17,288.81,4909.77,0.08,392.78,0.07,316.19,39.69,4872.87
+ORD-202505-00792,2025-05-12,2025-05-17,2025,Q2,May,Monday,West,France,Wholesale,Small Business,A. Taka,Software,Add-on,Returned,Mobile Pay,14,873.50,12229.00,0.15,1834.35,0.05,519.73,33.93,10948.31
+ORD-202505-00227,2025-05-13,2025-05-16,2025,Q2,May,Tuesday,East,Japan,Retail,Small Business,A. Taka,Office Supplies,Pen,Completed,Mobile Pay,10,8.87,88.70,0.15,13.30,0.10,7.54,64.22,147.16
+ORD-202505-00336,2025-05-13,2025-05-16,2025,Q2,May,Tuesday,North,USA,Online,Small Business,P. Kuri,Software,Security Suite,Completed,Cash,2,1193.04,2386.08,0.15,357.91,0.05,101.41,9.18,2138.76
+ORD-202505-00324,2025-05-14,2025-05-18,2025,Q2,May,Wednesday,East,Singapore,Retail,Small Business,J. Aita,Office Supplies,Pen,Completed,Mobile Pay,17,51.72,879.24,0.02,17.58,0.10,86.17,21.88,969.71
+ORD-202505-00089,2025-05-15,2025-05-18,2025,Q2,May,Thursday,South,New Zealand,Distributor,Corporate,S. Raka,Accessories,Mouse,Completed,Cash,24,153.53,3684.72,0.02,73.69,0.07,252.77,59.75,3923.55
+ORD-202505-00097,2025-05-16,2025-05-23,2025,Q2,May,Friday,South,New Zealand,Distributor,Corporate,L. Nami,Accessories,Webcam,Pending,Cash,15,147.64,2214.60,0.00,0.00,0.05,110.73,30.61,2355.94
+ORD-202505-00614,2025-05-16,2025-05-22,2025,Q2,May,Friday,Central,South Africa,Wholesale,Consumer,P. Kuri,Electronics,Phone,Completed,Credit Card,28,1731.69,48487.32,0.15,7273.10,0.10,4121.42,12.00,45347.64
+ORD-202505-00652,2025-05-16,2025-05-23,2025,Q2,May,Friday,North,Canada,Online,Small Business,J. Aita,Software,Security Suite,Returned,Cash,29,109.55,3176.95,0.10,317.69,0.10,285.93,58.20,3203.39
+ORD-202505-00016,2025-05-18,2025-05-23,2025,Q2,May,Sunday,East,Japan,Online,Government,J. Aita,Accessories,Docking Station,Completed,Bank Transfer,7,144.36,1010.52,0.12,121.26,0.07,62.25,27.95,979.46
+ORD-202505-00203,2025-05-19,2025-05-22,2025,Q2,May,Monday,East,Philippines,Wholesale,Small Business,T. Vele,Home,Lamp,Returned,Cash,26,247.84,6443.84,0.10,644.38,0.12,695.94,38.73,6534.13
+ORD-202505-00259,2025-05-20,2025-05-25,2025,Q2,May,Tuesday,West,UK,Retail,Small Business,S. Raka,Accessories,Webcam,Cancelled,Credit Card,21,167.88,3525.48,0.05,176.27,0.07,234.44,24.75,3608.40
+ORD-202505-00045,2025-05-22,2025-05-24,2025,Q2,May,Thursday,Central,India,Wholesale,Small Business,J. Aita,Electronics,Laptop,Completed,Credit Card,26,753.72,19596.72,0.15,2939.51,0.05,832.86,35.02,17525.09
+ORD-202505-00441,2025-05-24,2025-05-28,2025,Q2,May,Saturday,North,USA,Wholesale,Government,L. Nami,Home,Chair,Returned,Bank Transfer,5,259.54,1297.70,0.02,25.95,0.10,127.18,48.02,1446.95
+ORD-202505-00559,2025-05-24,2025-05-25,2025,Q2,May,Saturday,North,Canada,Wholesale,Small Business,D. Siroi,Home,Cabinet,Completed,Bank Transfer,26,135.94,3534.44,0.02,70.69,0.10,346.38,53.87,3864.00
+ORD-202505-00013,2025-05-25,2025-05-27,2025,Q2,May,Sunday,South,New Zealand,Distributor,Government,L. Nami,Accessories,Headphones,Pending,Mobile Pay,7,40.60,284.20,0.08,22.74,0.05,13.07,54.58,329.11
+ORD-202505-00343,2025-05-26,2025-05-31,2025,Q2,May,Monday,North,USA,Wholesale,Small Business,S. Raka,Software,Add-on,Returned,Credit Card,1,177.52,177.52,0.12,21.30,0.12,18.75,54.30,229.27
+ORD-202505-00421,2025-05-27,2025-05-29,2025,Q2,May,Tuesday,South,New Zealand,Wholesale,Small Business,A. Taka,Software,Add-on,Cancelled,Bank Transfer,13,800.23,10402.99,0.02,208.06,0.07,713.65,19.77,10928.35
+ORD-202505-00241,2025-05-29,2025-06-03,2025,Q2,May,Thursday,South,Australia,Wholesale,Government,L. Nami,Electronics,Monitor,Returned,Credit Card,21,831.78,17467.38,0.02,349.35,0.07,1198.26,29.17,18345.46
+ORD-202505-00644,2025-05-29,2025-06-01,2025,Q2,May,Thursday,South,Australia,Distributor,Consumer,S. Raka,Office Supplies,Pen,Completed,Mobile Pay,9,42.72,384.48,0.10,38.45,0.05,17.30,54.16,417.49
+ORD-202505-00095,2025-05-30,2025-06-04,2025,Q2,May,Friday,South,New Zealand,Wholesale,Consumer,A. Taka,Software,Support Plan,Completed,Mobile Pay,30,728.12,21843.60,0.10,2184.36,0.07,1376.15,41.76,21077.15
+ORD-202505-00353,2025-05-30,2025-06-01,2025,Q2,May,Friday,South,New Zealand,Online,Small Business,M. Kila,Electronics,Tablet,Completed,Mobile Pay,2,795.17,1590.34,0.00,0.00,0.07,111.32,35.92,1737.58
+ORD-202505-00174,2025-05-31,2025-06-04,2025,Q2,May,Saturday,West,France,Online,Government,P. Kuri,Home,Shelf,Completed,Credit Card,4,94.27,377.08,0.15,56.56,0.12,38.46,34.61,393.59
+ORD-202506-00191,2025-06-02,2025-06-05,2025,Q2,Jun,Monday,West,Germany,Wholesale,Small Business,J. Aita,Software,Subscription,Completed,Mobile Pay,30,694.19,20825.70,0.05,1041.29,0.05,989.22,16.68,20790.31
+ORD-202506-00711,2025-06-02,2025-06-03,2025,Q2,Jun,Monday,Central,UAE,Retail,Consumer,A. Taka,Electronics,Laptop,Pending,Mobile Pay,22,1662.35,36571.70,0.02,731.43,0.10,3584.03,36.19,39460.49
+ORD-202506-00042,2025-06-03,2025-06-05,2025,Q2,Jun,Tuesday,West,France,Retail,Government,J. Aita,Home,Lamp,Cancelled,Cash,4,407.68,1630.72,0.02,32.61,0.10,159.81,14.88,1772.80
+ORD-202506-00149,2025-06-03,2025-06-10,2025,Q2,Jun,Tuesday,South,New Zealand,Wholesale,Small Business,M. Kila,Home,Chair,Completed,Bank Transfer,28,168.40,4715.20,0.00,0.00,0.12,565.82,49.34,5330.36
+ORD-202506-00354,2025-06-03,2025-06-06,2025,Q2,Jun,Tuesday,Central,UAE,Online,Small Business,M. Kila,Software,Support Plan,Completed,Credit Card,28,288.07,8065.96,0.08,645.28,0.05,371.03,61.17,7852.88
+ORD-202506-00363,2025-06-04,2025-06-08,2025,Q2,Jun,Wednesday,South,Australia,Retail,Corporate,D. Siroi,Electronics,Laptop,Completed,Credit Card,22,1207.98,26575.56,0.15,3986.33,0.07,1581.25,20.26,24190.74
+ORD-202506-00529,2025-06-04,2025-06-07,2025,Q2,Jun,Wednesday,East,Singapore,Online,Corporate,L. Nami,Office Supplies,Envelope,Completed,Bank Transfer,1,59.37,59.37,0.08,4.75,0.05,2.73,45.73,103.08
+ORD-202506-00595,2025-06-04,2025-06-07,2025,Q2,Jun,Wednesday,West,UK,Online,Consumer,D. Siroi,Home,Lamp,Completed,Mobile Pay,4,353.96,1415.84,0.08,113.27,0.12,156.31,63.75,1522.63
+ORD-202506-00564,2025-06-05,2025-06-09,2025,Q2,Jun,Thursday,North,Canada,Online,Government,M. Kila,Electronics,Phone,Pending,Bank Transfer,7,1767.17,12370.19,0.12,1484.42,0.05,544.29,18.01,11448.07
+ORD-202506-00765,2025-06-05,2025-06-09,2025,Q2,Jun,Thursday,West,France,Retail,Government,L. Nami,Accessories,Mouse,Pending,Credit Card,18,14.10,253.80,0.10,25.38,0.12,27.41,57.23,313.06
+ORD-202506-00650,2025-06-06,2025-06-10,2025,Q2,Jun,Friday,North,USA,Online,Corporate,T. Vele,Electronics,Monitor,Completed,Mobile Pay,5,416.55,2082.75,0.15,312.41,0.07,123.92,12.55,1906.81
+ORD-202506-00175,2025-06-07,2025-06-21,2025,Q2,Jun,Saturday,West,UK,Wholesale,Government,M. Kila,Software,Security Suite,Completed,Credit Card,19,1047.17,19896.23,0.02,397.92,0.12,2339.80,36.06,21874.17
+ORD-202506-00189,2025-06-08,2025-06-11,2025,Q2,Jun,Sunday,Central,India,Online,Corporate,L. Nami,Electronics,Monitor,Completed,Mobile Pay,24,1537.99,36911.76,0.12,4429.41,0.05,1624.12,30.67,34137.14
+ORD-202506-00087,2025-06-10,2025-06-15,2025,Q2,Jun,Tuesday,North,USA,Online,Consumer,D. Siroi,Home,Chair,Completed,Credit Card,3,307.18,921.54,0.08,73.72,0.07,59.35,9.02,916.19
+ORD-202506-00430,2025-06-10,2025-06-13,2025,Q2,Jun,Tuesday,East,Singapore,Wholesale,Corporate,P. Kuri,Accessories,Docking Station,Completed,Mobile Pay,5,141.08,705.40,0.08,56.43,0.12,77.88,63.92,790.77
+ORD-202506-00776,2025-06-10,2025-06-14,2025,Q2,Jun,Tuesday,North,USA,Distributor,Small Business,P. Kuri,Home,Desk,Completed,Bank Transfer,4,344.75,1379.00,0.15,206.85,0.07,82.05,14.00,1268.20
+ORD-202506-00569,2025-06-11,2025-06-17,2025,Q2,Jun,Wednesday,East,Philippines,Retail,Consumer,A. Taka,Electronics,Monitor,Returned,Cash,10,1254.65,12546.50,0.12,1505.58,0.05,552.05,27.27,11620.24
+ORD-202506-00567,2025-06-12,2025-06-18,2025,Q2,Jun,Thursday,East,Singapore,Online,Government,L. Nami,Home,Desk,Completed,Bank Transfer,18,320.06,5761.08,0.02,115.22,0.12,677.50,38.34,6361.70
+ORD-202506-00458,2025-06-14,2025-06-16,2025,Q2,Jun,Saturday,West,France,Retail,Corporate,M. Kila,Software,Security Suite,Completed,Credit Card,8,1117.34,8938.72,0.15,1340.81,0.05,379.90,18.74,7996.55
+ORD-202506-00270,2025-06-15,2025-06-18,2025,Q2,Jun,Sunday,North,USA,Online,Corporate,T. Vele,Electronics,Laptop,Completed,Mobile Pay,27,1243.38,33571.26,0.08,2685.70,0.10,3088.56,21.19,33995.31
+ORD-202506-00335,2025-06-15,2025-06-21,2025,Q2,Jun,Sunday,Central,South Africa,Wholesale,Corporate,A. Taka,Home,Shelf,Completed,Cash,6,430.07,2580.42,0.12,309.65,0.10,227.08,54.05,2551.90
+ORD-202506-00082,2025-06-18,2025-06-19,2025,Q2,Jun,Wednesday,East,Philippines,Online,Small Business,A. Taka,Home,Shelf,Completed,Cash,11,412.57,4538.27,0.08,363.06,0.10,417.52,29.47,4622.20
+ORD-202506-00494,2025-06-20,2025-06-26,2025,Q2,Jun,Friday,Central,India,Distributor,Small Business,S. Raka,Home,Lamp,Completed,Credit Card,25,47.38,1184.50,0.00,0.00,0.07,82.92,35.58,1303.00
+ORD-202506-00577,2025-06-20,2025-06-23,2025,Q2,Jun,Friday,West,France,Wholesale,Government,P. Kuri,Home,Cabinet,Completed,Bank Transfer,27,213.59,5766.93,0.10,576.69,0.05,259.51,10.80,5460.55
+ORD-202506-00514,2025-06-22,2025-06-27,2025,Q2,Jun,Sunday,North,USA,Distributor,Small Business,D. Siroi,Accessories,Headphones,Completed,Credit Card,29,191.22,5545.38,0.10,554.54,0.10,499.08,45.29,5535.21
+ORD-202506-00242,2025-06-23,2025-06-27,2025,Q2,Jun,Monday,North,Canada,Retail,Corporate,A. Taka,Office Supplies,Envelope,Completed,Credit Card,27,30.66,827.82,0.12,99.34,0.05,36.42,14.27,779.17
+ORD-202506-00473,2025-06-23,2025-06-28,2025,Q2,Jun,Monday,Central,South Africa,Online,Small Business,A. Taka,Software,Security Suite,Completed,Cash,7,162.96,1140.72,0.00,0.00,0.05,57.04,33.63,1231.39
+ORD-202506-00694,2025-06-23,2025-06-30,2025,Q2,Jun,Monday,South,New Zealand,Online,Consumer,D. Siroi,Accessories,Headphones,Completed,Cash,29,202.81,5881.49,0.12,705.78,0.10,517.57,59.77,5753.05
+ORD-202506-00182,2025-06-27,2025-07-01,2025,Q2,Jun,Friday,Central,South Africa,Online,Government,J. Aita,Accessories,Docking Station,Returned,Mobile Pay,10,108.34,1083.40,0.12,130.01,0.12,114.41,49.08,1116.88
+ORD-202506-00781,2025-06-29,2025-07-01,2025,Q2,Jun,Sunday,North,USA,Retail,Corporate,P. Kuri,Electronics,Printer,Completed,Credit Card,19,1577.10,29964.90,0.02,599.30,0.10,2936.56,46.31,32348.47
+ORD-202507-00028,2025-07-01,2025-07-04,2025,Q3,Jul,Tuesday,East,Singapore,Distributor,Corporate,L. Nami,Office Supplies,Stapler,Completed,Credit Card,7,34.59,242.13,0.15,36.32,0.05,10.29,24.97,241.07
+ORD-202507-00759,2025-07-03,2025-07-07,2025,Q3,Jul,Thursday,Central,India,Distributor,Government,P. Kuri,Electronics,Printer,Pending,Credit Card,14,503.43,7048.02,0.00,0.00,0.10,704.80,53.55,7806.37
+ORD-202507-00253,2025-07-04,2025-07-14,2025,Q3,Jul,Friday,East,Japan,Online,Government,J. Aita,Office Supplies,Notebook,Completed,Cash,13,35.11,456.43,0.08,36.51,0.10,41.99,40.56,502.47
+ORD-202507-00411,2025-07-05,2025-07-10,2025,Q3,Jul,Saturday,North,Canada,Online,Corporate,T. Vele,Electronics,Monitor,Returned,Credit Card,27,917.74,24778.98,0.05,1238.95,0.05,1177.00,21.49,24738.52
+ORD-202507-00752,2025-07-05,2025-07-09,2025,Q3,Jul,Saturday,South,Australia,Online,Corporate,A. Taka,Home,Desk,Completed,Bank Transfer,1,189.30,189.30,0.00,0.00,0.05,9.47,17.43,216.20
+ORD-202507-00162,2025-07-08,2025-07-15,2025,Q3,Jul,Tuesday,South,Australia,Distributor,Small Business,P. Kuri,Home,Shelf,Completed,Credit Card,1,369.06,369.06,0.12,44.29,0.05,16.24,36.92,377.93
+ORD-202507-00291,2025-07-09,2025-07-14,2025,Q3,Jul,Wednesday,North,USA,Distributor,Government,P. Kuri,Office Supplies,Paper,Completed,Bank Transfer,13,18.72,243.36,0.10,24.34,0.10,21.90,58.98,299.90
+ORD-202507-00036,2025-07-11,2025-07-12,2025,Q3,Jul,Friday,Central,UAE,Retail,Corporate,L. Nami,Office Supplies,Pen,Pending,Bank Transfer,6,37.58,225.48,0.02,4.51,0.10,22.10,16.57,259.64
+ORD-202507-00490,2025-07-11,2025-07-14,2025,Q3,Jul,Friday,East,Japan,Wholesale,Corporate,P. Kuri,Home,Shelf,Completed,Bank Transfer,25,216.07,5401.75,0.08,432.14,0.05,248.48,46.02,5264.11
+ORD-202507-00213,2025-07-12,2025-07-15,2025,Q3,Jul,Saturday,West,France,Retail,Consumer,J. Aita,Software,License,Completed,Bank Transfer,1,302.87,302.87,0.12,36.34,0.05,13.33,11.85,291.71
+ORD-202507-00475,2025-07-13,2025-07-17,2025,Q3,Jul,Sunday,Central,South Africa,Wholesale,Government,J. Aita,Office Supplies,Paper,Completed,Mobile Pay,4,26.93,107.72,0.10,10.77,0.10,9.70,26.01,132.66
+ORD-202507-00716,2025-07-14,2025-07-17,2025,Q3,Jul,Monday,West,UK,Retail,Corporate,J. Aita,Office Supplies,Envelope,Completed,Mobile Pay,8,58.64,469.12,0.08,37.53,0.05,21.58,57.47,510.64
+ORD-202507-00414,2025-07-16,2025-07-18,2025,Q3,Jul,Wednesday,East,Singapore,Distributor,Government,M. Kila,Office Supplies,Notebook,Completed,Bank Transfer,7,28.60,200.20,0.00,0.00,0.10,20.02,29.78,250.00
+ORD-202507-00030,2025-07-18,2025-07-24,2025,Q3,Jul,Friday,North,USA,Online,Government,M. Kila,Electronics,Printer,Pending,Credit Card,25,363.81,9095.25,0.05,454.76,0.10,864.05,57.41,9561.95
+ORD-202507-00038,2025-07-18,2025-07-28,2025,Q3,Jul,Friday,South,New Zealand,Distributor,Consumer,M. Kila,Home,Shelf,Returned,Cash,10,138.84,1388.40,0.08,111.07,0.07,89.41,36.40,1403.14
+ORD-202507-00469,2025-07-19,2025-07-22,2025,Q3,Jul,Saturday,Central,India,Wholesale,Small Business,A. Taka,Home,Chair,Returned,Cash,28,125.19,3505.32,0.02,70.11,0.07,240.46,29.80,3705.47
+ORD-202507-00536,2025-07-19,2025-07-26,2025,Q3,Jul,Saturday,North,Canada,Online,Government,M. Kila,Office Supplies,Paper,Completed,Credit Card,13,17.24,224.12,0.15,33.62,0.07,13.34,12.17,216.01
+ORD-202507-00545,2025-07-20,2025-07-27,2025,Q3,Jul,Sunday,Central,India,Distributor,Government,S. Raka,Software,Subscription,Cancelled,Bank Transfer,13,358.82,4664.66,0.02,93.29,0.10,457.14,33.96,5062.47
+ORD-202507-00656,2025-07-20,2025-07-22,2025,Q3,Jul,Sunday,Central,South Africa,Retail,Small Business,L. Nami,Accessories,Headphones,Completed,Bank Transfer,28,164.88,4616.64,0.02,92.33,0.10,452.43,53.75,5030.49
+ORD-202507-00330,2025-07-21,2025-07-25,2025,Q3,Jul,Monday,South,New Zealand,Online,Small Business,L. Nami,Electronics,Laptop,Completed,Bank Transfer,20,863.95,17279.00,0.00,0.00,0.10,1727.90,41.97,19048.87
+ORD-202507-00531,2025-07-22,2025-07-28,2025,Q3,Jul,Tuesday,Central,India,Distributor,Corporate,T. Vele,Home,Chair,Cancelled,Credit Card,22,430.07,9461.54,0.12,1135.38,0.12,999.14,30.48,9355.78
+ORD-202507-00021,2025-07-23,2025-07-24,2025,Q3,Jul,Wednesday,North,USA,Wholesale,Corporate,L. Nami,Electronics,Laptop,Returned,Cash,20,242.91,4858.20,0.08,388.66,0.12,536.34,47.87,5053.75
+ORD-202507-00487,2025-07-23,2025-07-27,2025,Q3,Jul,Wednesday,North,USA,Wholesale,Corporate,T. Vele,Accessories,Webcam,Completed,Bank Transfer,14,40.39,565.46,0.10,56.55,0.07,35.62,8.40,552.93
+ORD-202507-00077,2025-07-24,2025-07-27,2025,Q3,Jul,Thursday,North,USA,Distributor,Small Business,P. Kuri,Office Supplies,Notebook,Completed,Credit Card,29,31.74,920.46,0.02,18.41,0.05,45.10,58.38,1005.53
+ORD-202507-00399,2025-07-24,2025-07-29,2025,Q3,Jul,Thursday,South,New Zealand,Online,Government,P. Kuri,Office Supplies,Paper,Cancelled,Mobile Pay,22,22.35,491.70,0.08,39.34,0.10,45.24,11.16,508.76
+ORD-202507-00014,2025-07-25,2025-07-28,2025,Q3,Jul,Friday,North,USA,Wholesale,Small Business,D. Siroi,Accessories,Keyboard,Completed,Cash,1,82.52,82.52,0.05,4.13,0.10,7.84,12.80,99.03
+ORD-202507-00195,2025-07-26,2025-08-05,2025,Q3,Jul,Saturday,East,Japan,Retail,Government,M. Kila,Electronics,Laptop,Completed,Mobile Pay,14,303.51,4249.14,0.10,424.91,0.10,382.42,56.09,4262.74
+ORD-202507-00518,2025-07-26,2025-07-30,2025,Q3,Jul,Saturday,South,New Zealand,Retail,Small Business,J. Aita,Home,Desk,Completed,Mobile Pay,18,155.98,2807.64,0.15,421.15,0.12,286.38,54.32,2727.19
+ORD-202507-00008,2025-07-28,2025-08-04,2025,Q3,Jul,Monday,East,Singapore,Online,Corporate,S. Raka,Home,Lamp,Completed,Credit Card,17,248.51,4224.67,0.05,211.23,0.05,200.67,54.06,4268.17
+ORD-202507-00177,2025-07-28,2025-08-04,2025,Q3,Jul,Monday,West,France,Distributor,Consumer,J. Aita,Home,Shelf,Completed,Cash,27,438.33,11834.91,0.12,1420.19,0.05,520.74,54.73,10990.19
+ORD-202507-00238,2025-07-28,2025-07-31,2025,Q3,Jul,Monday,East,Philippines,Distributor,Small Business,M. Kila,Home,Chair,Completed,Mobile Pay,29,139.79,4053.91,0.12,486.47,0.05,178.37,55.05,3800.86
+ORD-202507-00713,2025-07-29,2025-08-05,2025,Q3,Jul,Tuesday,Central,UAE,Online,Government,T. Vele,Accessories,Headphones,Completed,Cash,25,50.34,1258.50,0.10,125.85,0.10,113.27,34.82,1280.74
+ORD-202507-00288,2025-07-31,2025-08-03,2025,Q3,Jul,Thursday,West,UK,Retail,Corporate,S. Raka,Accessories,Mouse,Completed,Mobile Pay,28,94.76,2653.28,0.15,397.99,0.12,270.63,55.87,2581.79
+ORD-202507-00706,2025-07-31,2025-08-07,2025,Q3,Jul,Thursday,North,Canada,Online,Small Business,T. Vele,Accessories,Keyboard,Completed,Mobile Pay,23,216.45,4978.35,0.15,746.75,0.10,423.16,39.75,4694.51
+ORD-202508-00491,2025-08-01,2025-08-06,2025,Q3,Aug,Friday,West,Germany,Distributor,Corporate,M. Kila,Office Supplies,Pen,Cancelled,Cash,7,12.83,89.81,0.00,0.00,0.12,10.78,22.28,122.87
+ORD-202508-00789,2025-08-03,2025-08-04,2025,Q3,Aug,Sunday,North,Canada,Online,Consumer,D. Siroi,Office Supplies,Notebook,Completed,Mobile Pay,8,27.42,219.36,0.05,10.97,0.05,10.42,40.11,258.92
+ORD-202508-00358,2025-08-06,2025-08-08,2025,Q3,Aug,Wednesday,South,Australia,Retail,Government,P. Kuri,Home,Desk,Completed,Mobile Pay,12,205.74,2468.88,0.00,0.00,0.10,246.89,19.48,2735.25
+ORD-202508-00683,2025-08-06,2025-08-09,2025,Q3,Aug,Wednesday,South,Australia,Wholesale,Government,S. Raka,Accessories,Keyboard,Pending,Cash,12,176.83,2121.96,0.15,318.29,0.10,180.37,51.80,2035.84
+ORD-202508-00688,2025-08-06,2025-08-08,2025,Q3,Aug,Wednesday,South,New Zealand,Retail,Corporate,T. Vele,Software,Support Plan,Pending,Mobile Pay,10,641.92,6419.20,0.15,962.88,0.12,654.76,58.28,6169.36
+ORD-202508-00076,2025-08-07,2025-08-09,2025,Q3,Aug,Thursday,South,Australia,Distributor,Government,A. Taka,Home,Shelf,Completed,Credit Card,25,129.48,3237.00,0.12,388.44,0.10,284.86,64.50,3197.92
+ORD-202508-00450,2025-08-07,2025-08-10,2025,Q3,Aug,Thursday,Central,India,Distributor,Consumer,A. Taka,Electronics,Monitor,Returned,Bank Transfer,16,804.60,12873.60,0.05,643.68,0.12,1467.59,51.71,13749.22
+ORD-202508-00091,2025-08-11,2025-08-12,2025,Q3,Aug,Monday,East,Philippines,Distributor,Consumer,J. Aita,Software,Add-on,Completed,Mobile Pay,22,856.38,18840.36,0.02,376.81,0.10,1846.36,43.15,20353.06
+ORD-202508-00482,2025-08-11,2025-08-15,2025,Q3,Aug,Monday,North,Canada,Retail,Government,L. Nami,Home,Cabinet,Returned,Credit Card,13,177.89,2312.57,0.12,277.51,0.12,244.21,38.53,2317.80
+ORD-202508-00668,2025-08-11,2025-08-18,2025,Q3,Aug,Monday,East,Singapore,Online,Small Business,A. Taka,Electronics,Printer,Returned,Mobile Pay,28,459.27,12859.56,0.10,1285.96,0.10,1157.36,12.07,12743.03
+ORD-202508-00691,2025-08-13,2025-08-17,2025,Q3,Aug,Wednesday,Central,India,Distributor,Small Business,J. Aita,Electronics,Tablet,Completed,Mobile Pay,14,962.96,13481.44,0.00,0.00,0.07,943.70,59.92,14485.06
+ORD-202508-00395,2025-08-14,2025-08-21,2025,Q3,Aug,Thursday,North,USA,Wholesale,Corporate,J. Aita,Electronics,Laptop,Cancelled,Mobile Pay,13,478.48,6220.24,0.08,497.62,0.12,686.71,23.63,6432.96
+ORD-202508-00236,2025-08-15,2025-08-19,2025,Q3,Aug,Friday,East,Singapore,Distributor,Government,L. Nami,Accessories,Docking Station,Completed,Credit Card,18,68.56,1234.08,0.12,148.09,0.05,54.30,18.88,1159.17
+ORD-202508-00583,2025-08-16,2025-08-21,2025,Q3,Aug,Saturday,South,Australia,Distributor,Small Business,A. Taka,Accessories,Mouse,Returned,Cash,26,167.32,4350.32,0.08,348.03,0.10,400.23,11.71,4414.23
+ORD-202508-00602,2025-08-16,2025-08-22,2025,Q3,Aug,Saturday,North,Canada,Online,Corporate,T. Vele,Software,Support Plan,Completed,Bank Transfer,9,234.44,2109.96,0.00,0.00,0.05,105.50,45.36,2260.82
+ORD-202508-00599,2025-08-18,2025-08-23,2025,Q3,Aug,Monday,South,New Zealand,Online,Corporate,P. Kuri,Office Supplies,Envelope,Pending,Bank Transfer,1,48.65,48.65,0.12,5.84,0.12,5.14,13.19,61.14
+ORD-202508-00725,2025-08-18,2025-08-21,2025,Q3,Aug,Monday,West,France,Distributor,Small Business,T. Vele,Accessories,Keyboard,Cancelled,Credit Card,30,200.26,6007.80,0.02,120.16,0.12,706.52,47.29,6641.45
+ORD-202508-00622,2025-08-19,2025-08-22,2025,Q3,Aug,Tuesday,North,USA,Distributor,Government,J. Aita,Accessories,Docking Station,Completed,Cash,3,58.65,175.95,0.02,3.52,0.05,8.62,17.67,198.72
+ORD-202508-00144,2025-08-20,2025-08-24,2025,Q3,Aug,Wednesday,West,UK,Online,Government,D. Siroi,Home,Desk,Completed,Credit Card,17,133.24,2265.08,0.00,0.00,0.05,113.25,45.86,2424.19
+ORD-202508-00418,2025-08-21,2025-08-23,2025,Q3,Aug,Thursday,East,Singapore,Online,Small Business,T. Vele,Software,Support Plan,Returned,Credit Card,1,944.46,944.46,0.10,94.45,0.05,42.50,19.45,911.96
+ORD-202508-00740,2025-08-21,2025-08-25,2025,Q3,Aug,Thursday,East,Japan,Wholesale,Consumer,P. Kuri,Electronics,Monitor,Completed,Mobile Pay,7,298.34,2088.38,0.02,41.77,0.12,245.59,37.91,2330.11
+ORD-202508-00523,2025-08-22,2025-08-26,2025,Q3,Aug,Friday,North,Canada,Distributor,Corporate,J. Aita,Software,Add-on,Returned,Mobile Pay,29,332.23,9634.67,0.00,0.00,0.07,674.43,55.69,10364.79
+ORD-202508-00682,2025-08-22,2025-08-26,2025,Q3,Aug,Friday,West,France,Wholesale,Small Business,L. Nami,Software,Security Suite,Completed,Mobile Pay,26,917.94,23866.44,0.12,2863.97,0.05,1050.12,44.36,22096.95
+ORD-202508-00461,2025-08-23,2025-08-28,2025,Q3,Aug,Saturday,Central,South Africa,Retail,Small Business,S. Raka,Home,Chair,Returned,Bank Transfer,7,72.19,505.33,0.08,40.43,0.05,23.25,12.94,501.09
+ORD-202508-00027,2025-08-24,2025-08-27,2025,Q3,Aug,Sunday,West,Germany,Online,Government,J. Aita,Home,Shelf,Completed,Credit Card,19,88.45,1680.55,0.08,134.44,0.05,77.31,64.46,1687.88
+ORD-202508-00396,2025-08-24,2025-08-28,2025,Q3,Aug,Sunday,West,France,Distributor,Government,L. Nami,Software,Security Suite,Completed,Credit Card,17,836.26,14216.42,0.08,1137.31,0.05,653.96,43.82,13776.89
+ORD-202508-00787,2025-08-25,2025-08-29,2025,Q3,Aug,Monday,North,USA,Online,Small Business,A. Taka,Office Supplies,Stapler,Pending,Mobile Pay,7,3.80,26.60,0.12,3.19,0.07,1.64,46.10,71.15
+ORD-202508-00105,2025-08-27,2025-08-31,2025,Q3,Aug,Wednesday,West,France,Retail,Consumer,S. Raka,Software,Support Plan,Pending,Mobile Pay,17,737.51,12537.67,0.12,1504.52,0.07,772.32,60.11,11865.58
+ORD-202508-00186,2025-08-28,2025-08-31,2025,Q3,Aug,Thursday,North,USA,Wholesale,Government,L. Nami,Electronics,Tablet,Completed,Mobile Pay,20,1446.55,28931.00,0.08,2314.48,0.12,3193.98,10.98,29821.48
+ORD-202508-00257,2025-08-28,2025-08-30,2025,Q3,Aug,Thursday,Central,UAE,Wholesale,Corporate,D. Siroi,Software,Add-on,Pending,Cash,23,604.53,13904.19,0.10,1390.42,0.10,1251.38,53.37,13818.52
+ORD-202508-00467,2025-08-28,2025-08-30,2025,Q3,Aug,Thursday,Central,India,Retail,Small Business,A. Taka,Home,Lamp,Completed,Credit Card,11,187.19,2059.09,0.10,205.91,0.12,222.38,44.84,2120.40
+ORD-202508-00132,2025-08-29,2025-09-02,2025,Q3,Aug,Friday,North,USA,Online,Government,A. Taka,Software,Security Suite,Cancelled,Cash,23,741.19,17047.37,0.15,2557.11,0.07,1014.32,17.12,15521.70
+ORD-202508-00017,2025-08-31,2025-09-04,2025,Q3,Aug,Sunday,East,Singapore,Retail,Consumer,A. Taka,Home,Desk,Cancelled,Cash,1,336.21,336.21,0.00,0.00,0.12,40.35,60.91,437.47
+ORD-202509-00349,2025-09-01,2025-09-06,2025,Q3,Sep,Monday,East,Singapore,Wholesale,Consumer,S. Raka,Electronics,Printer,Completed,Cash,21,513.69,10787.49,0.15,1618.12,0.05,458.47,49.68,9677.52
+ORD-202509-00053,2025-09-07,2025-09-09,2025,Q3,Sep,Sunday,North,USA,Online,Government,T. Vele,Software,Security Suite,Returned,Mobile Pay,7,455.09,3185.63,0.15,477.84,0.10,270.78,25.77,3004.34
+ORD-202509-00192,2025-09-07,2025-09-08,2025,Q3,Sep,Sunday,West,Germany,Online,Government,J. Aita,Accessories,Mouse,Completed,Credit Card,9,151.70,1365.30,0.08,109.22,0.07,87.93,39.99,1384.00
+ORD-202509-00620,2025-09-07,2025-09-17,2025,Q3,Sep,Sunday,East,Singapore,Distributor,Government,P. Kuri,Home,Shelf,Completed,Cash,17,162.57,2763.69,0.08,221.10,0.07,177.98,37.96,2758.53
+ORD-202509-00420,2025-09-08,2025-09-09,2025,Q3,Sep,Monday,West,UK,Retail,Consumer,T. Vele,Office Supplies,Envelope,Completed,Bank Transfer,2,2.77,5.54,0.15,0.83,0.05,0.24,16.51,21.46
+ORD-202509-00474,2025-09-08,2025-09-10,2025,Q3,Sep,Monday,Central,South Africa,Wholesale,Consumer,D. Siroi,Home,Desk,Completed,Mobile Pay,2,157.61,315.22,0.15,47.28,0.07,18.76,26.71,313.41
+ORD-202509-00604,2025-09-08,2025-09-11,2025,Q3,Sep,Monday,Central,UAE,Online,Corporate,L. Nami,Office Supplies,Notebook,Completed,Bank Transfer,21,54.37,1141.77,0.02,22.84,0.10,111.89,64.21,1295.03
+ORD-202509-00139,2025-09-10,2025-09-11,2025,Q3,Sep,Wednesday,North,USA,Wholesale,Consumer,P. Kuri,Software,Subscription,Returned,Credit Card,30,956.49,28694.70,0.05,1434.74,0.07,1908.20,61.43,29229.59
+ORD-202509-00477,2025-09-10,2025-09-12,2025,Q3,Sep,Wednesday,South,New Zealand,Distributor,Corporate,J. Aita,Electronics,Phone,Completed,Cash,2,272.50,545.00,0.15,81.75,0.05,23.16,10.97,497.38
+ORD-202509-00073,2025-09-11,2025-09-13,2025,Q3,Sep,Thursday,Central,India,Online,Government,T. Vele,Office Supplies,Notebook,Cancelled,Bank Transfer,2,27.58,55.16,0.00,0.00,0.12,6.62,21.28,83.06
+ORD-202509-00493,2025-09-12,2025-09-13,2025,Q3,Sep,Friday,Central,South Africa,Distributor,Consumer,L. Nami,Electronics,Printer,Pending,Credit Card,12,1774.60,21295.20,0.08,1703.62,0.07,1371.41,38.65,21001.64
+ORD-202509-00128,2025-09-14,2025-09-16,2025,Q3,Sep,Sunday,North,Canada,Online,Small Business,T. Vele,Electronics,Phone,Completed,Cash,28,1636.22,45814.16,0.05,2290.71,0.05,2176.17,59.06,45758.68
+ORD-202509-00617,2025-09-15,2025-09-16,2025,Q3,Sep,Monday,North,Canada,Distributor,Corporate,D. Siroi,Home,Cabinet,Completed,Bank Transfer,20,91.88,1837.60,0.08,147.01,0.10,169.06,10.31,1869.96
+ORD-202509-00011,2025-09-16,2025-09-30,2025,Q3,Sep,Tuesday,West,UK,Retail,Government,D. Siroi,Office Supplies,Notebook,Completed,Bank Transfer,27,4.99,134.73,0.05,6.74,0.07,8.96,51.41,188.36
+ORD-202509-00044,2025-09-16,2025-09-20,2025,Q3,Sep,Tuesday,South,New Zealand,Online,Small Business,D. Siroi,Office Supplies,Pen,Returned,Bank Transfer,20,30.10,602.00,0.02,12.04,0.05,29.50,50.73,670.19
+ORD-202509-00459,2025-09-16,2025-09-20,2025,Q3,Sep,Tuesday,Central,South Africa,Distributor,Corporate,L. Nami,Office Supplies,Envelope,Completed,Mobile Pay,29,6.99,202.71,0.02,4.05,0.07,13.91,51.38,263.95
+ORD-202509-00757,2025-09-16,2025-09-21,2025,Q3,Sep,Tuesday,South,Australia,Distributor,Government,P. Kuri,Office Supplies,Paper,Completed,Credit Card,21,56.66,1189.86,0.08,95.19,0.10,109.47,14.72,1218.86
+ORD-202509-00699,2025-09-17,2025-09-18,2025,Q3,Sep,Wednesday,North,Canada,Distributor,Consumer,L. Nami,Electronics,Monitor,Cancelled,Bank Transfer,11,1527.19,16799.09,0.02,335.98,0.05,823.16,33.02,17319.29
+ORD-202509-00540,2025-09-18,2025-09-25,2025,Q3,Sep,Thursday,South,New Zealand,Retail,Government,J. Aita,Software,License,Completed,Credit Card,16,920.89,14734.24,0.12,1768.11,0.12,1555.94,55.92,14577.99
+ORD-202509-00664,2025-09-18,2025-09-23,2025,Q3,Sep,Thursday,North,Canada,Online,Government,D. Siroi,Electronics,Tablet,Pending,Bank Transfer,5,1009.72,5048.60,0.15,757.29,0.12,514.96,14.04,4820.31
+ORD-202509-00230,2025-09-20,2025-09-22,2025,Q3,Sep,Saturday,West,UK,Wholesale,Corporate,M. Kila,Home,Cabinet,Pending,Bank Transfer,26,44.09,1146.34,0.00,0.00,0.07,80.24,18.46,1245.04
+ORD-202509-00394,2025-09-20,2025-09-25,2025,Q3,Sep,Saturday,West,UK,Distributor,Corporate,L. Nami,Office Supplies,Stapler,Pending,Bank Transfer,6,49.59,297.54,0.02,5.95,0.07,20.41,41.20,353.20
+ORD-202509-00495,2025-09-21,2025-09-25,2025,Q3,Sep,Sunday,Central,South Africa,Wholesale,Corporate,S. Raka,Electronics,Monitor,Cancelled,Cash,16,1480.30,23684.80,0.02,473.70,0.10,2321.11,36.36,25568.57
+ORD-202509-00499,2025-09-22,2025-09-24,2025,Q3,Sep,Monday,Central,South Africa,Retail,Government,P. Kuri,Office Supplies,Pen,Pending,Mobile Pay,11,54.67,601.37,0.02,12.03,0.05,29.47,31.37,650.18
+ORD-202509-00415,2025-09-23,2025-09-30,2025,Q3,Sep,Tuesday,Central,South Africa,Wholesale,Consumer,A. Taka,Office Supplies,Envelope,Completed,Bank Transfer,23,8.35,192.05,0.10,19.21,0.10,17.28,58.87,248.99
+ORD-202509-00215,2025-09-27,2025-10-01,2025,Q3,Sep,Saturday,East,Singapore,Distributor,Corporate,P. Kuri,Office Supplies,Paper,Pending,Cash,6,6.46,38.76,0.05,1.94,0.05,1.84,8.86,47.52
+ORD-202509-00248,2025-09-29,2025-10-01,2025,Q3,Sep,Monday,North,USA,Online,Small Business,M. Kila,Accessories,Headphones,Pending,Mobile Pay,8,74.27,594.16,0.12,71.30,0.12,62.74,20.00,605.60
+ORD-202509-00313,2025-09-29,2025-10-03,2025,Q3,Sep,Monday,West,Germany,Retail,Consumer,T. Vele,Software,Support Plan,Completed,Cash,22,1193.37,26254.14,0.15,3938.12,0.10,2231.60,25.26,24572.88
+ORD-202509-00645,2025-09-29,2025-10-01,2025,Q3,Sep,Monday,South,New Zealand,Distributor,Consumer,L. Nami,Accessories,Keyboard,Pending,Mobile Pay,24,208.69,5008.56,0.15,751.28,0.12,510.87,47.16,4815.31
+ORD-202509-00659,2025-09-29,2025-09-30,2025,Q3,Sep,Monday,West,UK,Distributor,Small Business,P. Kuri,Accessories,Docking Station,Cancelled,Bank Transfer,17,187.04,3179.68,0.15,476.95,0.05,135.14,42.01,2879.88
+ORD-202510-00510,2025-10-01,2025-10-04,2025,Q4,Oct,Wednesday,Central,South Africa,Online,Government,S. Raka,Electronics,Printer,Pending,Cash,5,384.37,1921.85,0.00,0.00,0.07,134.53,13.96,2070.34
+ORD-202510-00121,2025-10-03,2025-10-07,2025,Q4,Oct,Friday,West,France,Distributor,Small Business,M. Kila,Office Supplies,Paper,Completed,Cash,18,59.05,1062.90,0.00,0.00,0.12,127.55,64.81,1255.26
+ORD-202510-00279,2025-10-03,2025-10-04,2025,Q4,Oct,Friday,East,Japan,Retail,Consumer,L. Nami,Home,Cabinet,Completed,Mobile Pay,27,151.31,4085.37,0.08,326.83,0.12,451.02,12.99,4222.55
+ORD-202510-00562,2025-10-03,2025-10-09,2025,Q4,Oct,Friday,North,Canada,Distributor,Corporate,M. Kila,Office Supplies,Notebook,Completed,Cash,4,32.28,129.12,0.12,15.49,0.10,11.36,41.58,166.57
+ORD-202510-00123,2025-10-06,2025-10-07,2025,Q4,Oct,Monday,North,Canada,Online,Small Business,D. Siroi,Accessories,Mouse,Completed,Mobile Pay,2,153.64,307.28,0.15,46.09,0.05,13.06,62.70,336.95
+ORD-202510-00009,2025-10-07,2025-10-11,2025,Q4,Oct,Tuesday,West,Germany,Wholesale,Corporate,J. Aita,Accessories,Mouse,Cancelled,Cash,12,198.39,2380.68,0.15,357.10,0.07,141.65,8.40,2173.63
+ORD-202510-00413,2025-10-07,2025-10-13,2025,Q4,Oct,Tuesday,South,Australia,Wholesale,Government,D. Siroi,Home,Lamp,Cancelled,Bank Transfer,6,283.60,1701.60,0.12,204.19,0.05,74.87,44.31,1616.59
+ORD-202510-00581,2025-10-08,2025-10-15,2025,Q4,Oct,Wednesday,Central,South Africa,Online,Consumer,M. Kila,Software,Add-on,Cancelled,Bank Transfer,7,1091.70,7641.90,0.08,611.35,0.10,703.06,55.67,7789.28
+ORD-202510-00006,2025-10-09,2025-10-10,2025,Q4,Oct,Thursday,East,Philippines,Retail,Consumer,T. Vele,Accessories,Keyboard,Cancelled,Cash,11,204.67,2251.37,0.02,45.03,0.05,110.32,46.12,2362.78
+ORD-202510-00431,2025-10-09,2025-10-16,2025,Q4,Oct,Thursday,East,Japan,Online,Corporate,S. Raka,Home,Shelf,Completed,Credit Card,5,79.05,395.25,0.05,19.76,0.10,37.55,19.56,432.60
+ORD-202510-00537,2025-10-09,2025-10-15,2025,Q4,Oct,Thursday,East,Philippines,Wholesale,Small Business,A. Taka,Office Supplies,Notebook,Pending,Credit Card,17,43.83,745.11,0.15,111.77,0.12,76.00,49.41,758.75
+ORD-202510-00658,2025-10-10,2025-10-14,2025,Q4,Oct,Friday,South,Australia,Online,Consumer,M. Kila,Software,Subscription,Completed,Mobile Pay,1,990.29,990.29,0.02,19.81,0.10,97.05,24.32,1091.85
+ORD-202510-00681,2025-10-10,2025-10-15,2025,Q4,Oct,Friday,West,France,Wholesale,Small Business,J. Aita,Electronics,Printer,Completed,Cash,8,417.82,3342.56,0.00,0.00,0.10,334.26,17.29,3694.11
+ORD-202510-00297,2025-10-13,2025-10-16,2025,Q4,Oct,Monday,West,France,Online,Consumer,M. Kila,Accessories,Webcam,Cancelled,Bank Transfer,21,185.31,3891.51,0.12,466.98,0.05,171.23,29.09,3624.85
+ORD-202510-00103,2025-10-15,2025-10-18,2025,Q4,Oct,Wednesday,South,New Zealand,Wholesale,Government,A. Taka,Accessories,Webcam,Completed,Bank Transfer,5,78.17,390.85,0.00,0.00,0.05,19.54,45.08,455.47
+ORD-202510-00022,2025-10-17,2025-10-31,2025,Q4,Oct,Friday,West,UK,Distributor,Government,D. Siroi,Accessories,Mouse,Completed,Credit Card,28,166.76,4669.28,0.02,93.39,0.05,228.79,60.17,4864.85
+ORD-202510-00728,2025-10-18,2025-10-25,2025,Q4,Oct,Saturday,West,UK,Retail,Corporate,P. Kuri,Software,Add-on,Completed,Mobile Pay,10,297.45,2974.50,0.10,297.45,0.05,133.85,39.09,2849.99
+ORD-202510-00112,2025-10-19,2025-10-22,2025,Q4,Oct,Sunday,Central,UAE,Wholesale,Small Business,J. Aita,Home,Shelf,Cancelled,Mobile Pay,22,337.05,7415.10,0.08,593.21,0.07,477.53,41.96,7341.38
+ORD-202510-00605,2025-10-19,2025-10-20,2025,Q4,Oct,Sunday,West,France,Distributor,Small Business,M. Kila,Electronics,Laptop,Completed,Bank Transfer,2,1475.62,2951.24,0.02,59.02,0.07,202.46,61.98,3156.66
+ORD-202510-00211,2025-10-21,2025-10-26,2025,Q4,Oct,Tuesday,West,France,Retail,Small Business,T. Vele,Software,License,Cancelled,Bank Transfer,12,972.28,11667.36,0.15,1750.10,0.10,991.73,18.65,10927.64
+ORD-202510-00071,2025-10-22,2025-10-28,2025,Q4,Oct,Wednesday,Central,South Africa,Distributor,Consumer,D. Siroi,Office Supplies,Paper,Completed,Mobile Pay,5,16.48,82.40,0.02,1.65,0.05,4.04,40.37,125.16
+ORD-202510-00131,2025-10-22,2025-11-05,2025,Q4,Oct,Wednesday,North,USA,Retail,Consumer,S. Raka,Electronics,Tablet,Completed,Bank Transfer,14,1360.15,19042.10,0.05,952.11,0.05,904.50,54.61,19049.10
+ORD-202510-00673,2025-10-22,2025-10-25,2025,Q4,Oct,Wednesday,East,Japan,Distributor,Government,D. Siroi,Home,Shelf,Completed,Bank Transfer,24,412.88,9909.12,0.15,1486.37,0.05,421.14,56.97,8900.86
+ORD-202510-00306,2025-10-23,2025-10-24,2025,Q4,Oct,Thursday,North,USA,Online,Corporate,P. Kuri,Home,Lamp,Completed,Cash,23,156.18,3592.14,0.15,538.82,0.05,152.67,29.95,3235.94
+ORD-202510-00462,2025-10-23,2025-10-26,2025,Q4,Oct,Thursday,South,New Zealand,Distributor,Small Business,D. Siroi,Electronics,Tablet,Cancelled,Mobile Pay,27,1344.81,36309.87,0.05,1815.49,0.10,3449.44,51.84,37995.66
+ORD-202510-00019,2025-10-24,2025-10-26,2025,Q4,Oct,Friday,South,New Zealand,Distributor,Consumer,T. Vele,Software,Add-on,Completed,Mobile Pay,27,233.02,6291.54,0.15,943.73,0.05,267.39,8.30,5623.50
+ORD-202510-00312,2025-10-24,2025-10-25,2025,Q4,Oct,Friday,East,Japan,Retail,Government,D. Siroi,Software,License,Returned,Mobile Pay,19,727.76,13827.44,0.05,691.37,0.12,1576.33,39.27,14751.67
+ORD-202510-00328,2025-10-24,2025-10-29,2025,Q4,Oct,Friday,North,USA,Distributor,Corporate,T. Vele,Electronics,Phone,Pending,Cash,22,1615.94,35550.68,0.15,5332.60,0.10,3021.81,64.74,33304.63
+ORD-202510-00059,2025-10-25,2025-10-29,2025,Q4,Oct,Saturday,South,New Zealand,Online,Government,P. Kuri,Home,Chair,Pending,Mobile Pay,20,415.09,8301.80,0.08,664.14,0.07,534.64,12.86,8185.16
+ORD-202510-00303,2025-10-25,2025-10-28,2025,Q4,Oct,Saturday,East,Japan,Wholesale,Corporate,T. Vele,Electronics,Laptop,Pending,Cash,5,864.70,4323.50,0.08,345.88,0.07,278.43,40.31,4296.36
+ORD-202510-00638,2025-10-25,2025-11-01,2025,Q4,Oct,Saturday,Central,South Africa,Distributor,Government,P. Kuri,Accessories,Headphones,Completed,Bank Transfer,21,90.66,1903.86,0.12,228.46,0.12,201.05,53.58,1930.03
+ORD-202510-00397,2025-10-26,2025-10-28,2025,Q4,Oct,Sunday,West,France,Retail,Government,S. Raka,Electronics,Printer,Completed,Cash,3,1155.66,3466.98,0.02,69.34,0.12,407.72,32.62,3837.98
+ORD-202510-00066,2025-10-27,2025-10-31,2025,Q4,Oct,Monday,Central,UAE,Online,Consumer,T. Vele,Office Supplies,Notebook,Completed,Cash,13,49.71,646.23,0.00,0.00,0.07,45.24,15.98,707.45
+ORD-202510-00696,2025-10-29,2025-11-03,2025,Q4,Oct,Wednesday,North,USA,Retail,Consumer,M. Kila,Electronics,Printer,Cancelled,Cash,1,1533.07,1533.07,0.15,229.96,0.12,156.37,50.71,1510.19
+ORD-202510-00169,2025-10-30,2025-11-03,2025,Q4,Oct,Thursday,South,Australia,Distributor,Government,P. Kuri,Accessories,Mouse,Returned,Cash,18,76.73,1381.14,0.12,165.74,0.12,145.85,47.23,1408.48
+ORD-202510-00214,2025-10-30,2025-11-13,2025,Q4,Oct,Thursday,West,France,Online,Government,S. Raka,Software,Add-on,Completed,Cash,2,906.43,1812.86,0.00,0.00,0.05,90.64,23.31,1926.81
+ORD-202510-00115,2025-10-31,2025-11-04,2025,Q4,Oct,Friday,South,New Zealand,Wholesale,Consumer,D. Siroi,Accessories,Keyboard,Completed,Bank Transfer,16,91.57,1465.12,0.15,219.77,0.12,149.44,46.28,1441.07
+ORD-202510-00158,2025-10-31,2025-11-03,2025,Q4,Oct,Friday,North,Canada,Wholesale,Small Business,M. Kila,Software,Add-on,Completed,Cash,11,151.28,1664.08,0.05,83.20,0.12,189.71,58.10,1828.69
+ORD-202510-00470,2025-10-31,2025-11-01,2025,Q4,Oct,Friday,South,Australia,Online,Government,P. Kuri,Home,Lamp,Completed,Bank Transfer,7,164.13,1148.91,0.10,114.89,0.10,103.40,54.95,1192.37
+ORD-202511-00391,2025-11-01,2025-11-04,2025,Q4,Nov,Saturday,North,Canada,Retail,Consumer,T. Vele,Accessories,Webcam,Completed,Cash,1,183.89,183.89,0.08,14.71,0.05,8.46,44.54,222.18
+ORD-202511-00515,2025-11-01,2025-11-03,2025,Q4,Nov,Saturday,North,USA,Wholesale,Government,P. Kuri,Software,Security Suite,Pending,Bank Transfer,20,654.09,13081.80,0.00,0.00,0.07,915.73,36.29,14033.82
+ORD-202511-00454,2025-11-02,2025-11-08,2025,Q4,Nov,Sunday,South,Australia,Wholesale,Consumer,J. Aita,Office Supplies,Pen,Completed,Bank Transfer,6,39.70,238.20,0.12,28.58,0.12,25.15,19.11,253.88
+ORD-202511-00472,2025-11-03,2025-11-10,2025,Q4,Nov,Monday,East,Japan,Wholesale,Small Business,T. Vele,Home,Lamp,Cancelled,Bank Transfer,15,131.68,1975.20,0.08,158.02,0.05,90.86,14.45,1922.49
+ORD-202511-00152,2025-11-05,2025-11-07,2025,Q4,Nov,Wednesday,West,France,Wholesale,Government,J. Aita,Software,Support Plan,Completed,Cash,9,567.77,5109.93,0.00,0.00,0.05,255.50,14.06,5379.49
+ORD-202511-00271,2025-11-05,2025-11-08,2025,Q4,Nov,Wednesday,South,Australia,Distributor,Consumer,A. Taka,Home,Cabinet,Returned,Bank Transfer,16,171.06,2736.96,0.05,136.85,0.12,312.01,24.42,2936.54
+ORD-202511-00680,2025-11-06,2025-11-08,2025,Q4,Nov,Thursday,West,France,Wholesale,Consumer,M. Kila,Electronics,Phone,Completed,Mobile Pay,1,1490.64,1490.64,0.10,149.06,0.07,93.91,18.72,1454.21
+ORD-202511-00226,2025-11-07,2025-11-10,2025,Q4,Nov,Friday,East,Philippines,Distributor,Corporate,L. Nami,Office Supplies,Pen,Pending,Credit Card,14,26.92,376.88,0.10,37.69,0.07,23.74,49.75,412.68
+ORD-202511-00283,2025-11-07,2025-11-09,2025,Q4,Nov,Friday,South,New Zealand,Wholesale,Consumer,M. Kila,Electronics,Printer,Completed,Credit Card,4,618.44,2473.76,0.05,123.69,0.07,164.50,34.66,2549.23
+ORD-202511-00615,2025-11-07,2025-11-09,2025,Q4,Nov,Friday,West,Germany,Retail,Consumer,S. Raka,Software,Add-on,Completed,Credit Card,14,629.30,8810.20,0.15,1321.53,0.07,524.21,16.16,8029.04
+ORD-202511-00608,2025-11-08,2025-11-10,2025,Q4,Nov,Saturday,Central,India,Distributor,Consumer,P. Kuri,Office Supplies,Stapler,Returned,Credit Card,23,56.94,1309.62,0.02,26.19,0.10,128.34,16.20,1427.97
+ORD-202511-00695,2025-11-08,2025-11-14,2025,Q4,Nov,Saturday,Central,UAE,Retail,Small Business,T. Vele,Software,Add-on,Completed,Bank Transfer,30,317.47,9524.10,0.02,190.48,0.12,1120.03,13.24,10466.89
+ORD-202511-00222,2025-11-10,2025-11-14,2025,Q4,Nov,Monday,Central,South Africa,Distributor,Government,S. Raka,Home,Desk,Cancelled,Credit Card,28,361.43,10120.04,0.02,202.40,0.05,495.88,19.97,10433.49
+ORD-202511-00582,2025-11-10,2025-11-15,2025,Q4,Nov,Monday,East,Japan,Online,Corporate,D. Siroi,Home,Cabinet,Completed,Cash,18,363.19,6537.42,0.08,522.99,0.05,300.72,35.17,6350.32
+ORD-202511-00589,2025-11-10,2025-11-14,2025,Q4,Nov,Monday,East,Japan,Wholesale,Corporate,L. Nami,Home,Lamp,Cancelled,Credit Card,24,190.47,4571.28,0.12,548.55,0.10,402.27,37.83,4462.83
+ORD-202511-00178,2025-11-11,2025-11-14,2025,Q4,Nov,Tuesday,South,Australia,Distributor,Small Business,T. Vele,Accessories,Docking Station,Completed,Cash,24,218.89,5253.36,0.15,788.00,0.07,312.58,50.95,4828.89
+ORD-202511-00110,2025-11-12,2025-11-19,2025,Q4,Nov,Wednesday,East,Japan,Wholesale,Corporate,T. Vele,Office Supplies,Pen,Pending,Mobile Pay,16,19.52,312.32,0.15,46.85,0.07,18.58,21.41,305.46
+ORD-202511-00342,2025-11-12,2025-11-16,2025,Q4,Nov,Wednesday,Central,South Africa,Retail,Consumer,S. Raka,Electronics,Tablet,Returned,Cash,12,1153.53,13842.36,0.12,1661.08,0.10,1218.13,46.98,13446.39
+ORD-202511-00405,2025-11-12,2025-11-13,2025,Q4,Nov,Wednesday,South,Australia,Wholesale,Government,M. Kila,Office Supplies,Stapler,Completed,Bank Transfer,29,7.54,218.66,0.05,10.93,0.10,20.77,18.11,246.61
+ORD-202511-00641,2025-11-13,2025-11-18,2025,Q4,Nov,Thursday,North,USA,Distributor,Small Business,P. Kuri,Accessories,Webcam,Pending,Cash,18,135.96,2447.28,0.02,48.95,0.07,167.88,55.55,2621.76
+ORD-202511-00667,2025-11-13,2025-11-17,2025,Q4,Nov,Thursday,Central,India,Distributor,Consumer,A. Taka,Electronics,Printer,Completed,Bank Transfer,18,1311.11,23599.98,0.00,0.00,0.07,1652.00,12.26,25264.24
+ORD-202511-00086,2025-11-17,2025-11-22,2025,Q4,Nov,Monday,Central,India,Online,Corporate,T. Vele,Office Supplies,Envelope,Completed,Cash,22,57.87,1273.14,0.15,190.97,0.12,129.86,26.28,1238.31
+ORD-202511-00099,2025-11-17,2025-11-22,2025,Q4,Nov,Monday,Central,UAE,Online,Consumer,A. Taka,Accessories,Webcam,Completed,Credit Card,5,128.09,640.45,0.05,32.02,0.05,30.42,44.48,683.33
+ORD-202511-00194,2025-11-17,2025-11-27,2025,Q4,Nov,Monday,East,Singapore,Retail,Government,P. Kuri,Electronics,Printer,Returned,Bank Transfer,24,1354.47,32507.28,0.02,650.15,0.05,1592.86,51.38,33501.37
+ORD-202511-00412,2025-11-19,2025-11-22,2025,Q4,Nov,Wednesday,South,Australia,Online,Government,S. Raka,Office Supplies,Stapler,Returned,Cash,22,33.39,734.58,0.10,73.46,0.07,46.28,24.59,731.99
+ORD-202511-00026,2025-11-21,2025-11-27,2025,Q4,Nov,Friday,Central,UAE,Online,Corporate,S. Raka,Electronics,Printer,Completed,Cash,12,805.49,9665.88,0.15,1449.88,0.07,575.12,56.16,8847.28
+ORD-202511-00185,2025-11-21,2025-11-23,2025,Q4,Nov,Friday,West,France,Online,Consumer,L. Nami,Home,Chair,Completed,Mobile Pay,26,271.50,7059.00,0.15,1058.85,0.10,600.01,46.54,6646.70
+ORD-202511-00205,2025-11-21,2025-11-22,2025,Q4,Nov,Friday,Central,South Africa,Online,Consumer,J. Aita,Accessories,Keyboard,Returned,Cash,4,188.47,753.88,0.15,113.08,0.07,44.86,29.14,714.80
+ORD-202511-00221,2025-11-21,2025-11-27,2025,Q4,Nov,Friday,East,Philippines,Wholesale,Government,L. Nami,Electronics,Monitor,Returned,Cash,17,1671.64,28417.88,0.12,3410.15,0.05,1250.39,48.21,26306.33
+ORD-202511-00068,2025-11-23,2025-11-27,2025,Q4,Nov,Sunday,East,Singapore,Online,Small Business,M. Kila,Home,Cabinet,Pending,Credit Card,26,383.20,9963.20,0.05,498.16,0.07,662.55,9.78,10137.37
+ORD-202511-00647,2025-11-24,2025-11-28,2025,Q4,Nov,Monday,East,Japan,Retail,Corporate,M. Kila,Office Supplies,Stapler,Cancelled,Mobile Pay,11,24.27,266.97,0.05,13.35,0.12,30.43,13.73,297.78
+ORD-202511-00635,2025-11-25,2025-11-27,2025,Q4,Nov,Tuesday,East,Philippines,Retail,Small Business,J. Aita,Accessories,Docking Station,Completed,Mobile Pay,22,59.50,1309.00,0.12,157.08,0.07,80.63,36.75,1269.30
+ORD-202511-00721,2025-11-25,2025-12-05,2025,Q4,Nov,Tuesday,East,Philippines,Distributor,Small Business,J. Aita,Accessories,Mouse,Completed,Credit Card,20,210.75,4215.00,0.12,505.80,0.07,259.64,54.79,4023.63
+ORD-202511-00607,2025-11-28,2025-11-30,2025,Q4,Nov,Friday,Central,South Africa,Retail,Consumer,J. Aita,Electronics,Phone,Completed,Mobile Pay,14,361.60,5062.40,0.02,101.25,0.05,248.06,62.78,5271.99
+ORD-202511-00338,2025-11-29,2025-12-06,2025,Q4,Nov,Saturday,North,USA,Online,Government,L. Nami,Office Supplies,Notebook,Returned,Cash,12,52.95,635.40,0.15,95.31,0.12,64.81,50.15,655.05
+ORD-202511-00093,2025-11-30,2025-12-05,2025,Q4,Nov,Sunday,North,USA,Distributor,Corporate,D. Siroi,Software,Security Suite,Returned,Bank Transfer,11,616.79,6784.69,0.05,339.23,0.10,644.55,17.22,7107.23
+ORD-202511-00202,2025-11-30,2025-12-04,2025,Q4,Nov,Sunday,South,New Zealand,Online,Small Business,S. Raka,Accessories,Headphones,Completed,Credit Card,23,111.08,2554.84,0.15,383.23,0.07,152.01,19.80,2343.42
+ORD-202512-00060,2025-12-01,2025-12-03,2025,Q4,Dec,Monday,West,Germany,Distributor,Consumer,D. Siroi,Electronics,Phone,Completed,Mobile Pay,7,1144.52,8011.64,0.12,961.40,0.05,352.51,48.70,7451.45
+ORD-202512-00453,2025-12-01,2025-12-04,2025,Q4,Dec,Monday,Central,South Africa,Wholesale,Consumer,M. Kila,Accessories,Webcam,Cancelled,Mobile Pay,6,209.23,1255.38,0.05,62.77,0.12,143.11,49.40,1385.12
+ORD-202512-00627,2025-12-01,2025-12-06,2025,Q4,Dec,Monday,South,Australia,Distributor,Consumer,D. Siroi,Electronics,Laptop,Returned,Bank Transfer,1,687.66,687.66,0.10,68.77,0.10,61.89,30.72,711.50
+ORD-202512-00155,2025-12-02,2025-12-05,2025,Q4,Dec,Tuesday,South,Australia,Retail,Small Business,S. Raka,Accessories,Headphones,Completed,Bank Transfer,30,17.65,529.50,0.12,63.54,0.10,46.60,55.85,568.41
+ORD-202512-00741,2025-12-03,2025-12-07,2025,Q4,Dec,Wednesday,South,Australia,Retail,Corporate,M. Kila,Accessories,Mouse,Returned,Bank Transfer,22,85.69,1885.18,0.10,188.52,0.12,203.60,31.36,1931.62
+ORD-202512-00040,2025-12-04,2025-12-05,2025,Q4,Dec,Thursday,East,Japan,Retail,Small Business,D. Siroi,Office Supplies,Notebook,Pending,Cash,6,34.18,205.08,0.00,0.00,0.07,14.36,53.40,272.84
+ORD-202512-00767,2025-12-07,2025-12-13,2025,Q4,Dec,Sunday,North,USA,Distributor,Small Business,D. Siroi,Office Supplies,Pen,Completed,Cash,27,59.98,1619.46,0.00,0.00,0.12,194.34,39.75,1853.55
+ORD-202512-00428,2025-12-11,2025-12-14,2025,Q4,Dec,Thursday,Central,UAE,Retail,Small Business,L. Nami,Electronics,Laptop,Completed,Credit Card,26,874.79,22744.54,0.08,1819.56,0.12,2511.00,9.98,23445.96
+ORD-202512-00575,2025-12-17,2025-12-20,2025,Q4,Dec,Wednesday,East,Singapore,Distributor,Government,S. Raka,Accessories,Keyboard,Completed,Cash,24,35.07,841.68,0.02,16.83,0.05,41.24,54.22,920.31
+ORD-202512-00788,2025-12-17,2025-12-23,2025,Q4,Dec,Wednesday,East,Philippines,Distributor,Government,T. Vele,Software,License,Cancelled,Bank Transfer,11,747.16,8218.76,0.00,0.00,0.05,410.94,55.26,8684.96
+ORD-202512-00460,2025-12-18,2025-12-21,2025,Q4,Dec,Thursday,East,Singapore,Retail,Small Business,P. Kuri,Software,License,Returned,Mobile Pay,17,348.97,5932.49,0.00,0.00,0.07,415.27,30.03,6377.79
+ORD-202512-00497,2025-12-19,2025-12-23,2025,Q4,Dec,Friday,South,New Zealand,Wholesale,Corporate,J. Aita,Home,Desk,Returned,Bank Transfer,2,47.53,95.06,0.00,0.00,0.10,9.51,41.77,146.34
+ORD-202512-00557,2025-12-19,2025-12-23,2025,Q4,Dec,Friday,North,Canada,Retail,Small Business,T. Vele,Office Supplies,Envelope,Completed,Cash,23,14.15,325.45,0.10,32.55,0.07,20.50,12.50,325.90
+ORD-202512-00285,2025-12-21,2025-12-28,2025,Q4,Dec,Sunday,East,Singapore,Online,Consumer,S. Raka,Office Supplies,Pen,Completed,Credit Card,28,47.29,1324.12,0.08,105.93,0.12,146.18,16.65,1381.02
+ORD-202512-00094,2025-12-23,2025-12-25,2025,Q4,Dec,Tuesday,West,UK,Distributor,Small Business,M. Kila,Software,Add-on,Cancelled,Bank Transfer,24,841.86,20204.64,0.15,3030.70,0.10,1717.39,32.25,18923.58
+ORD-202512-00049,2025-12-24,2025-12-28,2025,Q4,Dec,Wednesday,East,Philippines,Distributor,Corporate,L. Nami,Home,Chair,Completed,Mobile Pay,17,329.96,5609.32,0.15,841.40,0.12,572.15,39.29,5379.36
+ORD-202512-00292,2025-12-24,2025-12-28,2025,Q4,Dec,Wednesday,East,Singapore,Wholesale,Corporate,A. Taka,Accessories,Mouse,Completed,Bank Transfer,9,217.68,1959.12,0.05,97.96,0.05,93.06,63.68,2017.90
+ORD-202512-00592,2025-12-24,2025-12-27,2025,Q4,Dec,Wednesday,North,Canada,Distributor,Corporate,J. Aita,Office Supplies,Stapler,Returned,Cash,30,33.49,1004.70,0.00,0.00,0.07,70.33,44.26,1119.29
+ORD-202512-00126,2025-12-26,2025-12-31,2025,Q4,Dec,Friday,West,France,Online,Corporate,A. Taka,Software,Add-on,Completed,Bank Transfer,15,198.38,2975.70,0.15,446.35,0.05,126.47,14.01,2669.83
+ORD-202512-00419,2025-12-26,2026-01-09,2025,Q4,Dec,Friday,Central,South Africa,Wholesale,Corporate,L. Nami,Software,Add-on,Completed,Credit Card,5,247.90,1239.50,0.00,0.00,0.10,123.95,8.80,1372.25
+ORD-202512-00005,2025-12-27,2025-12-31,2025,Q4,Dec,Saturday,East,Philippines,Distributor,Government,M. Kila,Office Supplies,Paper,Pending,Cash,30,17.74,532.20,0.08,42.58,0.12,58.75,52.02,600.39
+ORD-202512-00619,2025-12-27,2026-01-03,2025,Q4,Dec,Saturday,West,UK,Online,Government,A. Taka,Home,Chair,Returned,Credit Card,10,198.02,1980.20,0.05,99.01,0.12,225.74,24.67,2131.60
+ORD-202512-00210,2025-12-28,2026-01-02,2025,Q4,Dec,Sunday,West,UK,Retail,Consumer,J. Aita,Office Supplies,Stapler,Completed,Credit Card,19,33.36,633.84,0.12,76.06,0.12,66.93,57.32,682.03
+ORD-202512-00289,2025-12-28,2025-12-31,2025,Q4,Dec,Sunday,East,Singapore,Online,Government,L. Nami,Software,License,Completed,Credit Card,26,408.56,10622.56,0.10,1062.26,0.12,1147.24,22.46,10730.00
+ORD-202512-00712,2025-12-28,2026-01-03,2025,Q4,Dec,Sunday,North,USA,Retail,Small Business,M. Kila,Home,Desk,Completed,Cash,21,190.16,3993.36,0.10,399.34,0.10,359.40,31.06,3984.48
+ORD-202512-00161,2025-12-30,2026-01-06,2025,Q4,Dec,Tuesday,West,France,Distributor,Small Business,M. Kila,Home,Desk,Pending,Cash,19,438.33,8328.27,0.05,416.41,0.12,949.42,20.49,8881.77
