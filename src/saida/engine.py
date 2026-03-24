@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 import pandas as pd
 
 from saida.adapters import DuckDBAdapter, MlAdapter, StatsModelsAdapter
@@ -14,6 +15,7 @@ from saida.core import (
     ResultCanonicalizer,
     SchemaDiscoveryService,
     SourceContextParser,
+    PromptCapabilityContract,
     build_prompt_capability_contract,
 )
 from saida.exceptions import PlanningError, ReasoningError, ValidationError
@@ -30,6 +32,7 @@ from saida.core.contracts import (
     ForecastAnalysisResult,
     ModelSpec,
     Metric,
+    PlanInput,
     PredictionResult,
     SourceContext,
     TableArtifact,
@@ -68,6 +71,8 @@ class Saida:
         """Return the currently available public SAIDA capabilities."""
         return {
             "analyze": True,
+            "plan": True,
+            "execute_plan": True,
             "profile": True,
             "load_context": True,
             "train": False,
@@ -78,6 +83,120 @@ class Saida:
             "llm_prompting": bool(self.llm_provider and self.config.llm.use_for_prompting),
             "llm_reasoning": bool(self.llm_provider and self.config.llm.use_for_reasoning),
         }
+
+    def plan(self, dataset: Dataset, question: str) -> AnalysisPlan:
+        """Compile a question into a canonical analysis plan without executing it."""
+        self.validator.validate_dataset(dataset)
+        profile = self.profile(dataset)
+        request, request_warnings, _ = self._build_request(question, dataset, profile)
+
+        capability_contract = build_prompt_capability_contract(request, profile)
+        contract_warning_messages = [
+            issue.message for issue in capability_contract.validation_issues if issue.severity != "error"
+        ]
+
+        if request.options.get("analysis_outcome") == "clarify":
+            plan = AnalysisPlan(
+                task_type="clarification",
+                rationale="Optional LLM interpretation requested clarification before planning.",
+                steps=[],
+                warnings=request_warnings,
+            )
+            return self._bind_plan_to_dataset(plan, dataset, request, profile)
+
+        if request.options.get("analysis_outcome") == "refuse":
+            plan = AnalysisPlan(
+                task_type="unavailable",
+                rationale="Optional LLM interpretation declined the request before planning.",
+                steps=[],
+                warnings=request_warnings,
+            )
+            return self._bind_plan_to_dataset(plan, dataset, request, profile)
+
+        if capability_contract.status == "unsupported_capability":
+            plan = AnalysisPlan(
+                task_type="unavailable",
+                rationale="Prompt capability contract determined the request is unsupported before planning.",
+                steps=[],
+                warnings=self._merge_warnings(request_warnings, capability_contract.warnings, contract_warning_messages),
+            )
+            return self._bind_plan_to_dataset(plan, dataset, request, profile)
+
+        if (
+            request.options.get("nlp_backend") == "llm+validation"
+            and capability_contract.status in {"supported_but_data_infeasible", "supported_but_data_insufficient"}
+        ):
+            plan = AnalysisPlan(
+                task_type="clarification",
+                rationale="Prompt capability contract requires clarification or better data support before planning.",
+                steps=[],
+                warnings=self._merge_warnings(request_warnings, capability_contract.warnings, contract_warning_messages),
+            )
+            return self._bind_plan_to_dataset(plan, dataset, request, profile)
+
+        try:
+            plan = self.plan_builder.build_plan_from_contract(capability_contract, request, profile, dataset.context)
+        except PlanningError as exc:
+            if request.options.get("nlp_backend") != "llm+validation" or not capability_contract.missing_parameters:
+                raise
+            plan = AnalysisPlan(
+                task_type="clarification",
+                rationale=(
+                    "Prompt capability contract could not be compiled into a safe deterministic plan. "
+                    f"{exc}"
+                ),
+                steps=[],
+                warnings=self._merge_warnings(request_warnings, capability_contract.warnings, contract_warning_messages),
+            )
+            return self._bind_plan_to_dataset(plan, dataset, request, profile)
+
+        plan = self._bind_plan_to_dataset(plan, dataset, request, profile)
+        if plan.steps:
+            self.validator.validate_plan(plan)
+        return plan
+
+    def execute_plan(
+        self,
+        dataset: Dataset,
+        plan: AnalysisPlan,
+        request: AnalysisRequest | None = None,
+    ) -> AnalysisResult:
+        """Execute an existing canonical analysis plan deterministically."""
+        self.validator.validate_dataset(dataset)
+        trace = [self._trace("adapter", "dataset loaded", {"dataset": dataset.name})]
+        if dataset.context is not None:
+            trace.append(self._trace("context", "context attached", {"metric_count": len(dataset.context.metric_definitions)}))
+
+        profile = self.profile(dataset)
+        trace.append(self._trace("profiling", "profile generated", {"row_count": profile.row_count}))
+
+        bound_request = request or self._request_from_plan(plan, dataset, profile)
+        trace.append(
+            self._trace(
+                "contract",
+                "request reconstructed from plan",
+                {"prompt_family": bound_request.prompt_family, "intent_name": bound_request.intent_name},
+            )
+        )
+        bound_plan = self._bind_plan_to_dataset(deepcopy(plan), dataset, bound_request, profile)
+        trace.append(
+            self._trace(
+                "planning",
+                "plan supplied for direct execution",
+                {"task_type": bound_plan.task_type, "step_count": len(bound_plan.steps)},
+            )
+        )
+
+        return self._execute_prepared_plan(
+            dataset=dataset,
+            question=bound_request.question,
+            request=bound_request,
+            profile=profile,
+            plan=bound_plan,
+            trace=trace,
+            capability_contract=None,
+            warning_groups=(profile.warnings,),
+        )
 
     def analyze(self, dataset: Dataset, question: str) -> AnalysisResult:
         """Run an end-to-end deterministic analysis workflow."""
@@ -113,6 +232,7 @@ class Saida:
                 steps=[],
                 warnings=request_warnings,
             )
+            plan = self._bind_plan_to_dataset(plan, dataset, request, profile)
             summary = request.options.get("llm_message") or "We need clarification before running this analysis."
             trace.append(self._trace("results", "clarification returned", {"summary_length": len(summary)}))
             return self.result_canonicalizer.build_analysis_result(
@@ -137,6 +257,7 @@ class Saida:
                 steps=[],
                 warnings=request_warnings,
             )
+            plan = self._bind_plan_to_dataset(plan, dataset, request, profile)
             summary = request.options.get("llm_message") or "We are not able to provide this information at this time."
             trace.append(self._trace("results", "refusal returned", {"summary_length": len(summary)}))
             return self.result_canonicalizer.build_analysis_result(
@@ -163,6 +284,7 @@ class Saida:
                 steps=[],
                 warnings=self._merge_warnings(request_warnings, capability_contract.warnings, contract_warning_messages),
             )
+            plan = self._bind_plan_to_dataset(plan, dataset, request, profile)
             trace.append(self._trace("results", "unsupported capability returned", {"summary_length": len(summary)}))
             return self.result_canonicalizer.build_analysis_result(
                 summary,
@@ -190,6 +312,7 @@ class Saida:
                 steps=[],
                 warnings=self._merge_warnings(request_warnings, capability_contract.warnings, contract_warning_messages),
             )
+            plan = self._bind_plan_to_dataset(plan, dataset, request, profile)
             trace.append(self._trace("results", "contract clarification returned", {"summary_length": len(summary)}))
             return self.result_canonicalizer.build_analysis_result(
                 summary,
@@ -218,6 +341,7 @@ class Saida:
                 steps=[],
                 warnings=self._merge_warnings(request_warnings, capability_contract.warnings, contract_warning_messages),
             )
+            plan = self._bind_plan_to_dataset(plan, dataset, request, profile)
             trace.append(self._trace("results", "planning clarification returned", {"summary_length": len(summary)}))
             return self.result_canonicalizer.build_analysis_result(
                 summary,
@@ -234,388 +358,43 @@ class Saida:
                 capability_contract,
             )
 
+        plan = self._bind_plan_to_dataset(plan, dataset, request, profile)
+        return self._execute_prepared_plan(
+            dataset=dataset,
+            question=question,
+            request=request,
+            profile=profile,
+            plan=plan,
+            trace=trace,
+            capability_contract=capability_contract,
+            warning_groups=(
+                profile.warnings,
+                request_warnings,
+                capability_contract.warnings,
+                contract_warning_messages,
+            ),
+        )
+
+    def _execute_prepared_plan(
+        self,
+        dataset: Dataset,
+        question: str,
+        request: AnalysisRequest,
+        profile: DatasetProfile,
+        plan: AnalysisPlan,
+        trace: list[ExecutionTraceEvent],
+        capability_contract: PromptCapabilityContract | None,
+        warning_groups: tuple[list[str], ...] = (),
+    ) -> AnalysisResult:
         self.validator.validate_plan(plan)
         trace.append(self._trace("planning", "plan validated", {"task_type": plan.task_type, "step_count": len(plan.steps)}))
 
-        metrics = []
-        tables = []
-        warnings = self._merge_warnings(
-            profile.warnings,
-            request_warnings,
-            capability_contract.warnings,
-            contract_warning_messages,
-            plan.warnings,
-        )
+        metrics: list[Metric] = []
+        tables: list[TableArtifact] = []
+        warnings = self._merge_warnings(*warning_groups, plan.warnings)
 
         for step in plan.steps:
-            if step.tool_family == "metadata":
-                if step.action == "column_property_check":
-                    tables.append(self._column_property_check_table(step.parameters, profile))
-                elif step.action == "column_presence_check":
-                    tables.append(self._column_presence_check_table(step.parameters, profile))
-                else:
-                    tables.append(self._metadata_table(step.action, profile, step.parameters))
-                trace.append(self._trace("compute", f"executed {step.action}", step.parameters))
-                continue
-
-            adapter = self.router.route(step.tool_family)
-            if step.tool_family == "duckdb":
-                if step.action == "dataset_summary":
-                    step_metrics, step_tables = adapter.dataset_summary(
-                        dataset.data,
-                        step.parameters.get("target"),
-                        step.parameters.get("filters"),
-                    )
-                    metrics.extend(step_metrics)
-                    tables.extend(step_tables)
-                elif step.action == "row_count":
-                    metrics.extend(
-                        adapter.row_count(
-                            dataset.data,
-                            step.parameters.get("filters"),
-                        )
-                    )
-                elif step.action == "count_rows_by_group":
-                    tables.append(
-                        adapter.count_rows_by_group(
-                            dataset.data,
-                            step.parameters["group_by"],
-                            step.parameters.get("filters"),
-                            step.parameters.get("ascending", False),
-                            step.parameters.get("limit"),
-                        )
-                    )
-                elif step.action == "distinct_values":
-                    tables.append(
-                        adapter.distinct_values(
-                            dataset.data,
-                            step.parameters["target"],
-                            step.parameters.get("filters"),
-                        )
-                    )
-                elif step.action == "distinct_value_count":
-                    tables.append(
-                        adapter.distinct_value_count(
-                            dataset.data,
-                            step.parameters["target"],
-                            step.parameters.get("filters"),
-                        )
-                    )
-                elif step.action == "tabular_query":
-                    tables.append(
-                        adapter.tabular_query(
-                            dataset.data,
-                            step.parameters.get("selected_columns"),
-                            step.parameters.get("filters"),
-                            step.parameters.get("sort_by"),
-                            step.parameters.get("sort_direction", "asc"),
-                            step.parameters.get("limit"),
-                            step.parameters.get("page", 1),
-                            step.parameters.get("page_size", 50),
-                        )
-                    )
-                elif step.action == "grouped_tabular_query":
-                    tables.append(
-                        adapter.grouped_tabular_query(
-                            dataset.data,
-                            step.parameters["group_by"],
-                            step.parameters.get("target"),
-                            step.parameters.get("aggregation", "count"),
-                            step.parameters.get("filters"),
-                            step.parameters.get("sort_by"),
-                            step.parameters.get("sort_direction", "desc"),
-                            step.parameters.get("limit"),
-                            step.parameters.get("page", 1),
-                            step.parameters.get("page_size", 50),
-                        )
-                    )
-                elif step.action == "time_coverage":
-                    tables.append(
-                        adapter.time_coverage(
-                            dataset.data,
-                            step.parameters["time_column"],
-                            step.parameters.get("mode", "years_present"),
-                            step.parameters.get("filters"),
-                        )
-                    )
-                elif step.action == "time_bucket_counts":
-                    tables.append(
-                        adapter.time_bucket_counts(
-                            dataset.data,
-                            step.parameters["time_column"],
-                            step.parameters.get("bucket", "year"),
-                            step.parameters.get("filters"),
-                        )
-                    )
-                elif step.action == "time_bucket_breakdown":
-                    tables.append(
-                        adapter.time_bucket_breakdown(
-                            dataset.data,
-                            step.parameters["target"],
-                            step.parameters["time_column"],
-                            step.parameters.get("bucket", "month"),
-                            step.parameters.get("aggregation", "sum"),
-                            step.parameters.get("group_by"),
-                            step.parameters.get("filters"),
-                        )
-                    )
-                elif step.action == "row_existence":
-                    tables.append(
-                        adapter.row_existence(
-                            dataset.data,
-                            step.parameters.get("filters", {}),
-                        )
-                    )
-                elif step.action == "time_value_exists":
-                    tables.append(
-                        adapter.time_value_exists(
-                            dataset.data,
-                            step.parameters["time_column"],
-                            step.parameters.get("expected_year"),
-                            step.parameters.get("time_reference"),
-                            step.parameters.get("filters"),
-                        )
-                    )
-                elif step.action == "null_check":
-                    tables.append(
-                        adapter.null_check(
-                            dataset.data,
-                            step.parameters["target"],
-                            step.parameters.get("null_expectation", "has_nulls"),
-                            step.parameters.get("filters"),
-                        )
-                    )
-                elif step.action == "threshold_check":
-                    tables.append(
-                        adapter.threshold_check(
-                            dataset.data,
-                            step.parameters["target"],
-                            step.parameters["threshold_operator"],
-                            step.parameters.get("threshold_value"),
-                            step.parameters.get("lower_bound"),
-                            step.parameters.get("upper_bound"),
-                            step.parameters.get("filters"),
-                        )
-                    )
-                elif step.action == "aggregate_value":
-                    step_metrics = adapter.aggregate_value(
-                        dataset.data,
-                        step.parameters["target"],
-                        step.parameters["aggregation"],
-                        step.parameters.get("filters"),
-                    )
-                    metrics.extend(step_metrics)
-                elif step.action == "ranked_rows":
-                    tables.append(
-                        adapter.ranked_rows(
-                            dataset.data,
-                            step.parameters["target"],
-                            step.parameters.get("filters"),
-                            step.parameters.get("ascending", False),
-                            step.parameters.get("limit", 5),
-                        )
-                    )
-                elif step.action == "time_trend":
-                    tables.append(
-                        adapter.time_trend(
-                            dataset.data,
-                            step.parameters["target"],
-                            step.parameters["time_column"],
-                            step.parameters.get("aggregation", "sum"),
-                            step.parameters.get("filters"),
-                        )
-                    )
-                elif step.action == "group_breakdown":
-                    tables.append(
-                        adapter.group_breakdown(
-                            dataset.data,
-                            step.parameters["target"],
-                            step.parameters["group_by"],
-                            step.parameters.get("aggregation", "sum"),
-                            step.parameters.get("filters"),
-                        )
-                    )
-                elif step.action == "ranked_breakdown":
-                    tables.append(
-                        adapter.ranked_breakdown(
-                            dataset.data,
-                            step.parameters["target"],
-                            step.parameters["group_by"],
-                            step.parameters.get("aggregation", "sum"),
-                            step.parameters.get("filters"),
-                            step.parameters.get("limit", 5),
-                            step.parameters.get("ascending", False),
-                        )
-                    )
-                elif step.action == "grouped_period_comparison":
-                    tables.append(
-                        adapter.grouped_period_comparison(
-                            dataset.data,
-                            step.parameters["target"],
-                            step.parameters["group_by"],
-                            step.parameters["time_column"],
-                            step.parameters["time_reference"],
-                            step.parameters.get("bucket"),
-                            step.parameters.get("aggregation", "sum"),
-                            step.parameters.get("filters"),
-                        )
-                    )
-                elif step.action == "top_movers":
-                    tables.append(
-                        adapter.top_movers(
-                            dataset.data,
-                            step.parameters["target"],
-                            step.parameters["group_by"],
-                            step.parameters["time_column"],
-                            step.parameters["time_reference"],
-                            step.parameters.get("aggregation", "sum"),
-                            step.parameters.get("filters"),
-                            step.parameters.get("limit", 5),
-                        )
-                    )
-                elif step.action == "contribution_breakdown":
-                    tables.append(
-                        adapter.contribution_breakdown(
-                            dataset.data,
-                            step.parameters["target"],
-                            step.parameters["group_by"],
-                            step.parameters.get("time_column"),
-                            step.parameters.get("time_reference"),
-                            step.parameters.get("aggregation", "sum"),
-                            step.parameters.get("filters"),
-                        )
-                    )
-                elif step.action == "period_comparison":
-                    tables.append(
-                        adapter.period_comparison(
-                            dataset.data,
-                            step.parameters["target"],
-                            step.parameters["time_column"],
-                            step.parameters["time_reference"],
-                            step.parameters.get("bucket"),
-                            step.parameters.get("aggregation", "sum"),
-                            step.parameters.get("filters"),
-                        )
-                    )
-            elif step.tool_family == "stats":
-                if step.action == "missingness_summary":
-                    tables.append(adapter.missingness_summary(dataset.data))
-                elif step.action == "numeric_summary":
-                    tables.append(adapter.numeric_summary(dataset.data))
-                elif step.action == "distribution_summary":
-                    distribution_table = adapter.distribution_summary(dataset.data, step.parameters["target"])
-                    if distribution_table is not None:
-                        tables.append(distribution_table)
-                elif step.action == "target_correlation":
-                    correlation_table = adapter.correlation_matrix(dataset.data, step.parameters.get("target"))
-                    if correlation_table is not None:
-                        tables.append(correlation_table)
-                elif step.action == "anomaly_summary":
-                    anomaly_table = adapter.anomaly_summary(
-                        dataset.data,
-                        step.parameters["target"],
-                        step.parameters.get("time_column"),
-                    )
-                    if anomaly_table is not None:
-                        tables.append(anomaly_table)
-                elif step.action == "time_series_diagnostics":
-                    diagnostics_table = adapter.time_series_diagnostics(
-                        dataset.data,
-                        step.parameters["target"],
-                        step.parameters["time_column"],
-                    )
-                    if diagnostics_table is not None:
-                        tables.append(diagnostics_table)
-                elif step.action == "group_mean_comparison":
-                    comparison_table = adapter.group_mean_comparison(
-                        dataset.data,
-                        step.parameters["target"],
-                        step.parameters["group_column"],
-                    )
-                    if comparison_table is not None:
-                        tables.append(comparison_table)
-                elif step.action == "t_test":
-                    tables.append(
-                        adapter.t_test(
-                            dataset.data,
-                            step.parameters["target"],
-                            step.parameters["group_by"][0],
-                            step.parameters.get("alpha", 0.05),
-                        )
-                    )
-                elif step.action == "chi_square":
-                    comparison_columns = step.parameters.get("comparison_columns", [])
-                    tables.append(
-                        adapter.chi_square_test(
-                            dataset.data,
-                            comparison_columns[0],
-                            comparison_columns[1],
-                            step.parameters.get("alpha", 0.05),
-                        )
-                    )
-                elif step.action == "anova":
-                    tables.append(
-                        adapter.anova_test(
-                            dataset.data,
-                            step.parameters["target"],
-                            step.parameters["group_by"][0],
-                            step.parameters.get("alpha", 0.05),
-                        )
-                    )
-                elif step.action == "mann_whitney":
-                    tables.append(
-                        adapter.mann_whitney_test(
-                            dataset.data,
-                            step.parameters["target"],
-                            step.parameters["group_by"][0],
-                            step.parameters.get("alpha", 0.05),
-                        )
-                    )
-                elif step.action == "confidence_interval":
-                    tables.append(
-                        adapter.confidence_interval(
-                            dataset.data,
-                            step.parameters["target"],
-                            step.parameters.get("confidence_level", 0.95),
-                        )
-                    )
-                elif step.action == "regression_significance":
-                    tables.append(
-                        adapter.regression_significance(
-                            dataset.data,
-                            step.parameters["target"],
-                            step.parameters.get("feature_columns", []),
-                            step.parameters.get("alpha", 0.05),
-                        )
-                    )
-                elif step.action == "significance_inference":
-                    tables.append(
-                        adapter.group_significance_test(
-                            dataset.data,
-                            step.parameters["target"],
-                            step.parameters["group_by"][0],
-                            step.parameters.get("alpha", 0.05),
-                        )
-                    )
-                elif step.action == "power_analysis":
-                    tables.append(
-                        adapter.power_analysis(
-                            dataset.data,
-                            step.parameters["target"],
-                            step.parameters["group_by"][0],
-                            step.parameters.get("alpha", 0.05),
-                        )
-                    )
-                elif step.action == "sample_size_estimate":
-                    tables.append(
-                        adapter.sample_size_estimate(
-                            dataset.data,
-                            step.parameters["target"],
-                            step.parameters["group_by"][0],
-                            step.parameters.get("alpha", 0.05),
-                            step.parameters.get("desired_power", 0.80),
-                        )
-                    )
+            self._execute_step(dataset, profile, step, metrics, tables)
             trace.append(self._trace("compute", f"executed {step.action}", step.parameters))
 
         deterministic_summary = self.summary_formatter.summarize(plan, metrics, tables, warnings, request, profile, dataset.context)
@@ -647,6 +426,754 @@ class Saida:
             trace,
             capability_contract,
         )
+
+    def _execute_step(
+        self,
+        dataset: Dataset,
+        profile: DatasetProfile,
+        step: object,
+        metrics: list[Metric],
+        tables: list[TableArtifact],
+    ) -> None:
+        if step.tool_family == "metadata":
+            if step.action == "column_property_check":
+                tables.append(self._column_property_check_table(step.parameters, profile))
+            elif step.action == "column_presence_check":
+                tables.append(self._column_presence_check_table(step.parameters, profile))
+            else:
+                tables.append(self._metadata_table(step.action, profile, step.parameters))
+            return
+
+        if step.tool_family == "duckdb":
+            self._execute_duckdb_step(dataset, step, metrics, tables)
+            return
+
+        if step.tool_family == "stats":
+            self._execute_stats_step(dataset, step, tables)
+
+    def _execute_duckdb_step(
+        self,
+        dataset: Dataset,
+        step: object,
+        metrics: list[Metric],
+        tables: list[TableArtifact],
+    ) -> None:
+        adapter = self.router.route("duckdb")
+        if step.action == "dataset_summary":
+            step_metrics, step_tables = adapter.dataset_summary(
+                dataset.data,
+                step.parameters.get("target"),
+                step.parameters.get("filters"),
+            )
+            metrics.extend(step_metrics)
+            tables.extend(step_tables)
+        elif step.action == "row_count":
+            metrics.extend(
+                adapter.row_count(
+                    dataset.data,
+                    step.parameters.get("filters"),
+                )
+            )
+        elif step.action == "count_rows_by_group":
+            tables.append(
+                adapter.count_rows_by_group(
+                    dataset.data,
+                    step.parameters["group_by"],
+                    step.parameters.get("filters"),
+                    step.parameters.get("ascending", False),
+                    step.parameters.get("limit"),
+                )
+            )
+        elif step.action == "distinct_values":
+            tables.append(
+                adapter.distinct_values(
+                    dataset.data,
+                    step.parameters["target"],
+                    step.parameters.get("filters"),
+                )
+            )
+        elif step.action == "distinct_value_count":
+            tables.append(
+                adapter.distinct_value_count(
+                    dataset.data,
+                    step.parameters["target"],
+                    step.parameters.get("filters"),
+                )
+            )
+        elif step.action == "tabular_query":
+            tables.append(
+                adapter.tabular_query(
+                    dataset.data,
+                    step.parameters.get("selected_columns"),
+                    step.parameters.get("filters"),
+                    step.parameters.get("sort_by"),
+                    step.parameters.get("sort_direction", "asc"),
+                    step.parameters.get("limit"),
+                    step.parameters.get("page", 1),
+                    step.parameters.get("page_size", 50),
+                )
+            )
+        elif step.action == "grouped_tabular_query":
+            tables.append(
+                adapter.grouped_tabular_query(
+                    dataset.data,
+                    step.parameters["group_by"],
+                    step.parameters.get("target"),
+                    step.parameters.get("aggregation", "count"),
+                    step.parameters.get("filters"),
+                    step.parameters.get("sort_by"),
+                    step.parameters.get("sort_direction", "desc"),
+                    step.parameters.get("limit"),
+                    step.parameters.get("page", 1),
+                    step.parameters.get("page_size", 50),
+                )
+            )
+        elif step.action == "time_coverage":
+            tables.append(
+                adapter.time_coverage(
+                    dataset.data,
+                    step.parameters["time_column"],
+                    step.parameters.get("mode", "years_present"),
+                    step.parameters.get("filters"),
+                )
+            )
+        elif step.action == "time_bucket_counts":
+            tables.append(
+                adapter.time_bucket_counts(
+                    dataset.data,
+                    step.parameters["time_column"],
+                    step.parameters.get("bucket", "year"),
+                    step.parameters.get("filters"),
+                )
+            )
+        elif step.action == "time_bucket_breakdown":
+            tables.append(
+                adapter.time_bucket_breakdown(
+                    dataset.data,
+                    step.parameters["target"],
+                    step.parameters["time_column"],
+                    step.parameters.get("bucket", "month"),
+                    step.parameters.get("aggregation", "sum"),
+                    step.parameters.get("group_by"),
+                    step.parameters.get("filters"),
+                )
+            )
+        elif step.action == "row_existence":
+            tables.append(
+                adapter.row_existence(
+                    dataset.data,
+                    step.parameters.get("filters", {}),
+                )
+            )
+        elif step.action == "time_value_exists":
+            tables.append(
+                adapter.time_value_exists(
+                    dataset.data,
+                    step.parameters["time_column"],
+                    step.parameters.get("expected_year"),
+                    step.parameters.get("time_reference"),
+                    step.parameters.get("filters"),
+                )
+            )
+        elif step.action == "null_check":
+            tables.append(
+                adapter.null_check(
+                    dataset.data,
+                    step.parameters["target"],
+                    step.parameters.get("null_expectation", "has_nulls"),
+                    step.parameters.get("filters"),
+                )
+            )
+        elif step.action == "threshold_check":
+            tables.append(
+                adapter.threshold_check(
+                    dataset.data,
+                    step.parameters["target"],
+                    step.parameters["threshold_operator"],
+                    step.parameters.get("threshold_value"),
+                    step.parameters.get("lower_bound"),
+                    step.parameters.get("upper_bound"),
+                    step.parameters.get("filters"),
+                )
+            )
+        elif step.action == "aggregate_value":
+            step_metrics = adapter.aggregate_value(
+                dataset.data,
+                step.parameters["target"],
+                step.parameters["aggregation"],
+                step.parameters.get("filters"),
+            )
+            metrics.extend(step_metrics)
+        elif step.action == "ranked_rows":
+            tables.append(
+                adapter.ranked_rows(
+                    dataset.data,
+                    step.parameters["target"],
+                    step.parameters.get("filters"),
+                    step.parameters.get("ascending", False),
+                    step.parameters.get("limit", 5),
+                )
+            )
+        elif step.action == "time_trend":
+            tables.append(
+                adapter.time_trend(
+                    dataset.data,
+                    step.parameters["target"],
+                    step.parameters["time_column"],
+                    step.parameters.get("aggregation", "sum"),
+                    step.parameters.get("filters"),
+                )
+            )
+        elif step.action == "group_breakdown":
+            tables.append(
+                adapter.group_breakdown(
+                    dataset.data,
+                    step.parameters["target"],
+                    step.parameters["group_by"],
+                    step.parameters.get("aggregation", "sum"),
+                    step.parameters.get("filters"),
+                )
+            )
+        elif step.action == "ranked_breakdown":
+            tables.append(
+                adapter.ranked_breakdown(
+                    dataset.data,
+                    step.parameters["target"],
+                    step.parameters["group_by"],
+                    step.parameters.get("aggregation", "sum"),
+                    step.parameters.get("filters"),
+                    step.parameters.get("limit", 5),
+                    step.parameters.get("ascending", False),
+                )
+            )
+        elif step.action == "grouped_period_comparison":
+            tables.append(
+                adapter.grouped_period_comparison(
+                    dataset.data,
+                    step.parameters["target"],
+                    step.parameters["group_by"],
+                    step.parameters["time_column"],
+                    step.parameters["time_reference"],
+                    step.parameters.get("bucket"),
+                    step.parameters.get("aggregation", "sum"),
+                    step.parameters.get("filters"),
+                )
+            )
+        elif step.action == "top_movers":
+            tables.append(
+                adapter.top_movers(
+                    dataset.data,
+                    step.parameters["target"],
+                    step.parameters["group_by"],
+                    step.parameters["time_column"],
+                    step.parameters["time_reference"],
+                    step.parameters.get("aggregation", "sum"),
+                    step.parameters.get("filters"),
+                    step.parameters.get("limit", 5),
+                )
+            )
+        elif step.action == "contribution_breakdown":
+            tables.append(
+                adapter.contribution_breakdown(
+                    dataset.data,
+                    step.parameters["target"],
+                    step.parameters["group_by"],
+                    step.parameters.get("time_column"),
+                    step.parameters.get("time_reference"),
+                    step.parameters.get("aggregation", "sum"),
+                    step.parameters.get("filters"),
+                )
+            )
+        elif step.action == "period_comparison":
+            tables.append(
+                adapter.period_comparison(
+                    dataset.data,
+                    step.parameters["target"],
+                    step.parameters["time_column"],
+                    step.parameters["time_reference"],
+                    step.parameters.get("bucket"),
+                    step.parameters.get("aggregation", "sum"),
+                    step.parameters.get("filters"),
+                )
+            )
+
+    def _execute_stats_step(
+        self,
+        dataset: Dataset,
+        step: object,
+        tables: list[TableArtifact],
+    ) -> None:
+        adapter = self.router.route("stats")
+        if step.action == "missingness_summary":
+            tables.append(adapter.missingness_summary(dataset.data))
+        elif step.action == "numeric_summary":
+            tables.append(adapter.numeric_summary(dataset.data))
+        elif step.action == "distribution_summary":
+            distribution_table = adapter.distribution_summary(dataset.data, step.parameters["target"])
+            if distribution_table is not None:
+                tables.append(distribution_table)
+        elif step.action == "target_correlation":
+            correlation_table = adapter.correlation_matrix(dataset.data, step.parameters.get("target"))
+            if correlation_table is not None:
+                tables.append(correlation_table)
+        elif step.action == "anomaly_summary":
+            anomaly_table = adapter.anomaly_summary(
+                dataset.data,
+                step.parameters["target"],
+                step.parameters.get("time_column"),
+            )
+            if anomaly_table is not None:
+                tables.append(anomaly_table)
+        elif step.action == "time_series_diagnostics":
+            diagnostics_table = adapter.time_series_diagnostics(
+                dataset.data,
+                step.parameters["target"],
+                step.parameters["time_column"],
+            )
+            if diagnostics_table is not None:
+                tables.append(diagnostics_table)
+        elif step.action == "group_mean_comparison":
+            comparison_table = adapter.group_mean_comparison(
+                dataset.data,
+                step.parameters["target"],
+                step.parameters["group_column"],
+            )
+            if comparison_table is not None:
+                tables.append(comparison_table)
+        elif step.action == "t_test":
+            tables.append(
+                adapter.t_test(
+                    dataset.data,
+                    step.parameters["target"],
+                    step.parameters["group_by"][0],
+                    step.parameters.get("alpha", 0.05),
+                )
+            )
+        elif step.action == "chi_square":
+            comparison_columns = step.parameters.get("comparison_columns", [])
+            tables.append(
+                adapter.chi_square_test(
+                    dataset.data,
+                    comparison_columns[0],
+                    comparison_columns[1],
+                    step.parameters.get("alpha", 0.05),
+                )
+            )
+        elif step.action == "anova":
+            tables.append(
+                adapter.anova_test(
+                    dataset.data,
+                    step.parameters["target"],
+                    step.parameters["group_by"][0],
+                    step.parameters.get("alpha", 0.05),
+                )
+            )
+        elif step.action == "mann_whitney":
+            tables.append(
+                adapter.mann_whitney_test(
+                    dataset.data,
+                    step.parameters["target"],
+                    step.parameters["group_by"][0],
+                    step.parameters.get("alpha", 0.05),
+                )
+            )
+        elif step.action == "confidence_interval":
+            tables.append(
+                adapter.confidence_interval(
+                    dataset.data,
+                    step.parameters["target"],
+                    step.parameters.get("confidence_level", 0.95),
+                )
+            )
+        elif step.action == "regression_significance":
+            tables.append(
+                adapter.regression_significance(
+                    dataset.data,
+                    step.parameters["target"],
+                    step.parameters.get("feature_columns", []),
+                    step.parameters.get("alpha", 0.05),
+                )
+            )
+        elif step.action == "significance_inference":
+            tables.append(
+                adapter.group_significance_test(
+                    dataset.data,
+                    step.parameters["target"],
+                    step.parameters["group_by"][0],
+                    step.parameters.get("alpha", 0.05),
+                )
+            )
+        elif step.action == "power_analysis":
+            tables.append(
+                adapter.power_analysis(
+                    dataset.data,
+                    step.parameters["target"],
+                    step.parameters["group_by"][0],
+                    step.parameters.get("alpha", 0.05),
+                )
+            )
+        elif step.action == "sample_size_estimate":
+            tables.append(
+                adapter.sample_size_estimate(
+                    dataset.data,
+                    step.parameters["target"],
+                    step.parameters["group_by"][0],
+                    step.parameters.get("alpha", 0.05),
+                    step.parameters.get("desired_power", 0.80),
+                )
+            )
+
+    def _bind_plan_to_dataset(
+        self,
+        plan: AnalysisPlan,
+        dataset: Dataset,
+        request: AnalysisRequest,
+        profile: DatasetProfile,
+    ) -> AnalysisPlan:
+        if not plan.dataset_refs:
+            plan.dataset_refs = [dataset.name]
+        elif dataset.name not in set(plan.dataset_refs):
+            plan.dataset_refs = [*plan.dataset_refs, dataset.name]
+
+        if not plan.inputs:
+            plan.inputs = [
+                PlanInput(
+                    input_id="primary_dataset",
+                    kind="dataset",
+                    ref=dataset.name,
+                    metadata={"source_type": dataset.source_type},
+                )
+            ]
+
+        plan.metadata = deepcopy(plan.metadata)
+        plan.metadata["dataset_name"] = dataset.name
+        plan.metadata["dataset_source_type"] = dataset.source_type
+        plan.metadata["origin_question"] = request.question
+        plan.metadata["prompt_family"] = request.prompt_family
+        plan.metadata["intent_name"] = request.intent_name
+        plan.metadata["request_snapshot"] = self._request_snapshot(request)
+        plan.metadata.setdefault(
+            "profile_summary",
+            {
+                "dataset_name": profile.dataset_name,
+                "row_count": profile.row_count,
+                "column_count": profile.column_count,
+            },
+        )
+
+        if plan.plan_id is None:
+            plan.plan_id = self._deterministic_plan_id(plan, dataset, request)
+        if plan.expected_result_name is None:
+            plan.expected_result_name = self._infer_expected_result_name(request, plan)
+        if plan.expected_result_shape is None:
+            plan.expected_result_shape = self._infer_expected_result_shape(request, plan)
+
+        for index, step in enumerate(plan.steps, start=1):
+            if step.family is None:
+                step.family = request.prompt_family or request.intent_name or plan.task_type
+            if step.method_id is None:
+                step.method_id = step.action
+            if not step.output_refs:
+                step.output_refs = [step.step_id]
+            if step.expected_output is None:
+                inferred_output = self._infer_step_expected_output(step)
+                if inferred_output is not None:
+                    step.expected_output = inferred_output
+            step.metadata = deepcopy(step.metadata)
+            step.metadata.setdefault("execution_order", index)
+        return plan
+
+    def _request_from_plan(
+        self,
+        plan: AnalysisPlan,
+        dataset: Dataset,
+        profile: DatasetProfile,
+    ) -> AnalysisRequest:
+        request_snapshot = plan.metadata.get("request_snapshot")
+        if isinstance(request_snapshot, dict):
+            return self._request_from_snapshot(request_snapshot)
+
+        question = str(plan.metadata.get("origin_question") or f"Execute {plan.plan_id or plan.task_type} plan")
+        request = AnalysisRequest(question=question, task_type_hint=plan.task_type, options={"dataset": dataset.name})
+        request.prompt_family = self._string_or_none(plan.metadata.get("prompt_family"))
+        request.intent_name = self._string_or_none(plan.metadata.get("intent_name"))
+
+        if not plan.steps:
+            return request
+
+        inferred = self._request_fields_from_step(plan.steps[0], plan)
+        request.prompt_family = inferred.get("prompt_family") or request.prompt_family
+        request.intent_name = inferred.get("intent_name") or request.intent_name
+        request.target = inferred.get("target")
+        request.aggregation = inferred.get("aggregation")
+        request.filters = inferred.get("filters")
+        request.group_by = inferred.get("group_by")
+        request.time_reference = inferred.get("time_reference")
+        request.options.update(inferred.get("options", {}))
+        request.options.setdefault("dataset", dataset.name)
+        request.options.setdefault("plan_execution", True)
+
+        if request.prompt_family is None and plan.expected_result_name:
+            request.prompt_family = plan.expected_result_name
+        if request.intent_name is None:
+            request.intent_name = request.prompt_family
+
+        if request.target is not None and request.target not in {column.name for column in profile.columns}:
+            request.target = None
+        return request
+
+    def _request_from_snapshot(self, snapshot: dict[str, object]) -> AnalysisRequest:
+        return AnalysisRequest(
+            question=str(snapshot.get("question") or "Execute analysis plan"),
+            prompt_family=self._string_or_none(snapshot.get("prompt_family")),
+            intent_name=self._string_or_none(snapshot.get("intent_name")),
+            task_type_hint=self._string_or_none(snapshot.get("task_type_hint")),
+            target=self._string_or_none(snapshot.get("target")),
+            aggregation=self._string_or_none(snapshot.get("aggregation")),
+            horizon=snapshot.get("horizon") if isinstance(snapshot.get("horizon"), int) else None,
+            filters=deepcopy(snapshot.get("filters")) if isinstance(snapshot.get("filters"), dict) else None,
+            group_by=list(snapshot.get("group_by")) if isinstance(snapshot.get("group_by"), list) else None,
+            time_reference=deepcopy(snapshot.get("time_reference")) if isinstance(snapshot.get("time_reference"), dict) else None,
+            options=deepcopy(snapshot.get("options")) if isinstance(snapshot.get("options"), dict) else {},
+        )
+
+    def _request_fields_from_step(self, step: object, plan: AnalysisPlan) -> dict[str, object]:
+        if step.action == "row_count":
+            return {
+                "prompt_family": "row_count",
+                "intent_name": "row_count",
+                "aggregation": "count",
+                "filters": deepcopy(step.parameters.get("filters")),
+            }
+        if step.action == "count_rows_by_group":
+            prompt_family = "representation_ranking" if step.parameters.get("limit") else "grouped_entity_count"
+            return {
+                "prompt_family": prompt_family,
+                "intent_name": "representation_ranking" if prompt_family == "representation_ranking" else None,
+                "group_by": list(step.parameters.get("group_by") or []),
+                "filters": deepcopy(step.parameters.get("filters")),
+            }
+        if step.action == "distinct_values":
+            return {
+                "prompt_family": "distinct_value_listing",
+                "intent_name": "distinct_values",
+                "target": step.parameters.get("target"),
+                "filters": deepcopy(step.parameters.get("filters")),
+            }
+        if step.action == "distinct_value_count":
+            return {
+                "prompt_family": "distinct_value_count",
+                "intent_name": "distinct_value_count",
+                "target": step.parameters.get("target"),
+                "filters": deepcopy(step.parameters.get("filters")),
+            }
+        if step.action == "tabular_query":
+            return {
+                "prompt_family": "tabular_record_retrieval",
+                "intent_name": "tabular_query",
+                "filters": deepcopy(step.parameters.get("filters")),
+                "options": {
+                    "selected_columns": list(step.parameters.get("selected_columns") or []),
+                    "sort_by": step.parameters.get("sort_by"),
+                    "sort_direction": step.parameters.get("sort_direction", "asc"),
+                    "limit": step.parameters.get("limit"),
+                    "page": step.parameters.get("page", 1),
+                    "page_size": step.parameters.get("page_size", 50),
+                },
+            }
+        if step.action == "grouped_tabular_query":
+            return {
+                "prompt_family": "grouped_tabular_query",
+                "intent_name": "grouped_tabular_query",
+                "target": step.parameters.get("target"),
+                "aggregation": step.parameters.get("aggregation"),
+                "group_by": list(step.parameters.get("group_by") or []),
+                "filters": deepcopy(step.parameters.get("filters")),
+                "options": {
+                    "sort_by": step.parameters.get("sort_by"),
+                    "sort_direction": step.parameters.get("sort_direction", "desc"),
+                    "limit": step.parameters.get("limit"),
+                    "page": step.parameters.get("page", 1),
+                    "page_size": step.parameters.get("page_size", 50),
+                    "intent_name": "grouped_tabular_query",
+                },
+            }
+        if step.tool_family == "metadata":
+            return {
+                "prompt_family": step.action,
+                "intent_name": step.action,
+                "target": step.parameters.get("target"),
+                "options": deepcopy(step.parameters),
+            }
+        if step.action == "aggregate_value":
+            return {
+                "prompt_family": "metric_aggregate",
+                "target": step.parameters.get("target"),
+                "aggregation": step.parameters.get("aggregation"),
+                "filters": deepcopy(step.parameters.get("filters")),
+            }
+        if step.action == "ranked_rows":
+            return {
+                "prompt_family": "row_ranking",
+                "intent_name": "row_ranking",
+                "target": step.parameters.get("target"),
+                "filters": deepcopy(step.parameters.get("filters")),
+            }
+        if step.action == "ranked_breakdown":
+            return {
+                "prompt_family": "group_ranking",
+                "intent_name": "group_ranking",
+                "target": step.parameters.get("target"),
+                "aggregation": step.parameters.get("aggregation"),
+                "group_by": list(step.parameters.get("group_by") or []),
+                "filters": deepcopy(step.parameters.get("filters")),
+            }
+        if step.action == "row_existence":
+            return {
+                "prompt_family": "row_existence_check",
+                "intent_name": "existence_check",
+                "filters": deepcopy(step.parameters.get("filters")),
+                "options": {"existence_mode": "filtered_rows"},
+            }
+        if step.action == "time_value_exists":
+            return {
+                "prompt_family": "time_value_existence_check",
+                "intent_name": "existence_check",
+                "filters": deepcopy(step.parameters.get("filters")),
+                "time_reference": deepcopy(step.parameters.get("time_reference")),
+                "options": {"existence_mode": "time_value"},
+            }
+        if step.action == "null_check":
+            return {
+                "prompt_family": "null_existence_check",
+                "intent_name": "existence_check",
+                "target": step.parameters.get("target"),
+                "filters": deepcopy(step.parameters.get("filters")),
+                "options": {"existence_mode": "null_check"},
+            }
+        if step.action == "threshold_check":
+            return {
+                "prompt_family": "threshold_existence_check",
+                "intent_name": "existence_check",
+                "target": step.parameters.get("target"),
+                "filters": deepcopy(step.parameters.get("filters")),
+                "options": {"existence_mode": "threshold_check"},
+            }
+        if step.action == "column_property_check":
+            return {
+                "prompt_family": "column_property_check",
+                "intent_name": "existence_check",
+                "target": step.parameters.get("target"),
+                "options": {**deepcopy(step.parameters), "existence_mode": "column_property_check"},
+            }
+        if step.action == "column_presence_check":
+            return {
+                "prompt_family": "column_presence_check",
+                "intent_name": "existence_check",
+                "options": {**deepcopy(step.parameters), "existence_mode": "column_presence_check"},
+            }
+        return {
+            "prompt_family": self._string_or_none(plan.expected_result_name),
+            "intent_name": self._string_or_none(plan.metadata.get("intent_name")),
+            "options": {},
+        }
+
+    def _request_snapshot(self, request: AnalysisRequest) -> dict[str, object]:
+        return {
+            "question": request.question,
+            "prompt_family": request.prompt_family,
+            "intent_name": request.intent_name,
+            "task_type_hint": request.task_type_hint,
+            "target": request.target,
+            "aggregation": request.aggregation,
+            "horizon": request.horizon,
+            "filters": deepcopy(request.filters),
+            "group_by": list(request.group_by or []) if request.group_by is not None else None,
+            "time_reference": deepcopy(request.time_reference),
+            "options": deepcopy(request.options),
+        }
+
+    def _deterministic_plan_id(self, plan: AnalysisPlan, dataset: Dataset, request: AnalysisRequest) -> str:
+        action_signature = "-".join((step.method_id or step.action) for step in plan.steps[:3]) or plan.task_type
+        family = request.prompt_family or request.intent_name or plan.task_type
+        return f"{dataset.name}:{family}:{action_signature}"
+
+    def _infer_expected_result_name(self, request: AnalysisRequest, plan: AnalysisPlan) -> str | None:
+        if request.target and request.aggregation and not request.group_by:
+            return f"{request.target}_{request.aggregation}"
+        if request.prompt_family == "tabular_record_retrieval":
+            return "tabular_query"
+        if request.prompt_family == "grouped_tabular_query":
+            return "grouped_tabular_query"
+        if request.prompt_family:
+            return request.prompt_family
+        if plan.steps:
+            return plan.steps[0].action
+        return None
+
+    def _infer_expected_result_shape(self, request: AnalysisRequest, plan: AnalysisPlan) -> str | None:
+        scalar_families = {
+            "row_count",
+            "metric_aggregate",
+            "column_count",
+            "numeric_column_count",
+            "categorical_column_count",
+            "measure_count",
+            "dimension_count",
+            "time_column_count",
+            "identifier_count",
+            "high_cardinality_count",
+            "distinct_value_count",
+        }
+        verification_families = {
+            "row_existence_check",
+            "time_value_existence_check",
+            "null_existence_check",
+            "threshold_existence_check",
+            "column_property_check",
+            "column_presence_check",
+        }
+        if request.prompt_family in scalar_families:
+            return "scalar"
+        if request.prompt_family in verification_families:
+            return "verification"
+        if request.prompt_family:
+            return "table"
+        if plan.steps and plan.steps[0].action in {"row_count", "aggregate_value"}:
+            return "scalar"
+        if plan.steps and plan.steps[0].action in {
+            "row_existence",
+            "time_value_exists",
+            "null_check",
+            "threshold_check",
+            "column_property_check",
+            "column_presence_check",
+        }:
+            return "verification"
+        if plan.steps:
+            return "table"
+        return None
+
+    def _infer_step_expected_output(self, step: object) -> dict[str, object] | None:
+        if step.action == "row_count":
+            return {"output_id": step.step_id, "logical_shape": "count", "physical_shape": "scalar"}
+        if step.action == "aggregate_value":
+            return {"output_id": step.step_id, "logical_shape": "aggregate", "physical_shape": "scalar"}
+        if step.action in {
+            "row_existence",
+            "time_value_exists",
+            "null_check",
+            "threshold_check",
+            "column_property_check",
+            "column_presence_check",
+        }:
+            return {"output_id": step.step_id, "logical_shape": "verification", "physical_shape": "recordset"}
+        if step.tool_family in {"metadata", "duckdb", "stats"}:
+            return {"output_id": step.step_id, "logical_shape": "table", "physical_shape": "recordset"}
+        return None
+
+    def _string_or_none(self, value: object) -> str | None:
+        return value if isinstance(value, str) else None
 
     def train(
         self,

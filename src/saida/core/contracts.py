@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from typing import Any
 
 import pandas as pd
@@ -96,6 +96,28 @@ class PlanStep:
     action: str
     parameters: dict[str, Any]
     description: str
+    family: str | None = None
+    method_id: str | None = None
+    depends_on: list[str] = field(default_factory=list)
+    output_refs: list[str] = field(default_factory=list)
+    expected_output: dict[str, Any] | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a JSON-serializable dictionary for the step."""
+        return asdict(self)
+
+
+@dataclass(slots=True)
+class PlanInput:
+    input_id: str
+    kind: str
+    ref: str
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a JSON-serializable dictionary for the plan input."""
+        return asdict(self)
 
 
 @dataclass(slots=True)
@@ -104,6 +126,17 @@ class AnalysisPlan:
     rationale: str
     steps: list[PlanStep] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    plan_id: str | None = None
+    version: str = "saida.plan.v2"
+    dataset_refs: list[str] = field(default_factory=list)
+    inputs: list[PlanInput] = field(default_factory=list)
+    expected_result_name: str | None = None
+    expected_result_shape: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a JSON-serializable dictionary for the plan."""
+        return asdict(self)
 
 
 @dataclass(slots=True)

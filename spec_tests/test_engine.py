@@ -265,6 +265,8 @@ def test_engine_exposes_current_capabilities() -> None:
 
     assert capabilities == {
         "analyze": True,
+        "plan": True,
+        "execute_plan": True,
         "profile": True,
         "load_context": True,
         "train": False,

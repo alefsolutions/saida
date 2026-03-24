@@ -176,10 +176,16 @@ class ResultCanonicalizer:
         operations = [
             {
                 "step_id": step.step_id,
+                "family": step.family,
+                "method_id": step.method_id,
                 "tool_family": step.tool_family,
                 "action": step.action,
+                "depends_on": list(step.depends_on),
+                "output_refs": list(step.output_refs),
+                "expected_output": dict(step.expected_output) if step.expected_output is not None else None,
                 "description": step.description,
                 "parameters": dict(step.parameters),
+                "metadata": dict(step.metadata),
             }
             for step in plan.steps
         ]
@@ -213,9 +219,15 @@ class ResultCanonicalizer:
             },
             "execution": {
                 "status": self._resolve_status(plan),
+                "plan_id": plan.plan_id,
+                "plan_version": plan.version,
                 "tool_families": sorted({step.tool_family for step in plan.steps}),
                 "rationale": plan.rationale,
                 "step_count": len(plan.steps),
+                "dataset_refs": list(plan.dataset_refs),
+                "inputs": [asdict(plan_input) for plan_input in plan.inputs],
+                "expected_result_name": plan.expected_result_name,
+                "expected_result_shape": plan.expected_result_shape,
                 "steps": operations,
             },
             "result": primary_result,
@@ -242,6 +254,8 @@ class ResultCanonicalizer:
                 },
                 "prompt_family": request.prompt_family,
                 "capability_contract_status": capability_contract.status if capability_contract is not None else None,
+                "plan_id": plan.plan_id,
+                "plan_version": plan.version,
                 "plan_warnings": list(plan.warnings),
                 "warning_count": len(warnings),
                 "metrics": [asdict(metric) for metric in metrics],
