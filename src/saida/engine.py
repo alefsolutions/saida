@@ -22,6 +22,7 @@ from saida.core import (
 from saida.exceptions import PlanningError, ReasoningError, ValidationError
 from saida.llm import BaseLlmProvider, ResponseContext, build_llm_provider
 from saida.outputs import JsonOutputAdapter, OutputInterface, SummaryFormatter, SummaryOutputAdapter
+from saida.plan_generation import LlmAssistedPlanGenerator, OpenAIPlanGenerator, RuleBasedPlanGenerator
 from saida.core.contracts import (
     AnalysisResult,
     AnalysisPlan,
@@ -69,6 +70,16 @@ class Saida:
         }
         self.result_canonicalizer = ResultCanonicalizer()
         self.llm_provider = llm_provider or build_llm_provider(self.config.llm)
+        self.rule_based_plan_generator = RuleBasedPlanGenerator(self.canonicalizer, self.plan_builder)
+        self.llm_plan_generator = (
+            OpenAIPlanGenerator(self.canonicalizer, self.plan_builder, self.llm_provider)
+            if self.llm_provider is not None and getattr(self.llm_provider, "provider_name", None) == "openai"
+            else (
+                LlmAssistedPlanGenerator(self.canonicalizer, self.plan_builder, self.llm_provider)
+                if self.llm_provider is not None
+                else None
+            )
+        )
 
     def profile(self, dataset: Dataset) -> DatasetProfile:
         """Profile a dataset deterministically."""
@@ -105,73 +116,25 @@ class Saida:
             raise ValidationError(f"No output adapter is registered for format '{output_format}'.")
         return selected_adapter.render(result)
 
+    def _generate_plan_result(
+        self,
+        question: str,
+        dataset: Dataset,
+        profile: DatasetProfile,
+    ):
+        generator = (
+            self.llm_plan_generator
+            if self.llm_plan_generator is not None and self.config.llm.use_for_prompting
+            else self.rule_based_plan_generator
+        )
+        return generator.generate(question, dataset, profile, dataset.context)
+
     def plan(self, dataset: Dataset, question: str) -> AnalysisPlan:
         """Compile a question into a canonical analysis plan without executing it."""
         self.validator.validate_dataset(dataset)
         profile = self.profile(dataset)
-        request, request_warnings, _ = self._build_request(question, dataset, profile)
-
-        capability_contract = build_prompt_capability_contract(request, profile)
-        contract_warning_messages = [
-            issue.message for issue in capability_contract.validation_issues if issue.severity != "error"
-        ]
-
-        if request.options.get("analysis_outcome") == "clarify":
-            plan = AnalysisPlan(
-                task_type="clarification",
-                rationale="Optional LLM interpretation requested clarification before planning.",
-                steps=[],
-                warnings=request_warnings,
-            )
-            return self._bind_plan_to_dataset(plan, dataset, request, profile)
-
-        if request.options.get("analysis_outcome") == "refuse":
-            plan = AnalysisPlan(
-                task_type="unavailable",
-                rationale="Optional LLM interpretation declined the request before planning.",
-                steps=[],
-                warnings=request_warnings,
-            )
-            return self._bind_plan_to_dataset(plan, dataset, request, profile)
-
-        if capability_contract.status == "unsupported_capability":
-            plan = AnalysisPlan(
-                task_type="unavailable",
-                rationale="Prompt capability contract determined the request is unsupported before planning.",
-                steps=[],
-                warnings=self._merge_warnings(request_warnings, capability_contract.warnings, contract_warning_messages),
-            )
-            return self._bind_plan_to_dataset(plan, dataset, request, profile)
-
-        if (
-            request.options.get("nlp_backend") == "llm+validation"
-            and capability_contract.status in {"supported_but_data_infeasible", "supported_but_data_insufficient"}
-        ):
-            plan = AnalysisPlan(
-                task_type="clarification",
-                rationale="Prompt capability contract requires clarification or better data support before planning.",
-                steps=[],
-                warnings=self._merge_warnings(request_warnings, capability_contract.warnings, contract_warning_messages),
-            )
-            return self._bind_plan_to_dataset(plan, dataset, request, profile)
-
-        try:
-            plan = self.plan_builder.build_plan_from_contract(capability_contract, request, profile, dataset.context)
-        except PlanningError as exc:
-            if request.options.get("nlp_backend") != "llm+validation" or not capability_contract.missing_parameters:
-                raise
-            plan = AnalysisPlan(
-                task_type="clarification",
-                rationale=(
-                    "Prompt capability contract could not be compiled into a safe deterministic plan. "
-                    f"{exc}"
-                ),
-                steps=[],
-                warnings=self._merge_warnings(request_warnings, capability_contract.warnings, contract_warning_messages),
-            )
-            return self._bind_plan_to_dataset(plan, dataset, request, profile)
-
-        plan = self._bind_plan_to_dataset(plan, dataset, request, profile)
+        generation = self._generate_plan_result(question, dataset, profile)
+        plan = self._bind_plan_to_dataset(generation.plan, dataset, generation.request, profile)
         if plan.steps:
             self.validator.validate_plan(plan)
         return plan
@@ -229,12 +192,13 @@ class Saida:
         profile = self.profile(dataset)
         trace.append(self._trace("profiling", "profile generated", {"row_count": profile.row_count}))
 
-        request, request_warnings, llm_trace_event = self._build_request(question, dataset, profile)
-        if llm_trace_event is not None:
-            trace.append(llm_trace_event)
+        generation = self._generate_plan_result(question, dataset, profile)
+        request = generation.request
+        if generation.trace_event is not None:
+            trace.append(generation.trace_event)
         trace.append(self._trace("nlp", "request normalized", {"task_type": request.task_type_hint, "target": request.target}))
 
-        capability_contract = build_prompt_capability_contract(request, profile)
+        capability_contract = generation.capability_contract
         trace.append(
             self._trace(
                 "contract",
@@ -246,123 +210,9 @@ class Saida:
             )
         )
 
-        if request.options.get("analysis_outcome") == "clarify":
-            plan = AnalysisPlan(
-                task_type="clarification",
-                rationale="Optional LLM interpretation requested clarification before planning.",
-                steps=[],
-                warnings=request_warnings,
-            )
-            plan = self._bind_plan_to_dataset(plan, dataset, request, profile)
-            summary = request.options.get("llm_message") or "We need clarification before running this analysis."
-            trace.append(self._trace("results", "clarification returned", {"summary_length": len(summary)}))
-            return self.result_canonicalizer.build_analysis_result(
-                summary,
-                None,
-                None,
-                "deterministic",
-                [],
-                [],
-                self._merge_warnings(request_warnings, capability_contract.warnings),
-                plan,
-                request,
-                profile,
-                trace,
-                capability_contract,
-            )
-
-        if request.options.get("analysis_outcome") == "refuse":
-            plan = AnalysisPlan(
-                task_type="unavailable",
-                rationale="Optional LLM interpretation declined the request before planning.",
-                steps=[],
-                warnings=request_warnings,
-            )
-            plan = self._bind_plan_to_dataset(plan, dataset, request, profile)
-            summary = request.options.get("llm_message") or "We are not able to provide this information at this time."
-            trace.append(self._trace("results", "refusal returned", {"summary_length": len(summary)}))
-            return self.result_canonicalizer.build_analysis_result(
-                summary,
-                None,
-                None,
-                "deterministic",
-                [],
-                [],
-                self._merge_warnings(request_warnings, capability_contract.warnings),
-                plan,
-                request,
-                profile,
-                trace,
-                capability_contract,
-            )
-
-        contract_warning_messages = [issue.message for issue in capability_contract.validation_issues if issue.severity != "error"]
-        if capability_contract.status == "unsupported_capability":
-            summary = "The request mapped to capabilities that SAIDA does not currently support."
-            plan = AnalysisPlan(
-                task_type="unavailable",
-                rationale="Prompt capability contract determined the request is unsupported before planning.",
-                steps=[],
-                warnings=self._merge_warnings(request_warnings, capability_contract.warnings, contract_warning_messages),
-            )
-            plan = self._bind_plan_to_dataset(plan, dataset, request, profile)
-            trace.append(self._trace("results", "unsupported capability returned", {"summary_length": len(summary)}))
-            return self.result_canonicalizer.build_analysis_result(
-                summary,
-                None,
-                None,
-                "deterministic",
-                [],
-                [],
-                self._merge_warnings(request_warnings, capability_contract.warnings, contract_warning_messages),
-                plan,
-                request,
-                profile,
-                trace,
-                capability_contract,
-            )
-
-        if (
-            request.options.get("nlp_backend") == "llm+validation"
-            and capability_contract.status in {"supported_but_data_infeasible", "supported_but_data_insufficient"}
-        ):
-            summary = self._contract_guidance_message(capability_contract)
-            plan = AnalysisPlan(
-                task_type="clarification",
-                rationale="Prompt capability contract requires clarification or better data support before planning.",
-                steps=[],
-                warnings=self._merge_warnings(request_warnings, capability_contract.warnings, contract_warning_messages),
-            )
-            plan = self._bind_plan_to_dataset(plan, dataset, request, profile)
-            trace.append(self._trace("results", "contract clarification returned", {"summary_length": len(summary)}))
-            return self.result_canonicalizer.build_analysis_result(
-                summary,
-                None,
-                None,
-                "deterministic",
-                [],
-                [],
-                self._merge_warnings(request_warnings, capability_contract.warnings, contract_warning_messages),
-                plan,
-                request,
-                profile,
-                trace,
-                capability_contract,
-            )
-
-        try:
-            plan = self.plan_builder.build_plan_from_contract(capability_contract, request, profile, dataset.context)
-        except PlanningError as exc:
-            if request.options.get("nlp_backend") != "llm+validation" or not capability_contract.missing_parameters:
-                raise
-            summary = self._contract_guidance_message(capability_contract, fallback_message=str(exc))
-            plan = AnalysisPlan(
-                task_type="clarification",
-                rationale="Prompt capability contract could not be compiled into a safe deterministic plan.",
-                steps=[],
-                warnings=self._merge_warnings(request_warnings, capability_contract.warnings, contract_warning_messages),
-            )
-            plan = self._bind_plan_to_dataset(plan, dataset, request, profile)
+        plan = self._bind_plan_to_dataset(generation.plan, dataset, request, profile)
+        if generation.terminal_summary is not None:
+            summary = generation.terminal_summary
             trace.append(self._trace("results", "planning clarification returned", {"summary_length": len(summary)}))
             return self.result_canonicalizer.build_analysis_result(
                 summary,
@@ -371,7 +221,11 @@ class Saida:
                 "deterministic",
                 [],
                 [],
-                self._merge_warnings(request_warnings, capability_contract.warnings, contract_warning_messages),
+                self._merge_warnings(
+                    generation.request_warnings,
+                    capability_contract.warnings,
+                    generation.contract_warning_messages,
+                ),
                 plan,
                 request,
                 profile,
@@ -379,7 +233,6 @@ class Saida:
                 capability_contract,
             )
 
-        plan = self._bind_plan_to_dataset(plan, dataset, request, profile)
         return self._execute_prepared_plan(
             dataset=dataset,
             question=question,
@@ -390,9 +243,9 @@ class Saida:
             capability_contract=capability_contract,
             warning_groups=(
                 profile.warnings,
-                request_warnings,
+                generation.request_warnings,
                 capability_contract.warnings,
-                contract_warning_messages,
+                generation.contract_warning_messages,
             ),
         )
 
