@@ -23,7 +23,7 @@ def test_engine_plan_builds_bound_vnext_plan() -> None:
     assert plan.expected_result_shape == "scalar"
     assert plan.metadata["dataset_name"] == dataset.name
     assert plan.metadata["request_snapshot"]["question"] == "How many rows do we have?"
-    assert plan.steps[0].family == "row_count"
+    assert plan.steps[0].family == "aggregation_grouping"
     assert plan.steps[0].method_id == "row_count"
     assert plan.steps[0].output_refs == ["row_count"]
     assert plan.steps[0].metadata["execution_order"] == 1
@@ -136,7 +136,7 @@ def test_analysis_plan_to_dict_contains_vnext_contract_fields() -> None:
                 action="row_count",
                 parameters={},
                 description="Count rows.",
-                family="row_count",
+                family="aggregation_grouping",
                 method_id="row_count",
                 output_refs=["row_count"],
             )
@@ -154,6 +154,6 @@ def test_analysis_plan_to_dict_contains_vnext_contract_fields() -> None:
     assert payload["version"] == "saida.plan.v2"
     assert payload["dataset_refs"] == ["support"]
     assert payload["inputs"][0]["input_id"] == "primary_dataset"
-    assert payload["steps"][0]["family"] == "row_count"
+    assert payload["steps"][0]["family"] == "aggregation_grouping"
     assert payload["steps"][0]["output_refs"] == ["row_count"]
     assert payload["expected_result_shape"] == "scalar"

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pandas as pd
 
+from saida.core.analytics_registry import get_analytics_registry
 from saida.exceptions import PlanningError, ValidationError
 from saida.core.contracts import AnalysisPlan, Dataset
 
@@ -29,6 +30,7 @@ class PlanValidator:
         if not plan.steps:
             raise PlanningError("Analysis plan contains no executable steps.")
 
+        analytics_registry = get_analytics_registry()
         seen_step_ids: set[str] = set()
         duplicate_step_ids: list[str] = []
         for step in plan.steps:
@@ -45,6 +47,14 @@ class PlanValidator:
                 raise PlanningError(f"Plan step {step.step_id!r} parameters must be a dictionary.")
             if step.method_id is not None and not step.method_id.strip():
                 raise PlanningError(f"Plan step {step.step_id!r} has an empty method_id.")
+            method_id = step.method_id or step.action
+            method_spec = analytics_registry.get_method(method_id)
+            if method_spec is None:
+                raise PlanningError(f"Plan step {step.step_id!r} references unknown analytics method {method_id!r}.")
+            if step.family is not None and step.family != method_spec.family_id:
+                raise PlanningError(
+                    f"Plan step {step.step_id!r} declares family {step.family!r}, expected {method_spec.family_id!r}."
+                )
             if len(step.output_refs) != len(set(step.output_refs)):
                 raise PlanningError(f"Plan step {step.step_id!r} contains duplicate output_refs.")
             if step.step_id in step.depends_on:

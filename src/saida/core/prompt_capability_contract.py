@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from saida.core.analytics_registry import get_analytics_registry
 from saida.core.capability_registry import CapabilityRegistry, build_default_capability_registry
 from saida.core.contracts import AnalysisRequest, DatasetProfile
 from saida.core.prompt_family_catalog import (
@@ -127,6 +128,8 @@ class PromptCapabilityContract:
     task_type_hint: str | None = None
     intent_name: str | None = None
     family_spec: dict[str, Any] | None = None
+    analytics_family_ids: list[str] = field(default_factory=list)
+    analytics_method_ids: list[str] = field(default_factory=list)
     candidate_capabilities: list[CapabilityActivation] = field(default_factory=list)
     selected_capabilities: list[str] = field(default_factory=list)
     resolved_parameters: list[ResolvedParameter] = field(default_factory=list)
@@ -157,6 +160,8 @@ class PromptCapabilityContract:
             "task_type_hint": self.task_type_hint,
             "intent_name": self.intent_name,
             "family_spec": dict(self.family_spec or {}) if self.family_spec is not None else None,
+            "analytics_family_ids": list(self.analytics_family_ids),
+            "analytics_method_ids": list(self.analytics_method_ids),
             "candidate_capabilities": [
                 {
                     "capability_id": candidate.capability_id,
@@ -216,8 +221,17 @@ def build_prompt_capability_contract(
 
     active_registry = registry or build_default_capability_registry()
     active_family_catalog = family_catalog or get_prompt_family_catalog()
+    active_analytics_registry = get_analytics_registry()
     prompt_family = request.prompt_family or derive_prompt_family(request, active_family_catalog)
     family_spec = active_family_catalog.get(prompt_family)
+    analytics_method_ids = _resolve_analytics_methods(request, family_spec)
+    analytics_family_ids = sorted(
+        {
+            family_id
+            for family_id in (active_analytics_registry.family_for_method(method_id) for method_id in analytics_method_ids)
+            if family_id is not None
+        }
+    )
     selected_capabilities = _select_capabilities(request, active_registry)
     candidate_capabilities = _build_capability_activations(request, selected_capabilities, active_registry)
     resolved_parameters = _build_resolved_parameters(request)
@@ -232,6 +246,7 @@ def build_prompt_capability_contract(
     notes: list[str] = [
         "This contract is currently a bootstrap layer derived from the normalized AnalysisRequest.",
         "The live planner is not yet compiling directly from the capability registry.",
+        "Analytics methods are now categorized through the canonical analytics family registry.",
     ]
     if prompt_family is None:
         warnings.append("No explicit prompt family was derived from the normalized request.")
@@ -263,6 +278,8 @@ def build_prompt_capability_contract(
         task_type_hint=request.task_type_hint,
         intent_name=request.intent_name,
         family_spec=family_spec.to_dict() if family_spec is not None else None,
+        analytics_family_ids=analytics_family_ids,
+        analytics_method_ids=analytics_method_ids,
         candidate_capabilities=candidate_capabilities,
         selected_capabilities=selected_capabilities,
         resolved_parameters=resolved_parameters,
@@ -328,6 +345,31 @@ def _select_capabilities(
         selected.append("forecast_series")
 
     return list(dict.fromkeys(selected))
+
+
+def _resolve_analytics_methods(
+    request: AnalysisRequest,
+    family_spec: object | None,
+) -> list[str]:
+    methods: list[str] = []
+    if family_spec is not None:
+        methods.extend(step.action for step in getattr(family_spec, "plan_steps", ()) if getattr(step, "action", None))
+        methods.extend(getattr(family_spec, "allowed_plan_actions", ()))
+    if not methods and request.intent_name == "row_count":
+        methods.append("row_count")
+    if not methods and request.intent_name == "distinct_values":
+        methods.append("distinct_values")
+    if not methods and request.intent_name == "distinct_value_count":
+        methods.append("distinct_value_count")
+    if not methods and request.intent_name == "tabular_query":
+        methods.append("tabular_query")
+    if not methods and request.intent_name == "grouped_tabular_query":
+        methods.append("grouped_tabular_query")
+    if not methods and request.intent_name == "time_period_comparison":
+        methods.append("period_comparison")
+    if request.task_type_hint == "forecasting":
+        methods.append("forecast")
+    return list(dict.fromkeys(methods))
 
 
 def _build_capability_activations(

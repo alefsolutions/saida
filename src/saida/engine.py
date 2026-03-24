@@ -12,6 +12,7 @@ from saida.core import (
     InputCanonicalizer,
     PlanBuilder,
     PlanValidator,
+    get_analytics_registry,
     ResultCanonicalizer,
     SchemaDiscoveryService,
     SourceContextParser,
@@ -830,6 +831,7 @@ class Saida:
         request: AnalysisRequest,
         profile: DatasetProfile,
     ) -> AnalysisPlan:
+        analytics_registry = get_analytics_registry()
         if not plan.dataset_refs:
             plan.dataset_refs = [dataset.name]
         elif dataset.name not in set(plan.dataset_refs):
@@ -869,10 +871,16 @@ class Saida:
             plan.expected_result_shape = self._infer_expected_result_shape(request, plan)
 
         for index, step in enumerate(plan.steps, start=1):
+            method_id = step.method_id or step.action
+            method_spec = analytics_registry.get_method(method_id)
             if step.family is None:
-                step.family = request.prompt_family or request.intent_name or plan.task_type
+                step.family = (
+                    method_spec.family_id
+                    if method_spec is not None
+                    else request.prompt_family or request.intent_name or plan.task_type
+                )
             if step.method_id is None:
-                step.method_id = step.action
+                step.method_id = method_id
             if not step.output_refs:
                 step.output_refs = [step.step_id]
             if step.expected_output is None:
@@ -1155,21 +1163,11 @@ class Saida:
         return None
 
     def _infer_step_expected_output(self, step: object) -> dict[str, object] | None:
-        if step.action == "row_count":
-            return {"output_id": step.step_id, "logical_shape": "count", "physical_shape": "scalar"}
-        if step.action == "aggregate_value":
-            return {"output_id": step.step_id, "logical_shape": "aggregate", "physical_shape": "scalar"}
-        if step.action in {
-            "row_existence",
-            "time_value_exists",
-            "null_check",
-            "threshold_check",
-            "column_property_check",
-            "column_presence_check",
-        }:
-            return {"output_id": step.step_id, "logical_shape": "verification", "physical_shape": "recordset"}
-        if step.tool_family in {"metadata", "duckdb", "stats"}:
-            return {"output_id": step.step_id, "logical_shape": "table", "physical_shape": "recordset"}
+        method_spec = get_analytics_registry().get_method(step.method_id or step.action)
+        if method_spec is not None and method_spec.output_shapes:
+            logical_shape = method_spec.output_shapes[0]
+            physical_shape = "scalar" if logical_shape in {"scalar", "count", "aggregate"} else "recordset"
+            return {"output_id": step.step_id, "logical_shape": logical_shape, "physical_shape": physical_shape}
         return None
 
     def _string_or_none(self, value: object) -> str | None:

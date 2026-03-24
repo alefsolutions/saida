@@ -1,5 +1,12 @@
 """Core canonicalization, contracts, validation, routing, and result normalization."""
 
+from saida.core.analytics_registry import (
+    AnalyticsFamilySpec,
+    AnalyticsMethodSpec,
+    AnalyticsRegistry,
+    build_default_analytics_registry,
+    get_analytics_registry,
+)
 from saida.core.capability_registry import (
     CapabilityEdge,
     CapabilityNode,
@@ -61,7 +68,11 @@ __all__ = [
     "AnalysisPlanner",
     "AnalysisRequest",
     "AnalysisResult",
+    "AnalyticsFamilySpec",
+    "AnalyticsMethodSpec",
+    "AnalyticsRegistry",
     "BackendRouter",
+    "build_default_analytics_registry",
     "build_default_capability_registry",
     "build_default_prompt_family_catalog",
     "build_prompt_capability_contract",
@@ -79,6 +90,7 @@ __all__ = [
     "ForecastAnalysisResult",
     "ForecastResult",
     "get_capability_contract",
+    "get_analytics_registry",
     "get_capability_registry",
     "get_prompt_family_catalog",
     "InputCanonicalizer",
