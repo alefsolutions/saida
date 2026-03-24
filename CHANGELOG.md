@@ -10,30 +10,50 @@ Quick links: [Main README](./README.md) | [Architecture](./ARCHITECTURE.md) | [L
 
 ### Changed
 
-- The active root documentation set now explicitly identifies the SAIDA 0.2.0 direction.
-- SAIDA documentation has been realigned around the 0.2.0 architecture reset.
-- `ARCHITECTURE.md` is now treated as the primary source of truth for the framework direction.
-- Repo docs now describe SAIDA as a canonical analytics framework built around `AnalysisPlan` and `AnalyticalResult`.
-- Added first-class schema metadata question support for column types, numeric columns, categorical columns, missing values, identifiers, and high-cardinality columns.
-- Added metadata result tables and summaries for typed schema questions in the 0.2.0 prototype.
-- Added richer time-derived grouping and comparison support across year, month, and quarter buckets.
-- Added deterministic adjacent-period comparison support for month, quarter, and year prompts in the 0.2.0 prototype.
-- Added broader boolean verification support for null checks, completeness checks, threshold checks, range checks, and column-property checks.
-- Added canonical verification result tables and summaries for the expanded Phase 3 prompt family in the 0.2.0 prototype.
-- Added stronger natural-language filter extraction for multi-clause inclusion, exclusion, implied flag filters, and simple year/month time filters.
-- Added canonical filter handling for richer prompt-driven slicing in the 0.2.0 prototype.
-- Added stronger typed routing guards so unsupported categorical and datetime aggregations fail clearly instead of silently falling back to a numeric measure.
-- Added stricter grouped descriptive validation to keep request routing aligned with the actual compute contract.
-- Tightened the 0.2.0 docs around the live `saida.response.v2` envelope and the self-describing primary `result` contract.
-- Added first-class natural-language tabular querying for filtered row retrieval, selected columns, grouped table outputs, sorting, limits, and pagination.
-- Added canonical tabular result handling in `saida.response.v2`, including structured pagination metadata for recordset-style outputs.
+- Reworked prompt interpretation around explicit prompt families, capability validation, and deterministic plan compilation.
+- Added a live prompt family catalog with governed and partial family invariants.
+- Added `PromptCapabilityContract` wiring to the engine and response payloads.
+- Added metadata count families including:
+  - `column_count`
+  - `numeric_column_count`
+  - `categorical_column_count`
+  - `measure_count`
+  - `dimension_count`
+  - `time_column_count`
+  - `identifier_count`
+  - `high_cardinality_count`
+- Added `distinct_value_count` as a first-class scalar family.
+- Added singular schema/property routing for:
+  - column type lookup
+  - column presence checks
+  - dimension/measure/high-cardinality property checks
+  - representation ranking results
+- Replaced the old broad “legacy metric fallback” naming with `exploratory_metric_overview` and tightened clarification/refusal boundaries for unsupported prompts.
+- Added optional LLM canonical-question condensation for prompt interpretation.
+- Added structured LLM semantic proposal fields for:
+  - `operation`
+  - `object_kind`
+  - `object_ref`
+  - `expected_result_shape`
+- Added deterministic semantic operation/object routing so prompts like `Count total rows in dataset for Q1` normalize to scalar count workflows instead of row retrieval.
+- Added richer time-filter support including:
+  - month-year filtering
+  - quarter filters
+  - recurring day-of-month filters
+  - weekday filters
+  - month-start and month-end filters
+  - recent-window filters
+  - nth-weekday-of-month filters
+- Allowed quarter-based time references in row-count planning.
+- Improved clarification UX in playground scripts and added full-response output mode for the JSON playground.
+- Strengthened prompt reproducibility, prompt acceptance, and capability-matrix testing across the current prompt family surface.
+- Updated root docs so README, architecture, API, and schema materials describe the live `0.2.x` codebase more accurately.
 
 ### Planned
 
-- Source-agnostic source adapters
-- Backend routing and adapter translation layers
-- Result canonicalization around stable analytical result contracts
-- Multi-source and multi-backend execution
+- Predictive and forecasting APIs beyond the current reserved surface
+- Deeper semantic intent modeling beyond prompt-family routing
+- Continued migration of manual family logic into stricter executable family specs
 
 ## [0.1.0] - 2026-03-02
 

@@ -1,87 +1,175 @@
 ![SAIDA Banner](assets/github-banner.png)
 
-# SAIDA Planned API Usage
+# SAIDA API Usage
 
-This document describes the planned API usage direction for SAIDA 0.2.0.
+This document describes the live public Python surface in the current SAIDA codebase.
 
-`ARCHITECTURE.md` is the source of truth.
+If you want the high-level system design, see [ARCHITECTURE.md](./ARCHITECTURE.md).
 
-Important:
+## Main Entry Point
 
-- this file describes the intended public API direction
-- it does not guarantee that every example shown here is implemented yet
-- treat it as a planning document, not the current implementation contract
-
-## Input Modes
-
-SAIDA should accept three primary input styles:
-
-- prompt input
-- API input
-- direct JSON plan input
-
-Examples:
+The main public object is:
 
 ```python
-# Prompt style
-saida.analyze(prompt="Why did revenue drop in March?")
-
-# API payload style
-saida.execute(payload)
-
-# Direct plan style
-saida.execute_plan(plan)
+from saida import Saida
 ```
 
-## Canonical Flow
+The live primary workflow is:
 
-All supported input styles should normalize into the same internal contract:
-
-- `AnalysisPlan`
-
-All outputs should normalize into:
-
-- `AnalyticalResult`
-
-That means the public surface should converge on:
-
-- one plan model
-- one result model
-- many adapters and execution backends behind them
-
-## Example API Payload
-
-Example human-readable payload:
-
-```json
-{
-  "input_type": "prompt",
-  "prompt": "Show revenue by region"
-}
+```python
+result = Saida().analyze(dataset, question)
 ```
 
-Example direct-plan payload:
+## Public Methods
 
-```json
-{
-  "input_type": "plan",
-  "plan": {
-    "task_type": "descriptive",
-    "steps": [
-      {
-        "tool_family": "duckdb",
-        "action": "group_aggregate"
-      }
-    ]
-  }
-}
+### `Saida().analyze(dataset, question)`
+
+Runs the full prompt-to-analysis workflow and returns an `AnalysisResult`.
+
+Use this for:
+
+- prompt-driven analytics
+- schema questions
+- grouped summaries
+- tabular retrieval
+- verification checks
+- time-oriented analysis
+- statistical workflows
+
+### `Saida().profile(dataset)`
+
+Returns a deterministic `DatasetProfile`.
+
+Use this when you want to inspect:
+
+- row count
+- column count
+- measure columns
+- dimension columns
+- time columns
+- identifier columns
+- profile warnings
+
+### `Saida().capabilities()`
+
+Returns the currently available public capabilities.
+
+Typical use:
+
+```python
+engine = Saida()
+print(engine.capabilities())
 ```
 
-## Example Result Shape
+This reports whether prompt analysis, context loading, prompt capability contracts, optional LLM use, and reserved ML APIs are available.
 
-All results should return a canonical analytical result that includes enough structure to be interpreted without external context.
+### `Saida().load_context(markdown)`
 
-The current 0.2.0 prototype returns `saida.response.v2` with:
+Parses a markdown context file into a `SourceContext`.
+
+Use this when you want to attach business definitions, caveats, trusted date fields, identifiers, or freshness notes to a dataset.
+
+### Reserved APIs
+
+These methods exist, but they are not the current core product surface:
+
+- `train(dataset, target, problem_type="regression", feature_columns=None)`
+- `predict(dataset, artifact_path)`
+- `forecast(dataset, target, horizon=3)`
+
+Treat them as reserved ML-facing API surface, not the main stable feature area today.
+
+## Loading Data
+
+SAIDA currently ships source loaders for:
+
+- CSV
+- Excel
+- JSON
+- pandas
+- SQL
+
+### CSV Example
+
+```python
+from saida import Saida
+from saida.sources import CSVSource
+
+dataset = CSVSource(
+    "examples/datasets/support_tickets_500.csv",
+    context_path="examples/contexts/support_tickets_500.md",
+).load()
+
+engine = Saida()
+result = engine.analyze(dataset, "How many tickets were created by quarter?")
+
+print(result.summary)
+print(result.response["result"])
+```
+
+### pandas Example
+
+```python
+import pandas as pd
+
+from saida import Saida
+from saida.sources import PandasSource
+
+df = pd.DataFrame(
+    {
+        "created_at": ["2026-01-01", "2026-02-01", "2026-03-01"],
+        "revenue": [100.0, 120.0, 80.0],
+        "region": ["West", "West", "East"],
+    }
+)
+
+dataset = PandasSource(df, name="sales").load()
+result = Saida().analyze(dataset, "Show revenue by month")
+
+print(result.response["interpretation"]["prompt_family"])
+print(result.response["tables"])
+```
+
+### JSON Example
+
+```python
+from saida import Saida
+from saida.sources import JSONSource
+
+dataset = JSONSource("examples/datasets/support_tickets_500.json").load()
+result = Saida().analyze(dataset, "What are the columns in the dataset?")
+
+print(result.response["result"]["name"])
+```
+
+## What `analyze()` Returns
+
+`analyze()` returns an `AnalysisResult` object.
+
+Important attributes:
+
+- `summary`
+- `deterministic_summary`
+- `llm_summary`
+- `summary_source`
+- `metrics`
+- `tables`
+- `warnings`
+- `plan`
+- `trace`
+- `artifacts`
+- `response`
+
+Most application code will use either:
+
+- `result.response`
+- or `result.to_response_dict()`
+
+## Response Envelope
+
+The live JSON contract is `saida.response.v2`.
+
+Top-level fields:
 
 - `schema_version`
 - `status`
@@ -96,110 +184,170 @@ The current 0.2.0 prototype returns `saida.response.v2` with:
 - `errors`
 - `meta`
 
-The current primary `result` object includes:
+### Useful Interpretation Fields
 
-- `physical_shape`
-- `logical_shape`
-- `dtype`
-- `schema`
-- `dimensions`
-- `row_count`
-- `labels`
-- `pagination`
-- `metadata`
-- `value`
+The `interpretation` block includes the current normalized routing state:
 
-## Output Formats
+- `prompt_family`
+- `intent_name`
+- `semantic_intent`
+- `task_type`
+- `target`
+- `aggregation`
+- `group_by`
+- `filters`
+- `time_reference`
+- `options`
+- `capability_contract`
 
-The output layer should support formatting canonical results into:
+Example:
 
-- JSON
-- CSV
-- Excel
-- XML
-- SQL
+```python
+payload = result.to_response_dict()
 
-The output formatter should not redefine meaning.
-It should only transform the canonical result into a delivery format.
+print(payload["interpretation"]["prompt_family"])
+print(payload["interpretation"]["semantic_intent"])
+print(payload["interpretation"]["capability_contract"]["status"])
+```
 
-## LLM Usage
+## Common Result Access Patterns
 
-LLMs are optional.
+### Primary Scalar Result
 
-Allowed:
+```python
+result = Saida().analyze(dataset, "How many rows are in Q1?")
+payload = result.to_response_dict()
 
-- input assistance
-- plan drafting
-- output wording
+print(payload["result"]["name"])
+print(payload["result"]["value"])
+```
 
-Not allowed:
+### Primary Table Result
 
-- direct execution
-- silent fact generation
-- bypassing validation
+```python
+result = Saida().analyze(dataset, "What are the data types of each field?")
+payload = result.to_response_dict()
 
-## Current Prototype Note
+print(payload["result"]["name"])
+print(payload["result"]["row_count"])
+print(payload["result"]["value"][:3])
+```
 
-The current 0.2.0 prototype already supports prompt-driven schema metadata requests before the planned public API surface is finalized.
+### Inspect Supporting Tables
 
-Examples that work today include:
+```python
+result = Saida().analyze(dataset, "Show revenue by region")
 
-- `What are the data types of each field or column?`
-- `Which columns are numeric?`
-- `Which columns are categorical?`
-- `Which columns have missing values?`
-- `Which columns are likely identifiers?`
-- `Which columns have many unique values?`
+for table in result.tables:
+    print(table.name, table.dataframe.head())
+```
 
-The current prototype also already supports richer time-derived prompts such as:
+### Inspect the Deterministic Plan
 
-- `How many tickets were created by quarter?`
-- `Show revenue by month`
-- `Show revenue by quarter`
-- `Compare revenue this quarter to last quarter`
-- `Compare revenue this year to last year`
+```python
+result = Saida().analyze(dataset, "Count total rows in dataset for Q1")
 
-The current prototype also already supports boolean verification prompts such as:
+for step in result.plan.steps:
+    print(step.step_id, step.tool_family, step.action, step.parameters)
+```
 
-- `Does csat_score have missing values?`
-- `Is csat_score complete?`
-- `Are any resolution hours above 20?`
-- `Does csat_score fall between 3 and 5?`
-- `Is revenue numeric?`
-- `Is created_at a datetime field?`
-- `Is ticket_id likely an identifier?`
+### Inspect Internal Artifacts
 
-The current prototype also already supports stronger filter-oriented prompts such as:
+```python
+result = Saida().analyze(dataset, "Count total unique team values in dataset")
 
-- `Show revenue for West SMB`
-- `Only reopened tickets`
-- `Exclude reopened tickets`
-- `What is the total revenue for West in 2026?`
-- `What is the total revenue for West in March?`
+print(result.artifacts["request"])
+print(result.artifacts["prompt_capability_contract"])
+```
 
-The current prototype also already applies stronger typed routing guards so prompts like:
+## Optional LLM Usage
 
-- `What is the average region?`
-- `What is the highest posted_at?`
+SAIDA can optionally use an LLM for:
 
-do not silently fall back to a numeric measure when the requested target type is incompatible with the requested computation.
+- prompt interpretation
+- canonical prompt condensation
+- semantic operation/object proposals
+- final response wording
 
-The current prototype also already supports tabular discovery prompts such as:
+This is configured through `SaidaConfig`.
 
-- `Give me the list of all rows in dataset that have their tickets marked as reopened.`
+Example:
+
+```python
+from saida import Saida
+from saida.config import SaidaConfig, LlmConfig
+
+config = SaidaConfig(
+    llm=LlmConfig(
+        enabled=True,
+        provider="openai",
+        model="gpt-5.4-mini",
+        use_for_prompting=True,
+        use_for_reasoning=False,
+    )
+)
+
+engine = Saida(config=config)
+```
+
+Important:
+
+- the LLM can help interpret prompts
+- the LLM does not directly execute analysis
+- deterministic validation still decides whether the request is safe and supported
+
+## Live Capability Areas
+
+The current codebase supports live prompt-driven workflows including:
+
+- schema inventories
+- metadata counts
+- scalar aggregates
+- grouped counts and grouped metric tables
+- distinct value listing and counting
+- row retrieval with sorting and pagination
+- verification prompts
+- ranking prompts
+- time coverage, time buckets, and period comparison
+- recurring and calendar-aware time filters
+- several statistical workflows
+
+## Clarify And Refuse Behavior
+
+You should expect `status` to be one of:
+
+- `ok`
+- `clarify`
+- `refuse`
+
+This is intentional.
+
+If SAIDA cannot safely interpret a prompt, it may clarify or refuse instead of guessing.
+
+## Prompt Examples That Work Well
+
+- `How many rows are in Q1?`
+- `What are the columns in the dataset?`
+- `What is the data type of created_at?`
+- `How many unique team values are there?`
+- `Give me total tickets per channel.`
 - `Show ticket_id and priority rows sorted by created_at`
-- `Return first 5 rows page 2 page size 2 sorted by created_at`
-- `Show revenue by region as table`
+- `Does created_at exist as a column?`
+- `Is csat_score numeric?`
+- `Show all tickets created on the first Monday of every month`
 
-These prompts now return canonical recordset or grouped-table results with deterministic filters, selected columns, sorting, limits, and pagination metadata that can be consumed directly by APIs and BI-style frontends.
+## Design Guidance For Developers
 
-## Design Rule
+When building on top of SAIDA:
 
-The API surface should stay thin.
+- prefer reading `result.response` for app integration
+- use `result.plan` and `result.artifacts` for debugging
+- use `result.response["interpretation"]` when you need explainability
+- treat `train`, `predict`, and `forecast` as reserved APIs for now
 
-The important boundary is not the transport layer.
-The important boundary is:
+In practice, the stable developer surface today is:
 
-- input -> canonical plan
-- execution -> backend adapters
-- output -> canonical result
+- `Dataset`
+- `Saida`
+- `AnalysisResult`
+- `saida.response.v2`

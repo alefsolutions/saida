@@ -1,55 +1,211 @@
 ![SAIDA Banner](assets/github-banner.png)
 
-# SAIDA 0.2.0 Schema Spec
+# SAIDA Schema Spec
 
-This document summarizes the canonical contracts defined for **SAIDA 0.2.0**.
+This document summarizes the live canonical contracts used by the current SAIDA codebase.
 
-`ARCHITECTURE.md` is the source of truth.
+If you want the system flow, see [ARCHITECTURE.md](./ARCHITECTURE.md).
 
-## Primary Contracts
+## Main Live Contracts
 
-The architecture centers on two primary contracts:
+The current runtime is centered on these core objects:
 
+- `Dataset`
+- `DatasetProfile`
+- `AnalysisRequest`
+- `PromptCapabilityContract`
 - `AnalysisPlan`
-- `AnalyticalResult`
+- `AnalysisResult`
 
-## AnalysisPlan
+## `Dataset`
 
-`AnalysisPlan` is the canonical input to execution.
+`Dataset` is the engine input after loading through a source adapter.
 
-It should be:
+Fields:
 
-- structured
-- deterministic
-- multi-step
+- `name`
+- `source_type`
+- `data`
+- `metadata`
+- `context`
 
-Typical responsibilities of the plan:
+`context` is optional and holds parsed markdown business context.
 
-- describe task type
-- describe steps
-- describe intended meaning independent of backend
+## `DatasetProfile`
 
-## AnalyticalResult
+`DatasetProfile` is the deterministic schema-and-surface understanding of a dataset.
 
-`AnalyticalResult` is the canonical output of the framework.
+Fields include:
 
-It must include:
+- `dataset_name`
+- `row_count`
+- `column_count`
+- `columns`
+- `measure_columns`
+- `dimension_columns`
+- `time_columns`
+- `identifier_columns`
+- `duplicate_row_count`
+- `warnings`
+- `ml_readiness`
 
-- a standardized response envelope
-- a self-describing primary `result`
-- optional secondary `tables`
-- metadata and execution trace information
+This profile is used heavily by normalization, validation, and planning.
 
-The result must be self-describing enough to travel across:
+## `AnalysisRequest`
 
-- APIs
-- UIs
-- plugins
-- output formatters
+`AnalysisRequest` is the normalized analytical request produced before planning.
 
-## Current Prototype Envelope
+Live fields:
 
-The current 0.2.0 prototype returns `saida.response.v2` with these top-level fields:
+- `question`
+- `prompt_family`
+- `intent_name`
+- `task_type_hint`
+- `target`
+- `aggregation`
+- `horizon`
+- `filters`
+- `group_by`
+- `time_reference`
+- `options`
+
+### Request Semantics
+
+Important distinctions in the live code:
+
+- `target` is not a generic "all referenced columns" field
+- row-level tabular retrieval typically carries selected fields in `options["selected_columns"]`
+- `group_by` is `None` internally when no grouping is resolved
+- `filters` and `time_reference` are optional and may be absent internally
+
+### Rich `options`
+
+The `options` dictionary carries many request-level extensions, including:
+
+- `selected_columns`
+- `sort_by`
+- `sort_direction`
+- `limit`
+- `page`
+- `page_size`
+- `ranking_direction`
+- `ranking_limit`
+- `statistical_test`
+- `comparison_columns`
+- `feature_columns`
+- `regression_target`
+- `canonical_question`
+- `canonical_question_used`
+- `prompt_family_hint`
+- `llm_confidence`
+- `semantic_intent`
+- `analysis_outcome`
+- `llm_message`
+
+### `semantic_intent`
+
+The live request contract can now carry a semantic intent object in `options["semantic_intent"]`.
+
+This is used to express operation/object semantics such as:
+
+- `operation`
+- `object_kind`
+- `object_ref`
+- `expected_result_shape`
+- `source`
+
+Example:
+
+```json
+{
+  "operation": "count",
+  "object_kind": "rows",
+  "expected_result_shape": "count",
+  "source": "rules"
+}
+```
+
+## `PromptCapabilityContract`
+
+`PromptCapabilityContract` is the structured bridge between prompt interpretation and deterministic planning.
+
+It captures:
+
+- `question`
+- `dataset_name`
+- `status`
+- `prompt_family`
+- `task_type_hint`
+- `intent_name`
+- `family_spec`
+- `candidate_capabilities`
+- `selected_capabilities`
+- `resolved_parameters`
+- `missing_parameters`
+- `unsupported_capabilities`
+- `ambiguity_flags`
+- `validation_issues`
+- `data_feasibility`
+- `warnings`
+- `notes`
+
+Representative contract statuses include:
+
+- `supported_and_data_feasible`
+- `supported_but_data_infeasible`
+- `supported_but_data_insufficient`
+- `unsupported_capability`
+
+## `AnalysisPlan`
+
+`AnalysisPlan` is the canonical executable plan.
+
+Fields:
+
+- `task_type`
+- `rationale`
+- `steps`
+- `warnings`
+
+Each `PlanStep` includes:
+
+- `step_id`
+- `tool_family`
+- `action`
+- `parameters`
+- `description`
+
+## `AnalysisResult`
+
+`AnalysisResult` is the main output object returned by `Saida.analyze()`.
+
+Fields:
+
+- `summary`
+- `deterministic_summary`
+- `llm_summary`
+- `summary_source`
+- `metrics`
+- `tables`
+- `warnings`
+- `plan`
+- `trace`
+- `artifacts`
+- `response`
+
+The portable JSON contract is stored in `response` and exposed through:
+
+```python
+result.to_response_dict()
+```
+
+## Live JSON Envelope
+
+The live schema version is:
+
+- `saida.response.v2`
+
+Top-level envelope fields:
 
 - `schema_version`
 - `status`
@@ -64,56 +220,70 @@ The current 0.2.0 prototype returns `saida.response.v2` with these top-level fie
 - `errors`
 - `meta`
 
-## Shape Requirements
+## `request` Block
 
-The architecture names these output shapes as first-class:
+The top-level `request` block currently includes:
 
-- scalar
-- vector
-- table
-- matrix
-- timeseries
-- distribution
-- spatial
+- `question`
+- `dataset.name`
 
-The live 0.2.0 prototype currently emits these physical shapes in `AnalysisResult`:
+It is intentionally compact and user-facing.
 
-- `scalar`
-- `vector`
-- `object`
-- `recordset`
+## `interpretation` Block
 
-The live 0.2.0 prototype currently emits these logical shapes in `AnalysisResult`:
+The `interpretation` block is the most important explainability surface.
 
-- `empty`
-- `scalar`
-- `count`
-- `aggregate`
-- `table`
-- `recordset`
-- `timeseries`
-- `verification`
-- `distribution`
-- `correlation_matrix`
-- `statistical_test`
+Current fields:
 
-Important:
+- `prompt_family`
+- `intent_name`
+- `semantic_intent`
+- `task_type`
+- `target`
+- `aggregation`
+- `group_by`
+- `filters`
+- `time_reference`
+- `horizon`
+- `options`
+- `capability_contract`
 
-- the architecture may name broader future shapes
-- the live code currently emits only the physical and logical shapes listed above
+Important normalization note:
 
-## Result Normalization
+- `group_by` is emitted as `[]` in response JSON when no grouping is present
+- `filters` is emitted as `{}`
+- `time_reference` is emitted as `{}`
 
-Backend-specific output should never leak directly as the public contract.
+That JSON canonicalization is intentional even when the internal request uses `None`.
 
-Instead, SAIDA should normalize backend output into canonical result form with:
+## `execution` Block
 
-- stable shape
-- stable schema
-- stable type information
+The `execution` block summarizes the deterministic plan that ran.
 
-The current primary `result` object is normalized with:
+Fields:
 
+- `status`
+- `tool_families`
+- `rationale`
+- `step_count`
+- `steps`
+
+Each step entry includes:
+
+- `step_id`
+- `tool_family`
+- `action`
+- `description`
+- `parameters`
+
+## Primary `result` Object
+
+The primary `result` object is a canonical self-describing result surface.
+
+Current fields:
+
+- `name`
+- `description`
 - `physical_shape`
 - `logical_shape`
 - `dtype`
@@ -125,9 +295,34 @@ The current primary `result` object is normalized with:
 - `metadata`
 - `value`
 
-## Current Live Dtypes
+## Current Physical Shapes
 
-The live 0.2.0 prototype currently emits these top-level result dtypes:
+The live code emits these physical shapes:
+
+- `scalar`
+- `vector`
+- `object`
+- `recordset`
+
+## Current Logical Shapes
+
+The live code emits these logical shapes:
+
+- `empty`
+- `scalar`
+- `count`
+- `aggregate`
+- `table`
+- `recordset`
+- `timeseries`
+- `verification`
+- `distribution`
+- `correlation_matrix`
+- `statistical_test`
+
+## Current Dtypes
+
+Top-level result dtypes currently include:
 
 - `null`
 - `boolean`
@@ -138,7 +333,7 @@ The live 0.2.0 prototype currently emits these top-level result dtypes:
 - `object`
 - `record`
 
-For structured table schemas, the live code currently emits these column dtypes:
+Structured table schemas currently use:
 
 - `boolean`
 - `integer`
@@ -146,92 +341,25 @@ For structured table schemas, the live code currently emits these column dtypes:
 - `datetime`
 - `string`
 
-Notes:
+Non-finite numeric values are normalized to `null` in the response contract.
 
-- `scalar` results may use `null`, `boolean`, `integer`, `float`, or `string`
-- `vector` results use the dtype of the single series
-- `object` results use dtype `object`
-- `recordset` results use dtype `record`
-- non-finite numeric values such as `NaN`, `Infinity`, and `-Infinity` are normalized to `null` in the response contract
+## `tables` Block
 
-## Current Live Shape Semantics
+The `tables` block contains secondary structured outputs.
 
-The live 0.2.0 prototype uses these physical shapes with these meanings:
+Each table entry is normalized with:
 
-- `scalar`
-  - one single value
-- `vector`
-  - one-dimensional list of values from a single column
-- `object`
-  - one structured object, usually a single-row result
-- `recordset`
-  - list of row objects, typically used for tables, timeseries rows, ranked rows, and paginated record retrieval
+- name
+- description
+- canonical schema
+- row count
+- shape metadata
+- pagination metadata when relevant
+- JSON-safe row values
 
-The live 0.2.0 prototype uses these logical shapes with these meanings:
+## Pagination Contract
 
-- `empty`
-  - no primary result was produced
-- `scalar`
-  - generic single-value result
-- `count`
-  - row count or count-like scalar result
-- `aggregate`
-  - sum, mean, min, max, or similar scalar aggregate
-- `table`
-  - generic structured table result
-- `recordset`
-  - natural-language tabular retrieval output
-- `timeseries`
-  - period-based rows such as month, quarter, or year results
-- `verification`
-  - boolean or evidence-backed yes/no analytical result
-- `distribution`
-  - descriptive distribution object for a numeric target
-- `correlation_matrix`
-  - correlation-oriented result family
-- `statistical_test`
-  - inferential or test-oriented result family
-
-## Current Prototype Result Families
-
-The current 0.2.0 prototype already returns canonical table results for schema metadata questions, including:
-
-- full column type inventory
-- numeric column inventory
-- categorical column inventory
-- time column inventory
-- missing value inventory
-- identifier inventory
-- high-cardinality inventory
-
-These results are exposed through the same standardized response envelope as analytical tables.
-
-The current prototype also returns canonical time-series result families for:
-
-- time bucket counts by year, month, and quarter
-- time bucket breakdowns for numeric targets by year, month, and quarter
-- adjacent period comparisons across month, quarter, and year buckets
-
-These results are normalized as canonical timeseries-style tables in the same response contract.
-
-The current prototype also returns canonical verification result families for:
-
-- time-value existence checks
-- filtered row existence checks
-- null and completeness checks
-- numeric threshold and range checks
-- column-property checks such as numeric, datetime, categorical, and identifier validation
-
-These results are normalized as verification-style outputs in the same response contract.
-
-The current prototype also returns canonical tabular result families for:
-
-- filtered row retrieval
-- selected-column row retrieval
-- grouped tabular outputs
-- paginated recordset responses
-
-These results are normalized as `recordset` or `table` outputs and carry structured pagination metadata:
+Paginated tabular outputs currently expose:
 
 - `page`
 - `page_size`
@@ -240,30 +368,115 @@ These results are normalized as `recordset` or `table` outputs and carry structu
 - `has_next_page`
 - `has_previous_page`
 - `offset`
-- optional `next_page_token`
+- `next_page_token`
 
-The current prototype also accepts richer canonical filter payloads for:
+These appear in:
 
-- equality filters
-- exclusion filters
-- implied yes/no flag filters
-- simple year filters on datetime columns
-- simple month filters on datetime columns
+- `result.pagination` when the primary result is paginated
+- `result.metadata.pagination`
+- the relevant table entry metadata
 
-These filters are normalized before execution and reused across the same analytical response contract.
+## `reasoning` Block
 
-The current prototype also applies stronger typed routing rules before execution so that:
+The reasoning block contains summary-level explanation fields:
 
-- numeric aggregations require numeric targets
-- unsupported time and categorical aggregations fail at the contract boundary
-- grouped descriptive requests do not silently reuse measure-only workflows when the target type is incompatible
+- `summary`
+- `deterministic_summary`
+- `llm_summary`
+- `summary_source`
 
-## Guiding Principle
+This lets consumers distinguish:
 
-Schemas in SAIDA 0.2.0 are not just internal containers.
+- deterministic wording
+- optional LLM wording
+- final chosen summary source
 
-They are the formal contract that separates:
+## `history` Block
 
-- meaning
-- execution
-- presentation
+`history` is the execution trace.
+
+Each event includes:
+
+- `stage`
+- `message`
+- `payload`
+
+Typical stages include:
+
+- adapter
+- context
+- profiling
+- llm
+- nlp
+- contract
+- planning
+- compute
+- results
+
+## `meta` Block
+
+The `meta` block carries extra inspection details, including:
+
+- dataset summary
+- prompt family
+- capability contract status
+- plan warnings
+- warning count
+- metrics
+- metric lookup
+- table names
+
+## Result Shape Examples
+
+### Count Result
+
+Example shape for row counts or metadata counts:
+
+- `physical_shape = scalar`
+- `logical_shape = count`
+- `dtype = integer`
+
+### Aggregate Result
+
+Example shape for sum/mean/min/max:
+
+- `physical_shape = scalar`
+- `logical_shape = aggregate`
+- `dtype = float` or `integer`
+
+### Verification Result
+
+Example shape for presence/null/property checks:
+
+- `physical_shape = object`
+- `logical_shape = verification`
+
+### Tabular Retrieval Result
+
+Example shape for row retrieval:
+
+- `physical_shape = recordset`
+- `logical_shape = recordset`
+
+### Time-Series Result
+
+Example shape for counts or metrics by month/quarter/year:
+
+- `physical_shape = recordset`
+- `logical_shape = timeseries`
+
+## Stability Notes
+
+The current schema is designed to be stable enough for applications to integrate with:
+
+- `result`
+- `tables`
+- `interpretation`
+- `meta`
+
+The most important public integration targets today are:
+
+- `AnalysisResult`
+- `saida.response.v2`
+
+Those are the contracts developers should treat as the live surface.
