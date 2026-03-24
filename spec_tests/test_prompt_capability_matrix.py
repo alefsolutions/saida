@@ -307,14 +307,15 @@ def test_engine_grouped_tabular_prompt_matrix(
         "expected_target",
         "expected_aggregation",
         "expected_group_by",
+        "expected_selected_columns",
         "present_table_name",
         "absent_table_name",
     ),
     [
-        ("Give me total revenue per channel", None, "revenue", "sum", ["channel"], "group_breakdown", "grouped_tabular_query"),
-        ("What is the average revenue by channel", None, "revenue", "mean", ["channel"], "group_breakdown", "grouped_tabular_query"),
-        ("Give me a list of all channels", "distinct_values", "channel", None, [], "distinct_values", "grouped_tabular_query"),
-        ("Show channels by revenue", "tabular_query", "revenue", None, [], "tabular_query", "grouped_tabular_query"),
+        ("Give me total revenue per channel", None, "revenue", "sum", ["channel"], None, "group_breakdown", "grouped_tabular_query"),
+        ("What is the average revenue by channel", None, "revenue", "mean", ["channel"], None, "group_breakdown", "grouped_tabular_query"),
+        ("Give me a list of all channels", "distinct_values", "channel", None, [], None, "distinct_values", "grouped_tabular_query"),
+        ("Show channels by revenue", "tabular_query", None, None, [], ["channel", "revenue"], "tabular_query", "grouped_tabular_query"),
     ],
     ids=[
         "metric-total-by-group",
@@ -329,6 +330,7 @@ def test_engine_grouped_entity_count_guard_matrix(
     expected_target: str | None,
     expected_aggregation: str | None,
     expected_group_by: list[str],
+    expected_selected_columns: list[str] | None,
     present_table_name: str,
     absent_table_name: str,
 ) -> None:
@@ -340,6 +342,8 @@ def test_engine_grouped_entity_count_guard_matrix(
     assert interpretation["target"] == expected_target
     assert interpretation["aggregation"] == expected_aggregation
     assert interpretation["group_by"] == expected_group_by
+    if expected_selected_columns is not None:
+        assert interpretation["options"]["selected_columns"] == expected_selected_columns
     assert any(table.name == present_table_name for table in result.tables)
     assert all(table.name != absent_table_name for table in result.tables)
 
