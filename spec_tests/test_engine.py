@@ -269,6 +269,7 @@ def test_engine_exposes_current_capabilities() -> None:
         "execute_plan": True,
         "profile": True,
         "load_context": True,
+        "render_output": True,
         "train": False,
         "predict": False,
         "forecast": False,

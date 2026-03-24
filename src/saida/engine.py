@@ -21,7 +21,7 @@ from saida.core import (
 )
 from saida.exceptions import PlanningError, ReasoningError, ValidationError
 from saida.llm import BaseLlmProvider, ResponseContext, build_llm_provider
-from saida.outputs import SummaryFormatter
+from saida.outputs import JsonOutputAdapter, OutputInterface, SummaryFormatter, SummaryOutputAdapter
 from saida.core.contracts import (
     AnalysisResult,
     AnalysisPlan,
@@ -63,6 +63,10 @@ class Saida:
             ml_adapter=self.ml,
         )
         self.summary_formatter = SummaryFormatter()
+        self.output_adapters: dict[str, OutputInterface] = {
+            "json": JsonOutputAdapter(),
+            "summary": SummaryOutputAdapter(),
+        }
         self.result_canonicalizer = ResultCanonicalizer()
         self.llm_provider = llm_provider or build_llm_provider(self.config.llm)
 
@@ -78,6 +82,7 @@ class Saida:
             "execute_plan": True,
             "profile": True,
             "load_context": True,
+            "render_output": True,
             "train": False,
             "predict": False,
             "forecast": False,
@@ -86,6 +91,19 @@ class Saida:
             "llm_prompting": bool(self.llm_provider and self.config.llm.use_for_prompting),
             "llm_reasoning": bool(self.llm_provider and self.config.llm.use_for_reasoning),
         }
+
+    def render_output(
+        self,
+        result: AnalysisResult,
+        *,
+        output_format: str = "json",
+        adapter: OutputInterface | None = None,
+    ) -> object:
+        """Render an AnalysisResult through a registered output adapter."""
+        selected_adapter = adapter or self.output_adapters.get(output_format)
+        if selected_adapter is None:
+            raise ValidationError(f"No output adapter is registered for format '{output_format}'.")
+        return selected_adapter.render(result)
 
     def plan(self, dataset: Dataset, question: str) -> AnalysisPlan:
         """Compile a question into a canonical analysis plan without executing it."""
