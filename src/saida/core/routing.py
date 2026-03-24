@@ -12,19 +12,19 @@ class BackendRouter:
         self,
         *,
         duckdb_adapter: object,
+        metadata_adapter: object,
         stats_adapter: object,
         ml_adapter: object,
     ) -> None:
         self._adapters = {
             "duckdb": duckdb_adapter,
+            "metadata": metadata_adapter,
             "stats": stats_adapter,
             "ml": ml_adapter,
         }
 
     def route(self, tool_family: str) -> object:
         """Return the backend adapter for a tool family."""
-        if tool_family == "metadata":
-            return self
         adapter = self._adapters.get(tool_family)
         if adapter is None:
             raise PlanningError(f"No backend adapter is registered for tool family '{tool_family}'.")

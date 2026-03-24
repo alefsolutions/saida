@@ -5,7 +5,7 @@ from __future__ import annotations
 from copy import deepcopy
 import pandas as pd
 
-from saida.adapters import DuckDBAdapter, MlAdapter, StatsModelsAdapter
+from saida.adapters import ComputeRequest, DuckDBAdapter, MetadataComputeAdapter, MlAdapter, StatsModelsAdapter
 from saida.config import SaidaConfig
 from saida.core import (
     BackendRouter,
@@ -53,10 +53,12 @@ class Saida:
         self.plan_builder = PlanBuilder()
         self.validator = PlanValidator()
         self.duckdb = DuckDBAdapter()
+        self.metadata = MetadataComputeAdapter()
         self.stats = StatsModelsAdapter()
         self.ml = MlAdapter()
         self.router = BackendRouter(
             duckdb_adapter=self.duckdb,
+            metadata_adapter=self.metadata,
             stats_adapter=self.stats,
             ml_adapter=self.ml,
         )
@@ -436,21 +438,17 @@ class Saida:
         metrics: list[Metric],
         tables: list[TableArtifact],
     ) -> None:
-        if step.tool_family == "metadata":
-            if step.action == "column_property_check":
-                tables.append(self._column_property_check_table(step.parameters, profile))
-            elif step.action == "column_presence_check":
-                tables.append(self._column_presence_check_table(step.parameters, profile))
-            else:
-                tables.append(self._metadata_table(step.action, profile, step.parameters))
-            return
-
-        if step.tool_family == "duckdb":
-            self._execute_duckdb_step(dataset, step, metrics, tables)
-            return
-
-        if step.tool_family == "stats":
-            self._execute_stats_step(dataset, step, tables)
+        adapter = self.router.route(step.tool_family)
+        response = adapter.execute(
+            ComputeRequest(
+                method_id=step.method_id or step.action,
+                dataset=dataset,
+                profile=profile,
+                parameters=step.parameters,
+            )
+        )
+        metrics.extend(response.metrics)
+        tables.extend(response.tables)
 
     def _execute_duckdb_step(
         self,

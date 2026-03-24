@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
+from saida.adapters.interfaces import ComputeInterface, ComputeRequest, ComputeResponse
 try:  # pragma: no cover - exercised indirectly in environments with statsmodels
     import statsmodels.api as sm
 except Exception:  # pragma: no cover - graceful fallback path
@@ -22,12 +23,117 @@ from saida.exceptions import ComputeError
 from saida.core.contracts import TableArtifact
 
 
-class StatsModelsAdapter:
+class StatsModelsAdapter(ComputeInterface):
     """Run statistical routines over a pandas DataFrame."""
 
     DEFAULT_ALPHA = 0.05
     DEFAULT_CONFIDENCE_LEVEL = 0.95
     DEFAULT_POWER = 0.80
+    SUPPORTED_METHODS = (
+        "missingness_summary",
+        "numeric_summary",
+        "distribution_summary",
+        "target_correlation",
+        "anomaly_summary",
+        "time_series_diagnostics",
+        "group_mean_comparison",
+        "t_test",
+        "chi_square",
+        "anova",
+        "mann_whitney",
+        "confidence_interval",
+        "regression_significance",
+        "significance_inference",
+        "power_analysis",
+        "sample_size_estimate",
+    )
+
+    @property
+    def tool_family(self) -> str:
+        return "stats"
+
+    def supported_methods(self) -> tuple[str, ...]:
+        return self.SUPPORTED_METHODS
+
+    def execute(self, request: ComputeRequest) -> ComputeResponse:
+        if request.dataset is None:
+            raise ComputeError("Stats compute methods require a dataset.")
+        dataframe = request.dataset.data
+        parameters = request.parameters
+        method_id = request.method_id
+
+        if method_id == "missingness_summary":
+            return ComputeResponse(tables=[self.missingness_summary(dataframe)])
+        if method_id == "numeric_summary":
+            return ComputeResponse(tables=[self.numeric_summary(dataframe)])
+        if method_id == "distribution_summary":
+            distribution_table = self.distribution_summary(dataframe, parameters["target"])
+            return ComputeResponse(tables=[distribution_table] if distribution_table is not None else [])
+        if method_id == "target_correlation":
+            correlation_table = self.correlation_matrix(dataframe, parameters.get("target"))
+            return ComputeResponse(tables=[correlation_table] if correlation_table is not None else [])
+        if method_id == "anomaly_summary":
+            anomaly_table = self.anomaly_summary(dataframe, parameters["target"], parameters.get("time_column"))
+            return ComputeResponse(tables=[anomaly_table] if anomaly_table is not None else [])
+        if method_id == "time_series_diagnostics":
+            diagnostics_table = self.time_series_diagnostics(dataframe, parameters["target"], parameters["time_column"])
+            return ComputeResponse(tables=[diagnostics_table] if diagnostics_table is not None else [])
+        if method_id == "group_mean_comparison":
+            comparison_table = self.group_mean_comparison(dataframe, parameters["target"], parameters["group_column"])
+            return ComputeResponse(tables=[comparison_table] if comparison_table is not None else [])
+        if method_id == "t_test":
+            return ComputeResponse(
+                tables=[self.t_test(dataframe, parameters["target"], parameters["group_by"][0], parameters.get("alpha", 0.05))]
+            )
+        if method_id == "chi_square":
+            comparison_columns = parameters.get("comparison_columns", [])
+            return ComputeResponse(
+                tables=[self.chi_square_test(dataframe, comparison_columns[0], comparison_columns[1], parameters.get("alpha", 0.05))]
+            )
+        if method_id == "anova":
+            return ComputeResponse(
+                tables=[self.anova_test(dataframe, parameters["target"], parameters["group_by"][0], parameters.get("alpha", 0.05))]
+            )
+        if method_id == "mann_whitney":
+            return ComputeResponse(
+                tables=[self.mann_whitney_test(dataframe, parameters["target"], parameters["group_by"][0], parameters.get("alpha", 0.05))]
+            )
+        if method_id == "confidence_interval":
+            return ComputeResponse(
+                tables=[self.confidence_interval(dataframe, parameters["target"], parameters.get("confidence_level", 0.95))]
+            )
+        if method_id == "regression_significance":
+            return ComputeResponse(
+                tables=[
+                    self.regression_significance(
+                        dataframe,
+                        parameters["target"],
+                        parameters.get("feature_columns", []),
+                        parameters.get("alpha", 0.05),
+                    )
+                ]
+            )
+        if method_id == "significance_inference":
+            return ComputeResponse(
+                tables=[self.group_significance_test(dataframe, parameters["target"], parameters["group_by"][0], parameters.get("alpha", 0.05))]
+            )
+        if method_id == "power_analysis":
+            return ComputeResponse(
+                tables=[self.power_analysis(dataframe, parameters["target"], parameters["group_by"][0], parameters.get("alpha", 0.05))]
+            )
+        if method_id == "sample_size_estimate":
+            return ComputeResponse(
+                tables=[
+                    self.sample_size_estimate(
+                        dataframe,
+                        parameters["target"],
+                        parameters["group_by"][0],
+                        parameters.get("alpha", 0.05),
+                        parameters.get("desired_power", 0.80),
+                    )
+                ]
+            )
+        raise ComputeError(f"Stats adapter does not support method {method_id!r}.")
 
     def missingness_summary(self, dataframe: pd.DataFrame) -> TableArtifact:
         """Return a null summary for each column."""

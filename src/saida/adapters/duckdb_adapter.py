@@ -6,12 +6,39 @@ import duckdb
 import pandas as pd
 import warnings
 
+from saida.adapters.interfaces import ComputeInterface, ComputeRequest, ComputeResponse
 from saida.exceptions import ComputeError
 from saida.core.contracts import Metric, TableArtifact
 
 
-class DuckDBAdapter:
+class DuckDBAdapter(ComputeInterface):
     """Run analytical plan steps against DuckDB."""
+
+    SUPPORTED_METHODS = (
+        "dataset_summary",
+        "row_count",
+        "count_rows_by_group",
+        "distinct_values",
+        "distinct_value_count",
+        "tabular_query",
+        "grouped_tabular_query",
+        "time_coverage",
+        "time_bucket_counts",
+        "time_bucket_breakdown",
+        "row_existence",
+        "time_value_exists",
+        "null_check",
+        "threshold_check",
+        "aggregate_value",
+        "ranked_rows",
+        "time_trend",
+        "group_breakdown",
+        "ranked_breakdown",
+        "grouped_period_comparison",
+        "top_movers",
+        "contribution_breakdown",
+        "period_comparison",
+    )
 
     AGGREGATION_EXPRESSIONS = {
         "sum": "sum(target_value)",
@@ -20,6 +47,269 @@ class DuckDBAdapter:
         "min": "min(target_value)",
         "count": "count(target_value)",
     }
+
+    @property
+    def tool_family(self) -> str:
+        return "duckdb"
+
+    def supported_methods(self) -> tuple[str, ...]:
+        return self.SUPPORTED_METHODS
+
+    def execute(self, request: ComputeRequest) -> ComputeResponse:
+        if request.dataset is None:
+            raise ComputeError("DuckDB compute methods require a dataset.")
+        dataframe = request.dataset.data
+        parameters = request.parameters
+        method_id = request.method_id
+
+        if method_id == "dataset_summary":
+            metrics, tables = self.dataset_summary(dataframe, parameters.get("target"), parameters.get("filters"))
+            return ComputeResponse(metrics=metrics, tables=tables)
+        if method_id == "row_count":
+            return ComputeResponse(metrics=self.row_count(dataframe, parameters.get("filters")))
+        if method_id == "count_rows_by_group":
+            return ComputeResponse(
+                tables=[
+                    self.count_rows_by_group(
+                        dataframe,
+                        parameters["group_by"],
+                        parameters.get("filters"),
+                        parameters.get("ascending", False),
+                        parameters.get("limit"),
+                    )
+                ]
+            )
+        if method_id == "distinct_values":
+            return ComputeResponse(tables=[self.distinct_values(dataframe, parameters["target"], parameters.get("filters"))])
+        if method_id == "distinct_value_count":
+            return ComputeResponse(tables=[self.distinct_value_count(dataframe, parameters["target"], parameters.get("filters"))])
+        if method_id == "tabular_query":
+            return ComputeResponse(
+                tables=[
+                    self.tabular_query(
+                        dataframe,
+                        parameters.get("selected_columns"),
+                        parameters.get("filters"),
+                        parameters.get("sort_by"),
+                        parameters.get("sort_direction", "asc"),
+                        parameters.get("limit"),
+                        parameters.get("page", 1),
+                        parameters.get("page_size", 50),
+                    )
+                ]
+            )
+        if method_id == "grouped_tabular_query":
+            return ComputeResponse(
+                tables=[
+                    self.grouped_tabular_query(
+                        dataframe,
+                        parameters["group_by"],
+                        parameters.get("target"),
+                        parameters.get("aggregation", "count"),
+                        parameters.get("filters"),
+                        parameters.get("sort_by"),
+                        parameters.get("sort_direction", "desc"),
+                        parameters.get("limit"),
+                        parameters.get("page", 1),
+                        parameters.get("page_size", 50),
+                    )
+                ]
+            )
+        if method_id == "time_coverage":
+            return ComputeResponse(
+                tables=[
+                    self.time_coverage(
+                        dataframe,
+                        parameters["time_column"],
+                        parameters.get("mode", "years_present"),
+                        parameters.get("filters"),
+                    )
+                ]
+            )
+        if method_id == "time_bucket_counts":
+            return ComputeResponse(
+                tables=[
+                    self.time_bucket_counts(
+                        dataframe,
+                        parameters["time_column"],
+                        parameters.get("bucket", "year"),
+                        parameters.get("filters"),
+                    )
+                ]
+            )
+        if method_id == "time_bucket_breakdown":
+            return ComputeResponse(
+                tables=[
+                    self.time_bucket_breakdown(
+                        dataframe,
+                        parameters["target"],
+                        parameters["time_column"],
+                        parameters.get("bucket", "month"),
+                        parameters.get("aggregation", "sum"),
+                        parameters.get("group_by"),
+                        parameters.get("filters"),
+                    )
+                ]
+            )
+        if method_id == "row_existence":
+            return ComputeResponse(tables=[self.row_existence(dataframe, parameters.get("filters", {}))])
+        if method_id == "time_value_exists":
+            return ComputeResponse(
+                tables=[
+                    self.time_value_exists(
+                        dataframe,
+                        parameters["time_column"],
+                        parameters.get("expected_year"),
+                        parameters.get("time_reference"),
+                        parameters.get("filters"),
+                    )
+                ]
+            )
+        if method_id == "null_check":
+            return ComputeResponse(
+                tables=[
+                    self.null_check(
+                        dataframe,
+                        parameters["target"],
+                        parameters.get("null_expectation", "has_nulls"),
+                        parameters.get("filters"),
+                    )
+                ]
+            )
+        if method_id == "threshold_check":
+            return ComputeResponse(
+                tables=[
+                    self.threshold_check(
+                        dataframe,
+                        parameters["target"],
+                        parameters["threshold_operator"],
+                        parameters.get("threshold_value"),
+                        parameters.get("lower_bound"),
+                        parameters.get("upper_bound"),
+                        parameters.get("filters"),
+                    )
+                ]
+            )
+        if method_id == "aggregate_value":
+            return ComputeResponse(
+                metrics=[
+                    *self.aggregate_value(
+                        dataframe,
+                        parameters["target"],
+                        parameters["aggregation"],
+                        parameters.get("filters"),
+                    )
+                ]
+            )
+        if method_id == "ranked_rows":
+            return ComputeResponse(
+                tables=[
+                    self.ranked_rows(
+                        dataframe,
+                        parameters["target"],
+                        parameters.get("filters"),
+                        parameters.get("ascending", False),
+                        parameters.get("limit", 5),
+                    )
+                ]
+            )
+        if method_id == "time_trend":
+            return ComputeResponse(
+                tables=[
+                    self.time_trend(
+                        dataframe,
+                        parameters["target"],
+                        parameters["time_column"],
+                        parameters.get("aggregation", "sum"),
+                        parameters.get("filters"),
+                    )
+                ]
+            )
+        if method_id == "group_breakdown":
+            return ComputeResponse(
+                tables=[
+                    self.group_breakdown(
+                        dataframe,
+                        parameters["target"],
+                        parameters["group_by"],
+                        parameters.get("aggregation", "sum"),
+                        parameters.get("filters"),
+                    )
+                ]
+            )
+        if method_id == "ranked_breakdown":
+            return ComputeResponse(
+                tables=[
+                    self.ranked_breakdown(
+                        dataframe,
+                        parameters["target"],
+                        parameters["group_by"],
+                        parameters.get("aggregation", "sum"),
+                        parameters.get("filters"),
+                        parameters.get("limit", 5),
+                        parameters.get("ascending", False),
+                    )
+                ]
+            )
+        if method_id == "grouped_period_comparison":
+            return ComputeResponse(
+                tables=[
+                    self.grouped_period_comparison(
+                        dataframe,
+                        parameters["target"],
+                        parameters["group_by"],
+                        parameters["time_column"],
+                        parameters["time_reference"],
+                        parameters.get("bucket"),
+                        parameters.get("aggregation", "sum"),
+                        parameters.get("filters"),
+                    )
+                ]
+            )
+        if method_id == "top_movers":
+            return ComputeResponse(
+                tables=[
+                    self.top_movers(
+                        dataframe,
+                        parameters["target"],
+                        parameters["group_by"],
+                        parameters["time_column"],
+                        parameters["time_reference"],
+                        parameters.get("aggregation", "sum"),
+                        parameters.get("filters"),
+                        parameters.get("limit", 5),
+                    )
+                ]
+            )
+        if method_id == "contribution_breakdown":
+            return ComputeResponse(
+                tables=[
+                    self.contribution_breakdown(
+                        dataframe,
+                        parameters["target"],
+                        parameters["group_by"],
+                        parameters.get("time_column"),
+                        parameters.get("time_reference"),
+                        parameters.get("aggregation", "sum"),
+                        parameters.get("filters"),
+                    )
+                ]
+            )
+        if method_id == "period_comparison":
+            return ComputeResponse(
+                tables=[
+                    self.period_comparison(
+                        dataframe,
+                        parameters["target"],
+                        parameters["time_column"],
+                        parameters["time_reference"],
+                        parameters.get("bucket"),
+                        parameters.get("aggregation", "sum"),
+                        parameters.get("filters"),
+                    )
+                ]
+            )
+        raise ComputeError(f"DuckDB adapter does not support method {method_id!r}.")
 
     def dataset_summary(
         self,
