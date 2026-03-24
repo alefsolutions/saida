@@ -1,4 +1,4 @@
-"""SQL source implementation."""
+"""SQL source implementations."""
 
 from __future__ import annotations
 
@@ -7,12 +7,13 @@ from pathlib import Path
 
 import pandas as pd
 
-from saida.sources._helpers import build_dataset, load_context
-from saida.exceptions import AdapterError
 from saida.core.contracts import Dataset
+from saida.exceptions import AdapterError
+from saida.sources._helpers import build_dataset, load_context
+from saida.sources.interfaces import SQLSourceInterface
 
 
-class SQLSource:
+class SQLiteSource(SQLSourceInterface):
     """Load query results from a SQLite database into the SAIDA dataset schema."""
 
     def __init__(
@@ -24,9 +25,27 @@ class SQLSource:
         context_path: str | Path | None = None,
     ) -> None:
         self.database_path = Path(database_path)
-        self.query = query
+        self._query = query
         self.name = name
         self.context_path = Path(context_path) if context_path else None
+
+    @property
+    def source_type(self) -> str:
+        return "sqlite"
+
+    @property
+    def source_name(self) -> str:
+        return self.name
+
+    @property
+    def query(self) -> str:
+        return self._query
+
+    def describe_source(self) -> dict[str, object]:
+        return {"database_path": str(self.database_path), "query": self.query}
+
+    def load_context(self) -> object:
+        return load_context(self.context_path)
 
     def load(self) -> Dataset:
         """Execute the SQL query and return a normalized dataset."""
@@ -43,14 +62,115 @@ class SQLSource:
             if connection is not None:
                 connection.close()
 
-        context = load_context(self.context_path)
         return build_dataset(
             dataframe,
             name=self.name,
-            source_type="sql",
-            metadata={"database_path": str(self.database_path), "query": self.query},
-            context=context,
+            source_type=self.source_type,
+            metadata=self.describe_source(),
+            context=self.load_context(),
         )
 
 
+class SQLQuerySource(SQLSourceInterface):
+    """Load SQL query results through a SQLAlchemy-compatible connection URI."""
+
+    source_kind = "sql"
+
+    def __init__(
+        self,
+        connection_uri: str,
+        query: str,
+        *,
+        name: str = "sql_query",
+        context_path: str | Path | None = None,
+    ) -> None:
+        self.connection_uri = connection_uri
+        self._query = query
+        self.name = name
+        self.context_path = Path(context_path) if context_path else None
+
+    @property
+    def source_type(self) -> str:
+        return self.source_kind
+
+    @property
+    def source_name(self) -> str:
+        return self.name
+
+    @property
+    def query(self) -> str:
+        return self._query
+
+    def describe_source(self) -> dict[str, object]:
+        return {"connection_uri": self._masked_connection_uri(), "query": self.query}
+
+    def load_context(self) -> object:
+        return load_context(self.context_path)
+
+    def load(self) -> Dataset:
+        """Execute the SQL query through SQLAlchemy and return a normalized dataset."""
+        try:
+            from sqlalchemy import create_engine
+        except Exception as exc:  # pragma: no cover
+            raise AdapterError(
+                "SQLAlchemy is required for SQLQuerySource, PostgreSQLSource, and MySQLSource."
+            ) from exc
+
+        engine = None
+        connection = None
+        try:
+            engine = create_engine(self.connection_uri)
+            connection = engine.connect()
+            dataframe = pd.read_sql_query(self.query, connection)
+        except Exception as exc:  # pragma: no cover
+            raise AdapterError(f"Failed to load SQL query results from: {self._masked_connection_uri()}") from exc
+        finally:
+            if connection is not None:
+                connection.close()
+            if engine is not None:
+                engine.dispose()
+
+        return build_dataset(
+            dataframe,
+            name=self.name,
+            source_type=self.source_type,
+            metadata=self.describe_source(),
+            context=self.load_context(),
+        )
+
+    def _masked_connection_uri(self) -> str:
+        if "://" not in self.connection_uri or "@" not in self.connection_uri:
+            return self.connection_uri
+        scheme, remainder = self.connection_uri.split("://", 1)
+        credentials, target = remainder.split("@", 1)
+        if ":" not in credentials:
+            return self.connection_uri
+        user, _password = credentials.split(":", 1)
+        return f"{scheme}://{user}:***@{target}"
+
+
+class PostgreSQLSource(SQLQuerySource):
+    """Load query results from a PostgreSQL connection URI."""
+
+    source_kind = "postgresql"
+
+
+class MySQLSource(SQLQuerySource):
+    """Load query results from a MySQL connection URI."""
+
+    source_kind = "mysql"
+
+
+class SQLSource(SQLiteSource):
+    """Compatibility alias preserving the legacy SQL source_type contract."""
+
+    @property
+    def source_type(self) -> str:
+        return "sql"
+
+
 SQLAdapter = SQLSource
+SQLiteAdapter = SQLiteSource
+SQLQueryAdapter = SQLQuerySource
+PostgreSQLAdapter = PostgreSQLSource
+MySQLAdapter = MySQLSource

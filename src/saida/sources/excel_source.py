@@ -6,12 +6,13 @@ from pathlib import Path
 
 import pandas as pd
 
+from saida.sources.interfaces import SourceInterface
 from saida.sources._helpers import build_dataset, load_context
 from saida.exceptions import AdapterError
 from saida.core.contracts import Dataset
 
 
-class ExcelSource:
+class ExcelSource(SourceInterface):
     """Load Excel data into the SAIDA dataset schema."""
 
     def __init__(
@@ -27,6 +28,20 @@ class ExcelSource:
         self.name = name or self.path.stem
         self.context_path = Path(context_path) if context_path else None
 
+    @property
+    def source_type(self) -> str:
+        return "excel"
+
+    @property
+    def source_name(self) -> str:
+        return self.name
+
+    def describe_source(self) -> dict[str, object]:
+        return {"path": str(self.path), "sheet_name": self.sheet_name}
+
+    def load_context(self) -> object:
+        return load_context(self.context_path)
+
     def load(self) -> Dataset:
         """Load the Excel file and attach optional semantic context."""
         if not self.path.exists():
@@ -37,12 +52,12 @@ class ExcelSource:
         except Exception as exc:  # pragma: no cover
             raise AdapterError(f"Failed to load Excel file: {self.path}") from exc
 
-        context = load_context(self.context_path)
+        context = self.load_context()
         return build_dataset(
             dataframe,
             name=self.name,
-            source_type="excel",
-            metadata={"path": str(self.path), "sheet_name": self.sheet_name},
+            source_type=self.source_type,
+            metadata=self.describe_source(),
             context=context,
         )
 
