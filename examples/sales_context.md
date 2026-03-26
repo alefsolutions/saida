@@ -18,3 +18,6 @@ revenue = total revenue after adjustments
 - region
 - segment
 
+## Groupings and Aggregates
+- You can group total_sales by country, in that you get the total sales made in each country. When ranked, you can get the country with highest total sales, or lowest total sales.
+- You can group total_sales by region, in that you get the total sales made in each region. When ranked, you can get the region with highest total sales or lowest total sales.
