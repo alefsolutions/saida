@@ -133,7 +133,7 @@ def test_derive_prompt_family_from_request_matrix(
 
 def test_prompt_family_catalog_markdown_snapshot_matches_live_catalog() -> None:
     catalog = build_default_prompt_family_catalog()
-    catalog_path = Path(__file__).resolve().parents[1] / "PROMPT_FAMILY_CATALOG.md"
+    catalog_path = Path(__file__).resolve().parents[1] / "docs" / "reference" / "prompt-family-catalog.md"
 
     assert catalog_path.read_text(encoding="utf-8") == catalog.to_markdown()
 

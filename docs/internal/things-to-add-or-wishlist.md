@@ -4,7 +4,7 @@
 
 This file captures important improvements that should be considered for **SAIDA 0.2.0** and beyond.
 
-`ARCHITECTURE.md` remains the source of truth.
+[`architecture.md`](../overview/architecture.md) remains the source of truth.
 
 ## Intent Organization And Canonical Routing
 

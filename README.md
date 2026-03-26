@@ -304,8 +304,9 @@ So today SAIDA is strongest as a deterministic analytics planning and execution 
 
 ## More Docs
 
-- [ARCHITECTURE.md](./ARCHITECTURE.md)
-- [API_USAGE.md](./API_USAGE.md)
-- [SCHEMA_SPEC.md](./SCHEMA_SPEC.md)
-- [PROMPT_FAMILY_CATALOG.md](./PROMPT_FAMILY_CATALOG.md)
-- [SAIDA_PROMPT_PLAYBOOK.md](./SAIDA_PROMPT_PLAYBOOK.md)
+- [Docs Index](./docs/README.md)
+- [Architecture](./docs/overview/architecture.md)
+- [API Usage](./docs/reference/api-usage.md)
+- [Schema Spec](./docs/reference/schema-spec.md)
+- [Prompt Family Catalog](./docs/reference/prompt-family-catalog.md)
+- [Prompt Playbook](./docs/guides/prompt-playbook.md)

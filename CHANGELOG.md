@@ -7,8 +7,8 @@ All notable changes to this project are documented here.
 Quick links:
 
 - [README](./README.md)
-- [Architecture](./ARCHITECTURE.md)
-- [Schema Spec](./SCHEMA_SPEC.md)
+- [Architecture](./docs/overview/architecture.md)
+- [Schema Spec](./docs/reference/schema-spec.md)
 
 ## [Unreleased]
 

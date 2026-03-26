@@ -4,7 +4,7 @@
 
 This document describes the live public Python surface in SAIDA.
 
-If you want the system design, see [ARCHITECTURE.md](./ARCHITECTURE.md).
+If you want the system design, see [architecture.md](../overview/architecture.md).
 
 ## Main Entry Point
 
