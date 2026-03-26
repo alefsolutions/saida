@@ -221,8 +221,10 @@ def test_sqlite_playground_prints_summary_for_loaded_sqlite_dataset(
     fake_engine = _FakeEngine(summary="The dataset contains 40 rows.")
     dataset = SimpleNamespace(name="sales_sqlite_40", data=pd.DataFrame({"total_sales": [1.0]}))
 
+    monkeypatch.setattr(sqlite_playground, "load_project_env", lambda project_root: None)
+    monkeypatch.setattr(sqlite_playground.os, "getenv", lambda key, default=None: "test-key" if key == "OPENAI_API_KEY" else default)
     monkeypatch.setattr(sqlite_playground.SQLiteSource, "load", lambda self: dataset)
-    monkeypatch.setattr(sqlite_playground, "Saida", lambda: fake_engine)
+    monkeypatch.setattr(sqlite_playground, "Saida", lambda config=None: fake_engine)
 
     answers = iter(["How many rows are there?", "exit"])
     monkeypatch.setattr("builtins.input", lambda prompt="": next(answers))
@@ -230,7 +232,7 @@ def test_sqlite_playground_prints_summary_for_loaded_sqlite_dataset(
     sqlite_playground.main()
     output = capsys.readouterr().out
 
-    assert "SAIDA SQLite playground" in output
+    assert "SAIDA OpenAI SQLite playground" in output
     assert "Dataset: sales_sqlite_40" in output
     assert "The dataset contains 40 rows." in output
     assert fake_engine.calls == ["How many rows are there?"]
