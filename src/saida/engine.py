@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from copy import deepcopy
-import pandas as pd
 
 from saida.adapters import ComputeRequest, DuckDBAdapter, MetadataComputeAdapter, MlAdapter, StatsModelsAdapter
 from saida.config import SaidaConfig
@@ -18,9 +17,8 @@ from saida.core import (
     SchemaDiscoveryService,
     SourceContextParser,
     PromptCapabilityContract,
-    build_prompt_capability_contract,
 )
-from saida.exceptions import PlanningError, ReasoningError, ValidationError
+from saida.exceptions import ReasoningError, ValidationError
 from saida.llm import BaseLlmProvider, ResponseContext, build_llm_provider
 from saida.outputs import JsonOutputAdapter, OutputInterface, SummaryFormatter, SummaryOutputAdapter
 from saida.plan_generation import LlmAssistedPlanGenerator, OpenAIPlanGenerator, RuleBasedPlanGenerator
@@ -28,7 +26,6 @@ from saida.core.contracts import (
     AnalysisResult,
     AnalysisPlan,
     AnalysisRequest,
-    ColumnProfile,
     Dataset,
     DatasetProfile,
     ExecutionTraceEvent,
@@ -322,378 +319,6 @@ class Saida:
         metrics.extend(response.metrics)
         tables.extend(response.tables)
 
-    def _execute_duckdb_step(
-        self,
-        dataset: Dataset,
-        step: object,
-        metrics: list[Metric],
-        tables: list[TableArtifact],
-    ) -> None:
-        adapter = self.router.route("duckdb")
-        if step.action == "dataset_summary":
-            step_metrics, step_tables = adapter.dataset_summary(
-                dataset.data,
-                step.parameters.get("target"),
-                step.parameters.get("filters"),
-            )
-            metrics.extend(step_metrics)
-            tables.extend(step_tables)
-        elif step.action == "row_count":
-            metrics.extend(
-                adapter.row_count(
-                    dataset.data,
-                    step.parameters.get("filters"),
-                )
-            )
-        elif step.action == "count_rows_by_group":
-            tables.append(
-                adapter.count_rows_by_group(
-                    dataset.data,
-                    step.parameters["group_by"],
-                    step.parameters.get("filters"),
-                    step.parameters.get("ascending", False),
-                    step.parameters.get("limit"),
-                )
-            )
-        elif step.action == "distinct_values":
-            tables.append(
-                adapter.distinct_values(
-                    dataset.data,
-                    step.parameters["target"],
-                    step.parameters.get("filters"),
-                )
-            )
-        elif step.action == "distinct_value_count":
-            tables.append(
-                adapter.distinct_value_count(
-                    dataset.data,
-                    step.parameters["target"],
-                    step.parameters.get("filters"),
-                )
-            )
-        elif step.action == "tabular_query":
-            tables.append(
-                adapter.tabular_query(
-                    dataset.data,
-                    step.parameters.get("selected_columns"),
-                    step.parameters.get("filters"),
-                    step.parameters.get("sort_by"),
-                    step.parameters.get("sort_direction", "asc"),
-                    step.parameters.get("limit"),
-                    step.parameters.get("page", 1),
-                    step.parameters.get("page_size", 50),
-                )
-            )
-        elif step.action == "grouped_tabular_query":
-            tables.append(
-                adapter.grouped_tabular_query(
-                    dataset.data,
-                    step.parameters["group_by"],
-                    step.parameters.get("target"),
-                    step.parameters.get("aggregation", "count"),
-                    step.parameters.get("filters"),
-                    step.parameters.get("sort_by"),
-                    step.parameters.get("sort_direction", "desc"),
-                    step.parameters.get("limit"),
-                    step.parameters.get("page", 1),
-                    step.parameters.get("page_size", 50),
-                )
-            )
-        elif step.action == "time_coverage":
-            tables.append(
-                adapter.time_coverage(
-                    dataset.data,
-                    step.parameters["time_column"],
-                    step.parameters.get("mode", "years_present"),
-                    step.parameters.get("filters"),
-                )
-            )
-        elif step.action == "time_bucket_counts":
-            tables.append(
-                adapter.time_bucket_counts(
-                    dataset.data,
-                    step.parameters["time_column"],
-                    step.parameters.get("bucket", "year"),
-                    step.parameters.get("filters"),
-                )
-            )
-        elif step.action == "time_bucket_breakdown":
-            tables.append(
-                adapter.time_bucket_breakdown(
-                    dataset.data,
-                    step.parameters["target"],
-                    step.parameters["time_column"],
-                    step.parameters.get("bucket", "month"),
-                    step.parameters.get("aggregation", "sum"),
-                    step.parameters.get("group_by"),
-                    step.parameters.get("filters"),
-                )
-            )
-        elif step.action == "row_existence":
-            tables.append(
-                adapter.row_existence(
-                    dataset.data,
-                    step.parameters.get("filters", {}),
-                )
-            )
-        elif step.action == "time_value_exists":
-            tables.append(
-                adapter.time_value_exists(
-                    dataset.data,
-                    step.parameters["time_column"],
-                    step.parameters.get("expected_year"),
-                    step.parameters.get("time_reference"),
-                    step.parameters.get("filters"),
-                )
-            )
-        elif step.action == "null_check":
-            tables.append(
-                adapter.null_check(
-                    dataset.data,
-                    step.parameters["target"],
-                    step.parameters.get("null_expectation", "has_nulls"),
-                    step.parameters.get("filters"),
-                )
-            )
-        elif step.action == "threshold_check":
-            tables.append(
-                adapter.threshold_check(
-                    dataset.data,
-                    step.parameters["target"],
-                    step.parameters["threshold_operator"],
-                    step.parameters.get("threshold_value"),
-                    step.parameters.get("lower_bound"),
-                    step.parameters.get("upper_bound"),
-                    step.parameters.get("filters"),
-                )
-            )
-        elif step.action == "aggregate_value":
-            step_metrics = adapter.aggregate_value(
-                dataset.data,
-                step.parameters["target"],
-                step.parameters["aggregation"],
-                step.parameters.get("filters"),
-            )
-            metrics.extend(step_metrics)
-        elif step.action == "ranked_rows":
-            tables.append(
-                adapter.ranked_rows(
-                    dataset.data,
-                    step.parameters["target"],
-                    step.parameters.get("filters"),
-                    step.parameters.get("ascending", False),
-                    step.parameters.get("limit", 5),
-                )
-            )
-        elif step.action == "time_trend":
-            tables.append(
-                adapter.time_trend(
-                    dataset.data,
-                    step.parameters["target"],
-                    step.parameters["time_column"],
-                    step.parameters.get("aggregation", "sum"),
-                    step.parameters.get("filters"),
-                )
-            )
-        elif step.action == "group_breakdown":
-            tables.append(
-                adapter.group_breakdown(
-                    dataset.data,
-                    step.parameters["target"],
-                    step.parameters["group_by"],
-                    step.parameters.get("aggregation", "sum"),
-                    step.parameters.get("filters"),
-                )
-            )
-        elif step.action == "ranked_breakdown":
-            tables.append(
-                adapter.ranked_breakdown(
-                    dataset.data,
-                    step.parameters["target"],
-                    step.parameters["group_by"],
-                    step.parameters.get("aggregation", "sum"),
-                    step.parameters.get("filters"),
-                    step.parameters.get("limit", 5),
-                    step.parameters.get("ascending", False),
-                )
-            )
-        elif step.action == "grouped_period_comparison":
-            tables.append(
-                adapter.grouped_period_comparison(
-                    dataset.data,
-                    step.parameters["target"],
-                    step.parameters["group_by"],
-                    step.parameters["time_column"],
-                    step.parameters["time_reference"],
-                    step.parameters.get("bucket"),
-                    step.parameters.get("aggregation", "sum"),
-                    step.parameters.get("filters"),
-                )
-            )
-        elif step.action == "top_movers":
-            tables.append(
-                adapter.top_movers(
-                    dataset.data,
-                    step.parameters["target"],
-                    step.parameters["group_by"],
-                    step.parameters["time_column"],
-                    step.parameters["time_reference"],
-                    step.parameters.get("aggregation", "sum"),
-                    step.parameters.get("filters"),
-                    step.parameters.get("limit", 5),
-                )
-            )
-        elif step.action == "contribution_breakdown":
-            tables.append(
-                adapter.contribution_breakdown(
-                    dataset.data,
-                    step.parameters["target"],
-                    step.parameters["group_by"],
-                    step.parameters.get("time_column"),
-                    step.parameters.get("time_reference"),
-                    step.parameters.get("aggregation", "sum"),
-                    step.parameters.get("filters"),
-                )
-            )
-        elif step.action == "period_comparison":
-            tables.append(
-                adapter.period_comparison(
-                    dataset.data,
-                    step.parameters["target"],
-                    step.parameters["time_column"],
-                    step.parameters["time_reference"],
-                    step.parameters.get("bucket"),
-                    step.parameters.get("aggregation", "sum"),
-                    step.parameters.get("filters"),
-                )
-            )
-
-    def _execute_stats_step(
-        self,
-        dataset: Dataset,
-        step: object,
-        tables: list[TableArtifact],
-    ) -> None:
-        adapter = self.router.route("stats")
-        if step.action == "missingness_summary":
-            tables.append(adapter.missingness_summary(dataset.data))
-        elif step.action == "numeric_summary":
-            tables.append(adapter.numeric_summary(dataset.data))
-        elif step.action == "distribution_summary":
-            distribution_table = adapter.distribution_summary(dataset.data, step.parameters["target"])
-            if distribution_table is not None:
-                tables.append(distribution_table)
-        elif step.action == "target_correlation":
-            correlation_table = adapter.correlation_matrix(dataset.data, step.parameters.get("target"))
-            if correlation_table is not None:
-                tables.append(correlation_table)
-        elif step.action == "anomaly_summary":
-            anomaly_table = adapter.anomaly_summary(
-                dataset.data,
-                step.parameters["target"],
-                step.parameters.get("time_column"),
-            )
-            if anomaly_table is not None:
-                tables.append(anomaly_table)
-        elif step.action == "time_series_diagnostics":
-            diagnostics_table = adapter.time_series_diagnostics(
-                dataset.data,
-                step.parameters["target"],
-                step.parameters["time_column"],
-            )
-            if diagnostics_table is not None:
-                tables.append(diagnostics_table)
-        elif step.action == "group_mean_comparison":
-            comparison_table = adapter.group_mean_comparison(
-                dataset.data,
-                step.parameters["target"],
-                step.parameters["group_column"],
-            )
-            if comparison_table is not None:
-                tables.append(comparison_table)
-        elif step.action == "t_test":
-            tables.append(
-                adapter.t_test(
-                    dataset.data,
-                    step.parameters["target"],
-                    step.parameters["group_by"][0],
-                    step.parameters.get("alpha", 0.05),
-                )
-            )
-        elif step.action == "chi_square":
-            comparison_columns = step.parameters.get("comparison_columns", [])
-            tables.append(
-                adapter.chi_square_test(
-                    dataset.data,
-                    comparison_columns[0],
-                    comparison_columns[1],
-                    step.parameters.get("alpha", 0.05),
-                )
-            )
-        elif step.action == "anova":
-            tables.append(
-                adapter.anova_test(
-                    dataset.data,
-                    step.parameters["target"],
-                    step.parameters["group_by"][0],
-                    step.parameters.get("alpha", 0.05),
-                )
-            )
-        elif step.action == "mann_whitney":
-            tables.append(
-                adapter.mann_whitney_test(
-                    dataset.data,
-                    step.parameters["target"],
-                    step.parameters["group_by"][0],
-                    step.parameters.get("alpha", 0.05),
-                )
-            )
-        elif step.action == "confidence_interval":
-            tables.append(
-                adapter.confidence_interval(
-                    dataset.data,
-                    step.parameters["target"],
-                    step.parameters.get("confidence_level", 0.95),
-                )
-            )
-        elif step.action == "regression_significance":
-            tables.append(
-                adapter.regression_significance(
-                    dataset.data,
-                    step.parameters["target"],
-                    step.parameters.get("feature_columns", []),
-                    step.parameters.get("alpha", 0.05),
-                )
-            )
-        elif step.action == "significance_inference":
-            tables.append(
-                adapter.group_significance_test(
-                    dataset.data,
-                    step.parameters["target"],
-                    step.parameters["group_by"][0],
-                    step.parameters.get("alpha", 0.05),
-                )
-            )
-        elif step.action == "power_analysis":
-            tables.append(
-                adapter.power_analysis(
-                    dataset.data,
-                    step.parameters["target"],
-                    step.parameters["group_by"][0],
-                    step.parameters.get("alpha", 0.05),
-                )
-            )
-        elif step.action == "sample_size_estimate":
-            tables.append(
-                adapter.sample_size_estimate(
-                    dataset.data,
-                    step.parameters["target"],
-                    step.parameters["group_by"][0],
-                    step.parameters.get("alpha", 0.05),
-                    step.parameters.get("desired_power", 0.80),
-                )
-            )
-
     def _bind_plan_to_dataset(
         self,
         plan: AnalysisPlan,
@@ -876,6 +501,14 @@ class Saida:
                     "intent_name": "grouped_tabular_query",
                 },
             }
+        if step.action == "column_type_inventory":
+            target = step.parameters.get("target")
+            return {
+                "prompt_family": "column_type_lookup" if isinstance(target, str) else "column_type_inventory",
+                "intent_name": "column_type_inventory",
+                "target": target,
+                "options": deepcopy(step.parameters),
+            }
         if step.tool_family == "metadata":
             return {
                 "prompt_family": step.action,
@@ -911,11 +544,11 @@ class Saida:
                 "prompt_family": "row_existence_check",
                 "intent_name": "existence_check",
                 "filters": deepcopy(step.parameters.get("filters")),
-                "options": {"existence_mode": "filtered_rows"},
+                "options": {"existence_mode": "row_existence"},
             }
         if step.action == "time_value_exists":
             return {
-                "prompt_family": "time_value_existence_check",
+                "prompt_family": "time_value_verification",
                 "intent_name": "existence_check",
                 "filters": deepcopy(step.parameters.get("filters")),
                 "time_reference": deepcopy(step.parameters.get("time_reference")),
@@ -923,7 +556,7 @@ class Saida:
             }
         if step.action == "null_check":
             return {
-                "prompt_family": "null_existence_check",
+                "prompt_family": "null_verification",
                 "intent_name": "existence_check",
                 "target": step.parameters.get("target"),
                 "filters": deepcopy(step.parameters.get("filters")),
@@ -931,7 +564,7 @@ class Saida:
             }
         if step.action == "threshold_check":
             return {
-                "prompt_family": "threshold_existence_check",
+                "prompt_family": "threshold_verification",
                 "intent_name": "existence_check",
                 "target": step.parameters.get("target"),
                 "filters": deepcopy(step.parameters.get("filters")),
@@ -1045,8 +678,10 @@ class Saida:
     def load_context(self, markdown: str) -> SourceContext:
         """Parse markdown context through the context layer."""
         return SourceContextParser().parse(markdown)
+
     def _trace(self, stage: str, message: str, payload: dict[str, object] | None = None) -> ExecutionTraceEvent:
         return ExecutionTraceEvent(stage=stage, message=message, payload=payload)
+
     def _merge_warnings(self, *warning_groups: list[str]) -> list[str]:
         merged: list[str] = []
         for warning_group in warning_groups:
@@ -1054,60 +689,6 @@ class Saida:
                 if warning not in merged:
                     merged.append(warning)
         return merged
-
-    def _build_request(
-        self,
-        question: str,
-        dataset: Dataset,
-        profile: DatasetProfile,
-    ) -> tuple[AnalysisRequest, list[str], ExecutionTraceEvent | None]:
-        if not self.llm_provider or not self.config.llm.use_for_prompting:
-            request, warnings = self.canonicalizer.normalize(question, dataset, profile, dataset.context)
-            return request, warnings, None
-
-        try:
-            proposal = self.llm_provider.interpret_prompt(
-                question=question,
-                dataset_name=dataset.name,
-                profile_summary=self._profile_summary(profile),
-                context_summary=self._context_summary(dataset.context),
-            )
-        except ReasoningError:
-            request, warnings = self.canonicalizer.normalize(question, dataset, profile, dataset.context)
-            warnings.append("Optional LLM prompting failed; falling back to deterministic request normalization.")
-            return request, warnings, self._trace("llm", "prompt interpretation failed", {"fallback": "rules"})
-
-        if proposal is None:
-            request, warnings = self.canonicalizer.normalize(question, dataset, profile, dataset.context)
-            warnings.append("Optional LLM prompting was unavailable; falling back to deterministic request normalization.")
-            return request, warnings, self._trace("llm", "prompt interpretation skipped", {"fallback": "rules"})
-
-        if proposal.status in {"clarify", "refuse"}:
-            fallback_request, fallback_warnings = self.canonicalizer.normalize(question, dataset, profile, dataset.context)
-            if self._is_confident_deterministic_request(fallback_request, fallback_warnings):
-                fallback_warnings.append(
-                    "Optional LLM prompting requested clarification or refusal, but deterministic request normalization found a valid supported intent."
-                )
-                return (
-                    fallback_request,
-                    fallback_warnings,
-                    self._trace("llm", "early LLM outcome overridden by deterministic request normalization", {"status": proposal.status}),
-                )
-            request = AnalysisRequest(
-                question=question,
-                task_type_hint=None,
-                target=None,
-                options={
-                    "dataset": dataset.name,
-                    "nlp_backend": "llm+validation",
-                    "analysis_outcome": proposal.status,
-                    "llm_message": proposal.message,
-                },
-            )
-            return request, list(proposal.warnings), self._trace("llm", "prompt interpretation returned early outcome", {"status": proposal.status})
-
-        request, warnings = self.canonicalizer.normalize_with_proposal(question, dataset, profile, proposal, dataset.context)
-        return request, warnings, self._trace("llm", "prompt interpreted by optional LLM", {"status": proposal.status})
 
     def _build_summary(
         self,
@@ -1153,13 +734,6 @@ class Saida:
             return deterministic_summary, None, "deterministic", "Optional LLM response was invalid; using deterministic summary."
         return proposal.summary, proposal.summary, "llm", None
 
-    def _profile_summary(self, profile: DatasetProfile) -> str:
-        return (
-            f"rows={profile.row_count}; columns={profile.column_count}; "
-            f"measures={profile.measure_columns}; dimensions={profile.dimension_columns}; "
-            f"time_columns={profile.time_columns}; identifiers={profile.identifier_columns}"
-        )
-
     def _context_summary(self, context: SourceContext | None) -> str | None:
         if context is None:
             return None
@@ -1177,286 +751,3 @@ class Saida:
         if context.business_rules:
             parts.append(f"business_rules={context.business_rules}")
         return "; ".join(parts) if parts else None
-
-    def _is_confident_deterministic_request(
-        self,
-        request: AnalysisRequest,
-        warnings: list[str],
-    ) -> bool:
-        if warnings:
-            return False
-        if request.intent_name is not None:
-            return True
-        if request.aggregation or request.group_by or request.time_reference:
-            return True
-        return False
-
-    def _contract_guidance_message(
-        self,
-        capability_contract: object,
-        fallback_message: str | None = None,
-    ) -> str:
-        missing_parameters = getattr(capability_contract, "missing_parameters", [])
-        issues = getattr(capability_contract, "validation_issues", [])
-        if missing_parameters:
-            joined = ", ".join(str(parameter) for parameter in missing_parameters)
-            return f"We need clarification before running this analysis. Missing or unresolved inputs: {joined}."
-        if issues:
-            first_message = getattr(issues[0], "message", None)
-            if isinstance(first_message, str) and first_message.strip():
-                return first_message
-        return fallback_message or "We need clarification or better data support before running this analysis."
-
-    def _metadata_table(self, action: str, profile: DatasetProfile, parameters: dict[str, object] | None = None) -> TableArtifact:
-        parameters = parameters or {}
-        if action == "column_count":
-            dataframe = pd.DataFrame({"column_count": [int(profile.column_count)]})
-            return TableArtifact(name="column_count", description="Count of dataset columns.", dataframe=dataframe)
-        if action == "column_inventory":
-            dataframe = pd.DataFrame({"column_name": [column.name for column in profile.columns]})
-            return TableArtifact(name="column_inventory", description="Available dataset columns.", dataframe=dataframe)
-        if action == "column_type_inventory":
-            rows = []
-            for column in profile.columns:
-                rows.append(
-                    {
-                        "column_name": column.name,
-                        "dtype": column.inferred_type,
-                        "nullable": column.nullable,
-                        "null_count": self._estimated_null_count(profile, column.null_ratio),
-                        "null_ratio": column.null_ratio,
-                        "unique_count": column.unique_count,
-                        "distinct_ratio": column.distinct_ratio,
-                        "semantic_role": self._semantic_role(column.name, profile),
-                    }
-                )
-            target = parameters.get("target")
-            if isinstance(target, str):
-                rows = [row for row in rows if row["column_name"] == target]
-            dataframe = pd.DataFrame(rows)
-            return TableArtifact(
-                name="column_type_inventory",
-                description=(
-                    f"Detected data type and schema properties for column '{target}'."
-                    if isinstance(target, str)
-                    else "Detected data types and schema properties for all columns."
-                ),
-                dataframe=dataframe,
-            )
-        if action == "numeric_column_inventory":
-            rows = []
-            for column in profile.columns:
-                if column.inferred_type not in {"integer", "float", "numeric"}:
-                    continue
-                rows.append({"column_name": column.name, "dtype": column.inferred_type})
-            dataframe = pd.DataFrame(rows, columns=["column_name", "dtype"])
-            return TableArtifact(
-                name="numeric_column_inventory",
-                description="Detected numeric columns.",
-                dataframe=dataframe,
-            )
-        if action == "numeric_column_count":
-            count = sum(1 for column in profile.columns if column.inferred_type in {"integer", "float", "numeric"})
-            dataframe = pd.DataFrame({"numeric_column_count": [int(count)]})
-            return TableArtifact(
-                name="numeric_column_count",
-                description="Count of numeric columns.",
-                dataframe=dataframe,
-            )
-        if action == "categorical_column_inventory":
-            rows = []
-            for column in profile.columns:
-                if column.inferred_type not in {"category", "string", "boolean"}:
-                    continue
-                rows.append({"column_name": column.name, "dtype": column.inferred_type})
-            dataframe = pd.DataFrame(rows, columns=["column_name", "dtype"])
-            return TableArtifact(
-                name="categorical_column_inventory",
-                description="Detected categorical and text-like columns.",
-                dataframe=dataframe,
-            )
-        if action == "categorical_column_count":
-            count = sum(1 for column in profile.columns if column.inferred_type in {"category", "string", "boolean"})
-            dataframe = pd.DataFrame({"categorical_column_count": [int(count)]})
-            return TableArtifact(
-                name="categorical_column_count",
-                description="Count of categorical columns.",
-                dataframe=dataframe,
-            )
-        if action == "measure_inventory":
-            dataframe = pd.DataFrame({"measure_column": list(profile.measure_columns)})
-            return TableArtifact(name="measure_inventory", description="Detected measure columns.", dataframe=dataframe)
-        if action == "measure_count":
-            dataframe = pd.DataFrame({"measure_count": [int(len(profile.measure_columns))]})
-            return TableArtifact(name="measure_count", description="Count of measure columns.", dataframe=dataframe)
-        if action == "dimension_inventory":
-            dataframe = pd.DataFrame({"dimension_column": list(profile.dimension_columns)})
-            return TableArtifact(name="dimension_inventory", description="Detected dimension columns.", dataframe=dataframe)
-        if action == "dimension_count":
-            dataframe = pd.DataFrame({"dimension_count": [int(len(profile.dimension_columns))]})
-            return TableArtifact(name="dimension_count", description="Count of dimension columns.", dataframe=dataframe)
-        if action == "time_column_inventory":
-            rows = []
-            for column in profile.columns:
-                if column.name not in set(profile.time_columns):
-                    continue
-                rows.append({"time_column": column.name, "dtype": column.inferred_type})
-            dataframe = pd.DataFrame(rows, columns=["time_column", "dtype"])
-            return TableArtifact(name="time_column_inventory", description="Detected time columns.", dataframe=dataframe)
-        if action == "time_column_count":
-            dataframe = pd.DataFrame({"time_column_count": [int(len(profile.time_columns))]})
-            return TableArtifact(name="time_column_count", description="Count of time columns.", dataframe=dataframe)
-        if action == "missing_value_inventory":
-            rows = []
-            for column in profile.columns:
-                null_count = self._estimated_null_count(profile, column.null_ratio)
-                if null_count <= 0:
-                    continue
-                rows.append(
-                    {
-                        "column_name": column.name,
-                        "null_count": null_count,
-                        "null_ratio": column.null_ratio,
-                    }
-                )
-            dataframe = pd.DataFrame(rows, columns=["column_name", "null_count", "null_ratio"])
-            return TableArtifact(
-                name="missing_value_inventory",
-                description="Columns with observed missing values.",
-                dataframe=dataframe,
-            )
-        if action == "identifier_inventory":
-            rows = []
-            for column in profile.columns:
-                if not column.is_identifier_candidate:
-                    continue
-                rows.append(
-                    {
-                        "column_name": column.name,
-                        "dtype": column.inferred_type,
-                        "unique_count": column.unique_count,
-                        "distinct_ratio": column.distinct_ratio,
-                    }
-                )
-            dataframe = pd.DataFrame(rows, columns=["column_name", "dtype", "unique_count", "distinct_ratio"])
-            return TableArtifact(
-                name="identifier_inventory",
-                description="Columns that look like identifiers.",
-                dataframe=dataframe,
-            )
-        if action == "identifier_count":
-            count = sum(1 for column in profile.columns if column.is_identifier_candidate)
-            dataframe = pd.DataFrame({"identifier_count": [int(count)]})
-            return TableArtifact(
-                name="identifier_count",
-                description="Count of likely identifier columns.",
-                dataframe=dataframe,
-            )
-        if action == "high_cardinality_inventory":
-            rows = []
-            for column in profile.columns:
-                if column.distinct_ratio is None or column.distinct_ratio < self.HIGH_CARDINALITY_DISTINCT_RATIO:
-                    continue
-                rows.append(
-                    {
-                        "column_name": column.name,
-                        "dtype": column.inferred_type,
-                        "unique_count": column.unique_count,
-                        "distinct_ratio": column.distinct_ratio,
-                    }
-                )
-            dataframe = pd.DataFrame(rows, columns=["column_name", "dtype", "unique_count", "distinct_ratio"])
-            return TableArtifact(
-                name="high_cardinality_inventory",
-                description="Columns with a high distinct-value ratio.",
-                dataframe=dataframe,
-            )
-        if action == "high_cardinality_count":
-            count = sum(
-                1
-                for column in profile.columns
-                if column.distinct_ratio is not None and column.distinct_ratio >= self.HIGH_CARDINALITY_DISTINCT_RATIO
-            )
-            dataframe = pd.DataFrame({"high_cardinality_count": [int(count)]})
-            return TableArtifact(
-                name="high_cardinality_count",
-                description="Count of high-cardinality columns.",
-                dataframe=dataframe,
-            )
-        raise ValidationError(f"Unsupported metadata action: {action}")
-
-    def _estimated_null_count(self, profile: DatasetProfile, null_ratio: float) -> int:
-        return int(round(profile.row_count * null_ratio))
-
-    def _column_property_check_table(self, parameters: dict[str, object], profile: DatasetProfile) -> TableArtifact:
-        target = str(parameters["target"])
-        expected_property = str(parameters["expected_property"])
-        column = next((column for column in profile.columns if column.name == target), None)
-        matches = self._column_matches_property(column, profile, expected_property) if column is not None else False
-        return TableArtifact(
-            name="column_property_check",
-            description="Verification of a requested schema property for a column.",
-            dataframe=pd.DataFrame(
-                [
-                    {
-                        "column_name": target,
-                        "expected_property": expected_property,
-                        "matches": bool(matches),
-                        "column_exists": bool(column is not None),
-                        "dtype": column.inferred_type if column is not None else None,
-                        "semantic_role": self._semantic_role(target, profile) if column is not None else None,
-                        "is_identifier_candidate": bool(column.is_identifier_candidate) if column is not None else False,
-                        "distinct_ratio": column.distinct_ratio if column is not None else None,
-                    }
-                ]
-            ),
-        )
-
-    def _column_presence_check_table(self, parameters: dict[str, object], profile: DatasetProfile) -> TableArtifact:
-        requested_column = str(parameters["requested_column"])
-        profile_columns = {column.name.lower(): column.name for column in profile.columns}
-        matched_column = profile_columns.get(requested_column.lower())
-        column = next((item for item in profile.columns if item.name == matched_column), None)
-        return TableArtifact(
-            name="column_presence_check",
-            description="Verification of whether a requested column exists in the dataset schema.",
-            dataframe=pd.DataFrame(
-                [
-                    {
-                        "requested_column": requested_column,
-                        "matched_column": matched_column,
-                        "exists": bool(matched_column is not None),
-                        "dtype": column.inferred_type if column is not None else None,
-                        "semantic_role": self._semantic_role(matched_column, profile) if matched_column is not None else None,
-                    }
-                ]
-            ),
-        )
-
-    def _column_matches_property(self, column: ColumnProfile, profile: DatasetProfile, expected_property: str) -> bool:
-        if expected_property == "datetime":
-            return column.name in set(profile.time_columns) or column.inferred_type == "datetime"
-        if expected_property == "numeric":
-            return column.name in set(profile.measure_columns) or column.inferred_type in {"integer", "float", "numeric"}
-        if expected_property == "categorical":
-            return column.name in set(profile.dimension_columns) or column.inferred_type in {"category", "string", "boolean"}
-        if expected_property == "identifier":
-            return column.name in set(profile.identifier_columns) or bool(column.is_identifier_candidate)
-        if expected_property == "dimension":
-            return column.name in set(profile.dimension_columns)
-        if expected_property == "measure":
-            return column.name in set(profile.measure_columns)
-        if expected_property == "high_cardinality":
-            return bool(column.distinct_ratio is not None and column.distinct_ratio >= self.HIGH_CARDINALITY_DISTINCT_RATIO)
-        return False
-
-    def _semantic_role(self, column_name: str, profile: DatasetProfile) -> str:
-        if column_name in set(profile.time_columns):
-            return "time"
-        if column_name in set(profile.identifier_columns):
-            return "identifier"
-        if column_name in set(profile.measure_columns):
-            return "measure"
-        if column_name in set(profile.dimension_columns):
-            return "dimension"
-        return "unclassified"
