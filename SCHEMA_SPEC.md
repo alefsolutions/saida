@@ -2,24 +2,35 @@
 
 # SAIDA Schema Spec
 
-This document summarizes the live canonical contracts used by the current SAIDA codebase.
+This document summarizes the live canonical contracts used by SAIDA.
 
-If you want the system flow, see [ARCHITECTURE.md](./ARCHITECTURE.md).
+The most important design point is:
 
-## Main Live Contracts
+- `AnalysisPlan` is the main executable contract
+- `AnalysisResult` is the main standardized output contract
 
-The current runtime is centered on these core objects:
+Prompt-side contracts still exist, but they are optional frontend contracts rather than the execution core.
+
+## Core Runtime Contracts
+
+The main live contracts are:
 
 - `Dataset`
 - `DatasetProfile`
-- `AnalysisRequest`
-- `PromptCapabilityContract`
+- `PlanInput`
+- `PlanStep`
 - `AnalysisPlan`
 - `AnalysisResult`
 
+Optional frontend contracts include:
+
+- `AnalysisRequest`
+- `PromptCapabilityContract`
+- plan generation proposals
+
 ## `Dataset`
 
-`Dataset` is the engine input after loading through a source adapter.
+Represents one loaded dataset after passing through a source adapter.
 
 Fields:
 
@@ -29,13 +40,16 @@ Fields:
 - `metadata`
 - `context`
 
-`context` is optional and holds parsed markdown business context.
+Notes:
+
+- `data` is typically a pandas `DataFrame`
+- `context` is optional parsed business markdown
 
 ## `DatasetProfile`
 
-`DatasetProfile` is the deterministic schema-and-surface understanding of a dataset.
+Represents deterministic dataset understanding.
 
-Fields include:
+Important fields:
 
 - `dataset_name`
 - `row_count`
@@ -49,137 +63,113 @@ Fields include:
 - `warnings`
 - `ml_readiness`
 
-This profile is used heavily by normalization, validation, and planning.
+This contract is used by:
 
-## `AnalysisRequest`
+- plan generation
+- validation
+- compute routing
 
-`AnalysisRequest` is the normalized analytical request produced before planning.
+## `PlanInput`
+
+Represents a declared plan input.
 
 Live fields:
 
-- `question`
-- `prompt_family`
-- `intent_name`
-- `task_type_hint`
-- `target`
-- `aggregation`
-- `horizon`
-- `filters`
-- `group_by`
-- `time_reference`
-- `options`
+- `input_id`
+- `kind`
+- `ref`
+- `metadata`
 
-### Request Semantics
+Typical use:
 
-Important distinctions in the live code:
+- dataset inputs
+- future external artifacts or named upstream outputs
 
-- `target` is not a generic "all referenced columns" field
-- row-level tabular retrieval typically carries selected fields in `options["selected_columns"]`
-- `group_by` is `None` internally when no grouping is resolved
-- `filters` and `time_reference` are optional and may be absent internally
+## `PlanStep`
 
-### Rich `options`
+Represents one executable step inside an `AnalysisPlan`.
 
-The `options` dictionary carries many request-level extensions, including:
-
-- `selected_columns`
-- `sort_by`
-- `sort_direction`
-- `limit`
-- `page`
-- `page_size`
-- `ranking_direction`
-- `ranking_limit`
-- `statistical_test`
-- `comparison_columns`
-- `feature_columns`
-- `regression_target`
-- `canonical_question`
-- `canonical_question_used`
-- `prompt_family_hint`
-- `llm_confidence`
-- `semantic_intent`
-- `analysis_outcome`
-- `llm_message`
-
-### `semantic_intent`
-
-The live request contract can now carry a semantic intent object in `options["semantic_intent"]`.
-
-This is used to express operation/object semantics such as:
-
-- `operation`
-- `object_kind`
-- `object_ref`
-- `expected_result_shape`
-- `source`
-
-Example:
-
-```json
-{
-  "operation": "count",
-  "object_kind": "rows",
-  "expected_result_shape": "count",
-  "source": "rules"
-}
-```
-
-## `PromptCapabilityContract`
-
-`PromptCapabilityContract` is the structured bridge between prompt interpretation and deterministic planning.
-
-It captures:
-
-- `question`
-- `dataset_name`
-- `status`
-- `prompt_family`
-- `task_type_hint`
-- `intent_name`
-- `family_spec`
-- `candidate_capabilities`
-- `selected_capabilities`
-- `resolved_parameters`
-- `missing_parameters`
-- `unsupported_capabilities`
-- `ambiguity_flags`
-- `validation_issues`
-- `data_feasibility`
-- `warnings`
-- `notes`
-
-Representative contract statuses include:
-
-- `supported_and_data_feasible`
-- `supported_but_data_infeasible`
-- `supported_but_data_insufficient`
-- `unsupported_capability`
-
-## `AnalysisPlan`
-
-`AnalysisPlan` is the canonical executable plan.
-
-Fields:
-
-- `task_type`
-- `rationale`
-- `steps`
-- `warnings`
-
-Each `PlanStep` includes:
+Live fields:
 
 - `step_id`
 - `tool_family`
 - `action`
 - `parameters`
 - `description`
+- `family`
+- `method_id`
+- `depends_on`
+- `output_refs`
+- `expected_output`
+- `metadata`
+
+### Meaning Of Key Fields
+
+- `tool_family`
+  - which compute adapter should execute the step
+
+- `family`
+  - canonical analytics family
+
+- `action`
+  - executable action name
+
+- `method_id`
+  - canonical analytics method id
+
+- `depends_on`
+  - ordered dependency references to earlier steps
+
+- `output_refs`
+  - named outputs exposed by the step
+
+- `expected_output`
+  - optional step-level expected output contract, such as logical shape
+
+## `AnalysisPlan`
+
+This is the canonical executable workflow contract.
+
+Live fields:
+
+- `plan_id`
+- `version`
+- `task_type`
+- `rationale`
+- `steps`
+- `warnings`
+- `dataset_refs`
+- `inputs`
+- `expected_result_name`
+- `expected_result_shape`
+- `metadata`
+
+### Key design notes
+
+- `version` is currently `saida.plan.v2`
+- `dataset_refs` and `inputs` allow the plan to be explicit about its source dependencies
+- `expected_result_name` and `expected_result_shape` describe the intended primary result
+- `metadata` carries execution and provenance hints such as:
+  - dataset name
+  - prompt family
+  - request snapshot
+  - profile summary
+
+### `AnalysisPlan.to_dict()`
+
+Plans can be serialized through:
+
+```python
+plan.to_dict()
+```
+
+This returns a JSON-friendly representation of the canonical plan contract.
 
 ## `AnalysisResult`
 
-`AnalysisResult` is the main output object returned by `Saida.analyze()`.
+This is the main standardized output object returned by SAIDA execution.
 
-Fields:
+Live fields:
 
 - `summary`
 - `deterministic_summary`
@@ -193,19 +183,22 @@ Fields:
 - `artifacts`
 - `response`
 
-The portable JSON contract is stored in `response` and exposed through:
+### Result intent
 
-```python
-result.to_response_dict()
-```
+`AnalysisResult` is meant to be:
 
-## Live JSON Envelope
+- deterministic
+- inspectable
+- portable
+- application-friendly
 
-The live schema version is:
+## JSON Response Contract
+
+The portable JSON response schema is:
 
 - `saida.response.v2`
 
-Top-level envelope fields:
+Top-level fields:
 
 - `schema_version`
 - `status`
@@ -222,18 +215,18 @@ Top-level envelope fields:
 
 ## `request` Block
 
-The top-level `request` block currently includes:
+The top-level `request` block is intentionally compact and user-facing.
+
+Current fields:
 
 - `question`
 - `dataset.name`
 
-It is intentionally compact and user-facing.
-
 ## `interpretation` Block
 
-The `interpretation` block is the most important explainability surface.
+This block describes how SAIDA understood the work.
 
-Current fields:
+Current fields include:
 
 - `prompt_family`
 - `intent_name`
@@ -248,39 +241,49 @@ Current fields:
 - `options`
 - `capability_contract`
 
-Important normalization note:
+Normalization notes:
 
-- `group_by` is emitted as `[]` in response JSON when no grouping is present
+- `group_by` is emitted as `[]` in response JSON when absent
 - `filters` is emitted as `{}`
 - `time_reference` is emitted as `{}`
 
-That JSON canonicalization is intentional even when the internal request uses `None`.
+Internally these may still be `None`.
 
 ## `execution` Block
 
-The `execution` block summarizes the deterministic plan that ran.
+This block describes what SAIDA actually executed.
 
-Fields:
+Current fields include:
 
-- `status`
-- `tool_families`
+- `task_type`
 - `rationale`
-- `step_count`
+- `plan_id`
+- `plan_version`
+- `dataset_refs`
+- `inputs`
+- `expected_result_name`
+- `expected_result_shape`
 - `steps`
 
-Each step entry includes:
+Each step in the response includes:
 
 - `step_id`
 - `tool_family`
+- `family`
 - `action`
-- `description`
+- `method_id`
 - `parameters`
+- `depends_on`
+- `output_refs`
+- `expected_output`
+- `description`
+- `metadata`
 
-## Primary `result` Object
+## `result` Block
 
-The primary `result` object is a canonical self-describing result surface.
+This is the primary standardized result.
 
-Current fields:
+Fields include:
 
 - `name`
 - `description`
@@ -295,188 +298,63 @@ Current fields:
 - `metadata`
 - `value`
 
-## Current Physical Shapes
+This shape is used consistently across:
 
-The live code emits these physical shapes:
+- scalar values
+- counts
+- aggregates
+- verification objects
+- recordsets
+- grouped tables
+- timeseries
+- statistical result tables
 
-- `scalar`
-- `vector`
-- `object`
-- `recordset`
+## Supporting Tables
 
-## Current Logical Shapes
+The `tables` array carries non-primary `TableArtifact` payloads in canonical JSON form.
 
-The live code emits these logical shapes:
+This keeps the framework useful for:
 
-- `empty`
-- `scalar`
-- `count`
-- `aggregate`
-- `table`
-- `recordset`
-- `timeseries`
-- `verification`
-- `distribution`
-- `correlation_matrix`
-- `statistical_test`
+- dashboard tables
+- drill-down UIs
+- statistical output
+- supporting explainability artifacts
 
-## Current Dtypes
+## Optional Frontend Contracts
 
-Top-level result dtypes currently include:
+These still matter for prompt-driven usage, but they are not the main execution identity.
 
-- `null`
-- `boolean`
-- `integer`
-- `float`
-- `datetime`
-- `string`
-- `object`
-- `record`
+### `AnalysisRequest`
 
-Structured table schemas currently use:
+Represents normalized prompt interpretation before planning.
 
-- `boolean`
-- `integer`
-- `float`
-- `datetime`
-- `string`
+Important fields:
 
-Non-finite numeric values are normalized to `null` in the response contract.
+- `question`
+- `prompt_family`
+- `intent_name`
+- `task_type_hint`
+- `target`
+- `aggregation`
+- `filters`
+- `group_by`
+- `time_reference`
+- `options`
 
-## `tables` Block
+### `PromptCapabilityContract`
 
-The `tables` block contains secondary structured outputs.
+Represents structured validation between prompt interpretation and planning.
 
-Each table entry is normalized with:
+Important fields:
 
-- name
-- description
-- canonical schema
-- row count
-- shape metadata
-- pagination metadata when relevant
-- JSON-safe row values
+- `status`
+- `prompt_family`
+- `intent_name`
+- `selected_capabilities`
+- `resolved_parameters`
+- `missing_parameters`
+- `validation_issues`
+- `data_feasibility`
+- `warnings`
 
-## Pagination Contract
-
-Paginated tabular outputs currently expose:
-
-- `page`
-- `page_size`
-- `total_rows`
-- `returned_rows`
-- `has_next_page`
-- `has_previous_page`
-- `offset`
-- `next_page_token`
-
-These appear in:
-
-- `result.pagination` when the primary result is paginated
-- `result.metadata.pagination`
-- the relevant table entry metadata
-
-## `reasoning` Block
-
-The reasoning block contains summary-level explanation fields:
-
-- `summary`
-- `deterministic_summary`
-- `llm_summary`
-- `summary_source`
-
-This lets consumers distinguish:
-
-- deterministic wording
-- optional LLM wording
-- final chosen summary source
-
-## `history` Block
-
-`history` is the execution trace.
-
-Each event includes:
-
-- `stage`
-- `message`
-- `payload`
-
-Typical stages include:
-
-- adapter
-- context
-- profiling
-- llm
-- nlp
-- contract
-- planning
-- compute
-- results
-
-## `meta` Block
-
-The `meta` block carries extra inspection details, including:
-
-- dataset summary
-- prompt family
-- capability contract status
-- plan warnings
-- warning count
-- metrics
-- metric lookup
-- table names
-
-## Result Shape Examples
-
-### Count Result
-
-Example shape for row counts or metadata counts:
-
-- `physical_shape = scalar`
-- `logical_shape = count`
-- `dtype = integer`
-
-### Aggregate Result
-
-Example shape for sum/mean/min/max:
-
-- `physical_shape = scalar`
-- `logical_shape = aggregate`
-- `dtype = float` or `integer`
-
-### Verification Result
-
-Example shape for presence/null/property checks:
-
-- `physical_shape = object`
-- `logical_shape = verification`
-
-### Tabular Retrieval Result
-
-Example shape for row retrieval:
-
-- `physical_shape = recordset`
-- `logical_shape = recordset`
-
-### Time-Series Result
-
-Example shape for counts or metrics by month/quarter/year:
-
-- `physical_shape = recordset`
-- `logical_shape = timeseries`
-
-## Stability Notes
-
-The current schema is designed to be stable enough for applications to integrate with:
-
-- `result`
-- `tables`
-- `interpretation`
-- `meta`
-
-The most important public integration targets today are:
-
-- `AnalysisResult`
-- `saida.response.v2`
-
-Those are the contracts developers should treat as the live surface.
+These contracts are most useful when SAIDA is used as a prompt-to-plan frontend.

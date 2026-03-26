@@ -1,92 +1,160 @@
 ![SAIDA Banner](assets/github-banner.png)
 
-# SAIDA 0.2.0 File Structure
+# SAIDA File Structure
 
-This document reflects the target **SAIDA 0.2.0** structure described in `ARCHITECTURE.md`.
+This document describes the live repository structure and the role of each major package.
 
-## Target 0.2.0 Layout
+## Main Package Layout
 
 ```text
-saida/
-|-- core/
+src/saida/
 |-- adapters/
-|-- sources/
-|-- outputs/
+|-- core/
 |-- llm/
-`-- tests/
+|-- outputs/
+|-- plan_generation/
+`-- sources/
+
+spec_tests/
+playground/
+examples/
 ```
 
-## Directory Intent
+## Package Roles
 
-### `core/`
+### `src/saida/core/`
 
-Owns canonical meaning and orchestration.
+Owns the canonical framework contracts and orchestration helpers.
 
-Expected responsibilities:
+Main responsibilities:
 
-- canonical plan construction
+- `Dataset`, `DatasetProfile`, `AnalysisPlan`, `AnalysisResult`
+- analytics registry
+- capability registry
 - validation
+- planning
 - routing
 - result canonicalization
+- schema discovery
 
-### `adapters/`
+This is the closest thing to SAIDA's core engine surface.
 
-Owns translation between canonical plans and execution backends.
+### `src/saida/sources/`
 
-Examples:
+Owns how external data sources are loaded into canonical `Dataset` objects.
 
-- DuckDB adapter
-- pandas adapter
-- statsmodels adapter
-- GeoPandas adapter
+Live responsibilities:
 
-### `sources/`
+- source interfaces
+- CSV loading
+- Excel loading
+- JSON loading
+- pandas loading
+- SQL-backed loading
 
-Owns source access and schema discovery.
+### `src/saida/adapters/`
 
-Examples:
+Owns canonical compute execution through formal compute interfaces.
 
-- CSV
-- Excel
-- PostgreSQL
-- MySQL
-- MS Access
-- GIS sources
+Live responsibilities:
 
-### `outputs/`
+- `ComputeInterface`
+- DuckDB-backed execution
+- metadata/profile-backed execution
+- statsmodels-backed execution
+- reserved ML adapter surface
 
-Owns presentation and delivery transforms for canonical results.
+### `src/saida/outputs/`
 
-Examples:
+Owns output rendering from `AnalysisResult`.
 
-- JSON
-- CSV
-- Excel
-- XML
-- SQL
+Live responsibilities:
 
-### `llm/`
+- `OutputInterface`
+- JSON output adapter
+- summary output adapter
+- summary formatting
+
+### `src/saida/plan_generation/`
+
+Owns optional plan generation.
+
+Live responsibilities:
+
+- `AnalysisPlanGeneratorInterface`
+- rule-based plan generation
+- LLM-assisted plan generation
+- OpenAI plan generation
+
+This package supports the prompt-first convenience path without defining the execution core.
+
+### `src/saida/llm/`
 
 Owns optional LLM integrations.
 
+Live responsibilities:
+
+- provider abstractions
+- OpenAI provider
+- Ollama provider
+- prompt/response proposal models
+
 Rule:
 
-- LLM helps with structured plans or output wording
-- LLM does not execute
+- LLMs may generate candidate plans or summaries
+- LLMs do not execute analysis directly
 
-### `tests/`
+## Tests
 
-Owns per-layer verification.
+### `spec_tests/`
 
-Examples:
+Owns automated verification for the live codebase.
 
-- input tests
-- validation tests
-- adapter execution tests
-- result normalization tests
+Current testing emphasis includes:
 
-## Important Note
+- unit tests
+- validator contract tests
+- adapter tests
+- plan-centric end-to-end execution tests
+- plan reproducibility tests
+- optional prompt generation tests
 
-The current repository may still be in transition.
+The test suite is increasingly centered on:
 
-This file describes the target 0.2.0 architecture layout, not necessarily every current folder exactly as it exists today.
+- `AnalysisPlan + Dataset -> AnalysisResult`
+
+## Supporting Folders
+
+### `examples/`
+
+Contains sample datasets and dataset context markdown files.
+
+### `playground/`
+
+Contains local scripts for trying SAIDA manually.
+
+These are useful for experimentation, but they are not the framework contract itself.
+
+## Architectural Reading Guide
+
+If you want to understand the codebase quickly, start here:
+
+1. `src/saida/core/contracts.py`
+2. `src/saida/core/validation.py`
+3. `src/saida/adapters/interfaces.py`
+4. `src/saida/outputs/interfaces.py`
+5. `src/saida/plan_generation/interfaces.py`
+6. `src/saida/engine.py`
+
+## Important Direction Note
+
+The repository still contains prompt-oriented modules because prompt-driven analysis remains supported.
+
+But the structural center of the project is now shifting toward:
+
+- source interfaces
+- canonical plans
+- validation
+- compute adapters
+- standardized results
+- output adapters

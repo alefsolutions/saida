@@ -6,406 +6,306 @@
 [![License](https://img.shields.io/badge/license-MIT-2ea043)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%2B-3776AB)](pyproject.toml)
 
-SAIDA is a developer-facing analytics framework that turns natural-language requests into:
+SAIDA is a developer-facing analytics framework for:
 
-- deterministic analysis workflows
-- canonical result objects
-- stable JSON response payloads
+- canonical `AnalysisPlan` execution
+- deterministic data analysis jobs
+- standardized `AnalysisResult` output
 
 I built SAIDA to make BI dashboarding and day-to-day data analysis easier, faster, and less repetitive.
 
-In plain terms:
+The core idea is simple:
 
-- you give SAIDA a dataset and a question
-- SAIDA figures out what analysis is being requested
-- SAIDA runs the right deterministic workflow
-- SAIDA gives you a structured result you can use in apps, APIs, UIs, and playgrounds
+- you define or generate an `AnalysisPlan`
+- SAIDA validates it
+- SAIDA executes it through built-in adapters
+- SAIDA returns a stable result contract you can use in apps, APIs, dashboards, and output pipelines
+
+Natural language and LLMs can still help, but they are now optional frontend layers. They are not the compute layer, and they are not the core identity of SAIDA.
 
 ## What SAIDA Is
 
-SAIDA is not just a prompt wrapper around an LLM.
+SAIDA is a contract-first analytics engine.
 
-It is a contract-first analytics engine that sits between:
+Its main job is to standardize:
 
-- natural language
-- dataset understanding
-- deterministic planning
-- compute backends
-- standardized outputs
+- how data comes in
+- how analysis work is described
+- how that work is validated and executed
+- how results come out
 
-The point is simple:
+The center of the framework is:
 
-- ask for analysis in normal language
-- get back something structured and reliable
-- move faster when building dashboards, internal tools, and analytics features
+- `Dataset`
+- `AnalysisPlan`
+- `PlanValidator`
+- compute adapters
+- `AnalysisResult`
 
 ## What The Goal Is
 
-The goal of SAIDA is to make prompt-driven analytics reliable enough to build on.
+The goal of SAIDA is to make analytics execution reproducible and portable.
 
-At a practical level, SAIDA is meant to help developers:
+That means:
 
-- a stable way to convert prompts into analysis workflows
-- a predictable JSON result contract
-- safer clarification and refusal behavior when a prompt is ambiguous
-- reproducible routing so paraphrases converge to the same plan
-- portability across datasets, APIs, playgrounds, and future backends
+- the same `AnalysisPlan` and the same dataset should produce the same `AnalysisResult`
+- compute should stay deterministic
+- results should have a stable shape for downstream systems
+- backends should be replaceable without changing SAIDA's core contracts
 
-So the big idea is:
+This makes SAIDA a good fit for:
 
-- prompts are user input
-- SAIDA defines the meaning
-- deterministic compute produces the truth
+- BI dashboards
+- internal analytics tools
+- reporting APIs
+- app features that need structured analytics output
+- testing and regression workflows around analytics jobs
 
 ## How SAIDA Works
 
-At a high level, SAIDA works like this:
+The core runtime flow is:
 
-1. **Load and profile the dataset**
-   SAIDA inspects rows, columns, measures, dimensions, time fields, identifiers, nulls, and cardinality.
+- `Source -> Dataset -> AnalysisPlan -> Validate -> Execute -> AnalysisResult -> OutputAdapter`
 
-2. **Normalize the prompt**
-   SAIDA converts the raw prompt into a structured `AnalysisRequest`.
+Optional frontend flow:
 
-3. **Derive a prompt family**
-   SAIDA maps the request into a supported prompt family such as:
-   - `metric_aggregate`
-   - `column_inventory`
-   - `column_type_lookup`
-   - `tabular_record_retrieval`
-   - `grouped_entity_count`
-   - `distinct_value_count`
-   - `time_bucket_counts`
-   - `row_existence_check`
+- `Natural language -> AnalysisPlanGenerator -> candidate AnalysisPlan -> Validate -> Execute -> AnalysisResult`
 
-4. **Build a prompt capability contract**
-   SAIDA validates whether the request is supported, feasible, ambiguous, or should clarify/refuse.
+In plain English:
 
-5. **Compile a deterministic `AnalysisPlan`**
-   SAIDA creates executable plan steps for the chosen workflow.
+1. Load data through a source adapter.
+2. Profile the dataset.
+3. Provide a canonical `AnalysisPlan` directly, or generate one through an optional frontend layer.
+4. Validate the plan against the dataset and analytics registry.
+5. Execute plan steps through compute adapters.
+6. Return a standardized `AnalysisResult`.
+7. Render the result through JSON, summary, or future output adapters.
 
-6. **Run the plan on compute backends**
-   Today that mainly means deterministic pandas/DuckDB/stats-style execution.
+## Core Concepts
 
-7. **Canonicalize the output**
-   SAIDA returns a stable `AnalysisResult` plus a portable JSON envelope: `saida.response.v2`.
+### `Dataset`
 
-In one line:
+The canonical input after loading from a source adapter.
 
-- `prompt -> request -> prompt family -> capability contract -> analysis plan -> execution -> canonical result`
+Examples:
 
-## What You Get Back
+- CSV
+- Excel
+- JSON
+- pandas
+- SQL-backed sources
 
-The main top-level Python object is `AnalysisResult`.
+### `AnalysisPlan`
 
-That result includes:
+The executable contract.
 
-- `summary`
-- `metrics`
-- `tables`
-- `warnings`
-- `plan`
-- `trace`
-- `artifacts`
-- `response`
+An `AnalysisPlan` describes:
 
-The portable JSON response includes:
+- input references
+- ordered steps
+- method ids
+- dependencies
+- expected result shape
 
-- `schema_version`
-- `status`
-- `request`
-- `interpretation`
-- `execution`
-- `result`
-- `tables`
-- `reasoning`
-- `history`
-- `warnings`
-- `errors`
-- `meta`
+It represents what should be executed, not how to hand-code the analysis.
 
-This makes SAIDA useful for:
+### `AnalysisResult`
 
-- backend services
-- internal analytics tools
-- web UIs
-- chat or copilot experiences
-- testing and regression suites
+The canonical output.
 
-It is especially useful if you want to move faster on:
+It contains:
 
-- BI dashboards
-- metric exploration
-- operational reporting
-- prompt-driven internal analytics tools
+- primary result
+- supporting tables
+- warnings
+- execution metadata
+- stable JSON payloads
 
-## What SAIDA Supports Today
+### Analytics Families
 
-The current `0.2.0` surface already supports a broad deterministic set of prompt families, including:
+SAIDA organizes supported analytics into canonical families and methods, such as:
 
-- schema and metadata inventory
-  - list columns
-  - list numeric/categorical/time/identifier/high-cardinality columns
-  - show column types
+- projection / field selection
+- aggregation / grouping
+- ranking
+- validation / verification
+- schema / metadata inspection
+- distinct / cardinality analysis
+- time-series / time bucketing
+- period comparison
+- statistical inference
+- diagnostic workflows
 
-- metadata counts
-  - count columns
-  - count measure columns
-  - count dimension columns
-  - count time columns
-  - count identifier columns
-  - count high-cardinality columns
+## Built-In Interfaces
 
-- scalar metric analysis
-  - sum, mean, min, max, count
+SAIDA already has formal interfaces and built-in defaults for the main framework layers.
 
-- grouped analysis
-  - counts by group
-  - metric totals by group
-  - grouped tables
+### Source interfaces
 
-- tabular retrieval
-  - rows
-  - selected columns
-  - sorting
-  - pagination
-  - filtered record retrieval
+Built-in source adapters include:
 
-- distinct value workflows
-  - list distinct values
-  - count distinct values
+- `CSVSource`
+- `ExcelSource`
+- `JSONSource`
+- `PandasSource`
+- SQL sources such as:
+  - `SQLiteSource`
+  - `PostgreSQLSource`
+  - `MySQLSource`
 
-- verification workflows
-  - column presence
-  - column properties
-  - null checks
-  - threshold checks
-  - filtered row existence
-  - time-value existence
+### Compute interfaces
 
-- ranking workflows
-  - most/least represented group
-  - top rows
-  - top groups
+Built-in compute adapters include:
 
-- time-oriented analysis
-  - date coverage
-  - counts by month/quarter/year
-  - time-bucket metric breakdowns
-  - adjacent period comparison
+- `DuckDBAdapter`
+- `MetadataComputeAdapter`
+- `StatsModelsAdapter`
+- `MlAdapter` for reserved ML-facing surface
 
-- statistical workflows
-  - t-test
-  - ANOVA
-  - Mann-Whitney
-  - chi-square
-  - confidence interval
-  - power analysis
-  - sample size estimate
-  - regression significance
+DuckDB, metadata-backed execution, and statsmodels-backed execution are the default built-ins. They are replaceable, but they are not the architecture itself.
 
-It also supports:
+### Output interfaces
 
-- safe clarification when the prompt is ambiguous
-- safe refusal when the request references missing or invalid dataset concepts
-- optional LLM-assisted prompting and response reasoning
+Built-in output adapters include:
 
-## What Is Not Implemented Yet
+- `JsonOutputAdapter`
+- `SummaryOutputAdapter`
 
-These public APIs exist, but are not implemented yet:
-
-- `train`
-- `predict`
-- `forecast`
-
-So SAIDA is currently strongest as a prompt-to-analysis framework, not yet as a full predictive or forecasting platform.
+The canonical result remains `AnalysisResult`. Output adapters transform that result into delivery formats.
 
 ## Quick Start
 
-### Install
-
-```bash
-pip install -e .
-```
-
-### Analyze A CSV Dataset
+### 1. Load A Dataset
 
 ```python
-from saida import Saida
 from saida.sources import CSVSource
 
 dataset = CSVSource(
     "examples/datasets/support_tickets_500.csv",
     context_path="examples/contexts/support_tickets_500.md",
 ).load()
+```
+
+### 2. Execute An Authored Plan
+
+```python
+from saida import Saida
+from saida.core.contracts import AnalysisPlan, PlanStep
 
 engine = Saida()
-result = engine.analyze(dataset, "How many tickets were created by quarter?")
+
+plan = AnalysisPlan(
+    task_type="descriptive",
+    rationale="Count support tickets by team.",
+    expected_result_name="group_row_counts",
+    expected_result_shape="table",
+    steps=[
+        PlanStep(
+            step_id="count_rows_by_group",
+            tool_family="duckdb",
+            action="count_rows_by_group",
+            method_id="count_rows_by_group",
+            family="aggregation_grouping",
+            parameters={"group_by": ["team"]},
+            description="Count tickets by team.",
+        )
+    ],
+)
+
+result = engine.execute_plan(dataset, plan)
+
+print(result.response["result"]["name"])
+print(result.response["result"]["value"])
+```
+
+### 3. Use Optional Prompt-to-Plan Generation
+
+```python
+from saida import Saida
+
+engine = Saida()
+result = engine.analyze(dataset, "How many tickets do we have by team?")
 
 print(result.summary)
-print(result.response["result"])
+print(result.response["execution"]["plan_id"])
 print(result.response["interpretation"]["prompt_family"])
 ```
 
-### Analyze A Pandas DataFrame
+### 4. Render Through Output Adapters
 
 ```python
-import pandas as pd
+json_payload = engine.render_output(result, output_format="json")
+summary_text = engine.render_output(result, output_format="summary")
 
-from saida import Saida
-from saida.sources import PandasSource
-
-df = pd.DataFrame(
-    {
-        "posted_at": ["2026-01-01", "2026-02-01", "2026-03-01"],
-        "revenue": [100.0, 120.0, 80.0],
-        "region": ["West", "West", "East"],
-    }
-)
-
-dataset = PandasSource(df, name="sales").load()
-engine = Saida()
-
-result = engine.analyze(dataset, "Show revenue by month")
-
-print(result.summary)
-print([table.name for table in result.tables])
-print(result.to_response_dict()["status"])
+print(json_payload["result"])
+print(summary_text)
 ```
 
-### Use Optional LLM Prompting And Reasoning
+## Real Developer Use Cases
 
-```python
-from saida import Saida
-from saida.config import LlmConfig, SaidaConfig
+### BI dashboard metric cards
 
-engine = Saida(
-    config=SaidaConfig(
-        llm=LlmConfig(
-            enabled=True,
-            provider="openai",
-            model="gpt-4.1-mini",
-            use_for_prompting=True,
-            use_for_reasoning=True,
-        )
-    )
-)
-```
+Use a plan that returns:
 
-Important:
+- row counts
+- totals
+- averages
+- distinct counts
 
-- LLMs in SAIDA are optional
-- LLMs do not perform the compute
-- deterministic execution still owns the analysis truth
+Then feed the `AnalysisResult` JSON directly into your dashboard layer.
 
-## Real-World Developer Use Cases
+### Grouped tables for reporting
 
-### 1. Build An Analytics API
+Use grouped count or grouped aggregate plans to return standardized tables for team, country, region, product, or priority breakdowns.
 
-You want users to ask questions like:
+### Verification checks
 
-- `What are the columns in this dataset?`
-- `How many unique channels are there?`
-- `Show total revenue by region`
+Use verification plans for:
 
-SAIDA gives you:
+- threshold checks
+- null checks
+- time-value existence
+- schema checks
 
-- normalized prompt handling
-- deterministic execution
-- a stable JSON envelope for your API response
+This is useful for operational monitoring and data-quality workflows.
 
-### 2. Build A Support-Ops Copilot
+### Statistical analysis endpoints
 
-You have support data and want prompts like:
+Use inferential plans such as:
 
-- `Which channel has the most tickets?`
-- `How many tickets were created by quarter?`
-- `Does csat_score have missing values?`
-- `Show resolution_hours by priority and product_area`
+- `t_test`
+- `anova`
+- `chi_square`
+- `confidence_interval`
 
-SAIDA gives you:
+and keep the response contract stable for application code.
 
-- prompt routing
-- safe clarification for ambiguous requests
-- structured tables and scalar results
+## What Is Optional
 
-### 3. Build A Dataset QA Or Metadata Assistant
+Prompt interpretation and LLM support are optional.
 
-You want prompts like:
+If used, they should:
 
-- `What are the data types of each field?`
-- `How many columns are in the dataset?`
-- `Which columns are numeric?`
-- `Is created_at a datetime field?`
+- generate candidate plans
+- follow strict contracts
+- pass validation before execution
 
-SAIDA gives you:
+They should never bypass the validator or become the compute layer.
 
-- schema-aware interpretation
-- canonical metadata results
-- consistent verification outputs
+## What Is Not Implemented Yet
 
-### 4. Standardize Analytics Across Different Interfaces
+These public APIs exist but are still reserved surfaces:
 
-You want the same engine to power:
+- `train`
+- `predict`
+- `forecast`
 
-- a CLI
-- a web API
-- an internal admin UI
-- a playground
+So today SAIDA is strongest as a deterministic analytics planning and execution framework, not yet a full predictive platform.
 
-SAIDA gives you:
+## More Docs
 
-- the same deterministic engine
-- the same response contract
-- the same prompt-family routing
-
-## Example Prompts
-
-Here are a few examples that map cleanly to current workflows:
-
-- `What are the columns in the dataset?`
-- `How many columns are in the dataset?`
-- `What is the data type of created_at?`
-- `How many unique team values are there?`
-- `Give me the total tickets per channel.`
-- `Which channel has the most tickets?`
-- `Show all rows.`
-- `Show ticket_id and priority rows sorted by created_at.`
-- `How many tickets were created by quarter?`
-- `Compare revenue this quarter to last quarter.`
-- `Does csat_score have missing values?`
-- `Are any resolution_hours above 20?`
-
-## CLI
-
-SAIDA includes a simple CLI:
-
-```bash
-saida profile --csv examples/datasets/support_tickets_500.csv --json
-saida analyze --csv examples/datasets/support_tickets_500.csv --question "How many columns are in the dataset?" --json
-```
-
-## Documentation Map
-
-If you want the deeper design details, use:
-
-- [Architecture](ARCHITECTURE.md)
-- [Prompt Family Catalog](PROMPT_FAMILY_CATALOG.md)
-- [Prompt Capability Architecture Note](PROMPT_CAPABILITY_ARCHITECTURE_NOTE.md)
-- [Schema Spec](SCHEMA_SPEC.md)
-- [Planned API Usage](API_USAGE.md)
-- [File Structure](FILE_STRUCTURE.md)
-- [Coding Guidelines](CODING_GUIDELINES.md)
-- [Changelog](CHANGELOG.md)
-
-## Bottom Line
-
-SAIDA exists to help developers build prompt-driven analytics systems that are:
-
-- more deterministic than a pure chat wrapper
-- more structured than ad hoc data-question code
-- easier to test
-- easier to extend
-- safer to integrate into real products
-
-If you want prompts to result in real analytical workflows and real structured results, that is the point of SAIDA.
+- [ARCHITECTURE.md](./ARCHITECTURE.md)
+- [API_USAGE.md](./API_USAGE.md)
+- [SCHEMA_SPEC.md](./SCHEMA_SPEC.md)
+- [PROMPT_FAMILY_CATALOG.md](./PROMPT_FAMILY_CATALOG.md)
+- [SAIDA_PROMPT_PLAYBOOK.md](./SAIDA_PROMPT_PLAYBOOK.md)
