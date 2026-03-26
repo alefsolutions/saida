@@ -12,6 +12,7 @@ if str(PLAYGROUND_PATH) not in sys.path:
 
 import run_analysis_openai as openai_playground
 import run_analysis_openai_json_yellow as openai_playground_json_yellow
+import run_analysis_sqlite_sales_40 as sqlite_playground
 
 
 class _FakeEngine:
@@ -211,3 +212,25 @@ def test_openai_yellow_json_playground_can_render_capability_contract(
 
     assert '"status": "supported_with_partial_fallback"' in output
     assert '"selected_capabilities"' in output
+
+
+def test_sqlite_playground_prints_summary_for_loaded_sqlite_dataset(
+    monkeypatch: object,
+    capsys: object,
+) -> None:
+    fake_engine = _FakeEngine(summary="The dataset contains 40 rows.")
+    dataset = SimpleNamespace(name="sales_sqlite_40", data=pd.DataFrame({"total_sales": [1.0]}))
+
+    monkeypatch.setattr(sqlite_playground.SQLiteSource, "load", lambda self: dataset)
+    monkeypatch.setattr(sqlite_playground, "Saida", lambda: fake_engine)
+
+    answers = iter(["How many rows are there?", "exit"])
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(answers))
+
+    sqlite_playground.main()
+    output = capsys.readouterr().out
+
+    assert "SAIDA SQLite playground" in output
+    assert "Dataset: sales_sqlite_40" in output
+    assert "The dataset contains 40 rows." in output
+    assert fake_engine.calls == ["How many rows are there?"]
