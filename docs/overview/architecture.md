@@ -95,10 +95,13 @@ Live built-ins:
 - `JSONSource`
 - `PandasSource`
 - SQL sources such as `SQLiteSource`, `PostgreSQLSource`, and `MySQLSource`
+- `SourceContextParser`
+- `SchemaDiscoveryService`
 
 Output of this layer:
 
 - canonical `Dataset`
+- deterministic `DatasetProfile`
 
 ### 2. Plan Generation Layer
 
@@ -161,7 +164,7 @@ Responsibility:
 Live registries:
 
 - canonical analytics registry
-- prompt family catalog
+- prompt family catalog for optional prompt generation only
 
 The analytics registry is the single canonical metadata definition for core analytics support:
 
@@ -173,7 +176,7 @@ The analytics registry is the single canonical metadata definition for core anal
 - output shapes
 - default tool families
 
-The prompt family catalog remains useful for optional prompt-to-plan generation and result shaping.
+The prompt family catalog remains useful for optional prompt-to-plan generation.
 
 ### 5. Compute Layer
 
@@ -367,6 +370,6 @@ The main remaining cleanup work is removing prompt-first deadweight that still e
 
 - prompt normalization and prompt-family routing
 - legacy prompt-generation helpers
-- engine-side prompt reconstruction helpers
+- optional frontend compatibility helpers
 
 That cleanup is separate from the core architecture, which is already moving in the right direction.

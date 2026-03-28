@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pandas as pd
 
-from saida.core.context import SourceContextParser
 from saida.exceptions import AdapterError
 from saida.core.contracts import Dataset, SourceContext
+from saida.sources.context import SourceContextParser
 
 
 def load_context(context_path: str | Path | None) -> SourceContext | None:

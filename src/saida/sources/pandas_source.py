@@ -5,8 +5,8 @@ from __future__ import annotations
 import pandas as pd
 
 from saida.sources._helpers import build_dataset
+from saida.sources.context import SourceContextParser
 from saida.sources.interfaces import SourceInterface
-from saida.core.context import SourceContextParser
 from saida.exceptions import AdapterError
 from saida.core.contracts import Dataset
 

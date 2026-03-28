@@ -9,7 +9,6 @@ from saida.core.analytics_registry import (
     build_default_analytics_registry,
     get_analytics_registry,
 )
-from saida.core.context import SourceContextParser
 from saida.core.contracts import (
     AnalysisInterpretation,
     AnalysisPlan,
@@ -31,7 +30,6 @@ from saida.core.contracts import (
     TableArtifact,
     TrainResult,
 )
-from saida.core.discovery import DatasetProfiler, SchemaDiscoveryService
 from saida.core.result_canonicalization import ResultBuilder, ResultCanonicalizer
 from saida.core.routing import BackendRouter
 from saida.core.validation import PlanValidator
@@ -49,7 +47,6 @@ __all__ = [
     "build_default_analytics_registry",
     "ColumnProfile",
     "Dataset",
-    "DatasetProfiler",
     "DatasetProfile",
     "ExecutionTraceEvent",
     "ForecastAnalysisResult",
@@ -65,9 +62,7 @@ __all__ = [
     "PredictionResult",
     "ResultBuilder",
     "ResultCanonicalizer",
-    "SchemaDiscoveryService",
     "SourceContext",
-    "SourceContextParser",
     "TableArtifact",
     "TrainResult",
 ]

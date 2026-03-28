@@ -33,7 +33,6 @@ Main responsibilities:
 - validation
 - routing
 - result canonicalization
-- schema discovery
 
 This is the closest thing to SAIDA's core engine surface.
 
@@ -44,6 +43,8 @@ Owns how external data sources are loaded into canonical `Dataset` objects.
 Live responsibilities:
 
 - source interfaces
+- source-side context parsing
+- dataset profiling and schema discovery
 - CSV loading
 - Excel loading
 - JSON loading
@@ -99,7 +100,7 @@ Live responsibilities:
 - provider abstractions
 - OpenAI provider
 - Ollama provider
-- prompt/response proposal models
+- plan/summary proposal models
 
 Rule:
 

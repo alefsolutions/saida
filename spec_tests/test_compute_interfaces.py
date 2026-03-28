@@ -3,7 +3,8 @@ from __future__ import annotations
 import pytest
 
 from saida.adapters import ComputeInterface, ComputeRequest, DuckDBAdapter, MetadataComputeAdapter, MlAdapter, StatsModelsAdapter
-from saida.core import BackendRouter, DatasetProfiler
+from saida.core import BackendRouter
+from saida.sources import DatasetProfiler
 from saida.exceptions import ModelTrainingError
 from .factories import build_support_dataset
 

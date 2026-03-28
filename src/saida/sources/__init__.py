@@ -1,6 +1,8 @@
 """Source adapters for loading external data into SAIDA."""
 
+from saida.sources.context import SourceContextParser
 from saida.sources.csv_source import CSVAdapter, CSVSource
+from saida.sources.discovery import DatasetProfiler, SchemaDiscoveryService
 from saida.sources.excel_source import ExcelAdapter, ExcelSource
 from saida.sources.interfaces import SQLSourceInterface, SourceInterface
 from saida.sources.json_source import JSONAdapter, JSONSource
@@ -21,6 +23,7 @@ from saida.sources.sql_source import (
 __all__ = [
     "CSVAdapter",
     "CSVSource",
+    "DatasetProfiler",
     "ExcelAdapter",
     "ExcelSource",
     "JSONAdapter",
@@ -36,7 +39,9 @@ __all__ = [
     "SQLQuerySource",
     "SQLSource",
     "SQLSourceInterface",
+    "SchemaDiscoveryService",
     "SQLiteAdapter",
     "SQLiteSource",
+    "SourceContextParser",
     "SourceInterface",
 ]

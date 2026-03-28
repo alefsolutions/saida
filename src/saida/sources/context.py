@@ -1,11 +1,11 @@
-"""Markdown semantic context parsing."""
+"""Markdown semantic context parsing for source-side dataset metadata."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from saida.exceptions import ContextError
 from saida.core.contracts import SourceContext
+from saida.exceptions import ContextError
 
 
 class SourceContextParser:

@@ -11,8 +11,6 @@ from saida.core import (
     PlanValidator,
     get_analytics_registry,
     ResultCanonicalizer,
-    SchemaDiscoveryService,
-    SourceContextParser,
 )
 from saida.exceptions import LlmIntegrationError, ValidationError
 from saida.llm import BaseLlmProvider, SummaryContext, build_llm_provider
@@ -33,6 +31,7 @@ from saida.core.contracts import (
     TableArtifact,
     TrainResult,
 )
+from saida.sources import SchemaDiscoveryService, SourceContextParser
 
 
 class Saida:

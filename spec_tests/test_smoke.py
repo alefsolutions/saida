@@ -7,7 +7,7 @@ import pandas as pd
 import pytest
 
 from saida import PromptAnalysisFrontend, Saida
-from saida.core import DatasetProfiler, SourceContextParser
+from saida.sources import DatasetProfiler, SourceContextParser
 from saida.core.contracts import Dataset
 from saida.exceptions import ModelTrainingError
 from saida.sources import CSVAdapter, JSONAdapter, PandasAdapter, SQLAdapter

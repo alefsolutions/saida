@@ -1,4 +1,4 @@
-"""Deterministic schema discovery and dataset profiling."""
+"""Deterministic dataset discovery and profiling for loaded sources."""
 
 from __future__ import annotations
 
@@ -7,8 +7,8 @@ import warnings
 import pandas as pd
 from pandas.api.types import is_bool_dtype, is_datetime64_any_dtype, is_numeric_dtype, is_string_dtype
 
-from saida.exceptions import ProfileError
 from saida.core.contracts import ColumnProfile, Dataset, DatasetProfile, MLReadinessProfile
+from saida.exceptions import ProfileError
 
 
 class SchemaDiscoveryService:
@@ -30,19 +30,19 @@ class SchemaDiscoveryService:
         time_columns = [column.name for column in columns if column.is_time_candidate]
         identifier_columns = [column.name for column in columns if column.is_identifier_candidate]
 
-        warnings: list[str] = []
+        warnings_list: list[str] = []
         if dataframe.empty:
-            warnings.append("Dataset contains no rows.")
+            warnings_list.append("Dataset contains no rows.")
         if int(dataframe.duplicated().sum()) > 0:
-            warnings.append("Dataset contains duplicate rows.")
+            warnings_list.append("Dataset contains duplicate rows.")
         if dataframe.empty:
-            warnings.append("Schema discovery results may be limited because the dataset is empty.")
+            warnings_list.append("Schema discovery results may be limited because the dataset is empty.")
         if not measure_columns:
-            warnings.append("No measure columns were detected.")
+            warnings_list.append("No measure columns were detected.")
         if not dimension_columns:
-            warnings.append("No dimension columns were detected.")
+            warnings_list.append("No dimension columns were detected.")
         if not time_columns:
-            warnings.append("No datetime columns detected.")
+            warnings_list.append("No datetime columns detected.")
 
         ml_readiness = self._build_ml_readiness(dataframe, columns, measure_columns, time_columns)
 
@@ -56,7 +56,7 @@ class SchemaDiscoveryService:
             time_columns=time_columns,
             identifier_columns=identifier_columns,
             duplicate_row_count=int(dataframe.duplicated().sum()),
-            warnings=warnings,
+            warnings=warnings_list,
             ml_readiness=ml_readiness,
         )
 
@@ -90,13 +90,13 @@ class SchemaDiscoveryService:
             is_time_candidate=is_time_candidate,
         )
 
-        warnings: list[str] = []
+        warnings_list: list[str] = []
         if null_count == row_count:
-            warnings.append("Column contains only null values.")
+            warnings_list.append("Column contains only null values.")
         if row_count > 0 and null_count / row_count > 0.5:
-            warnings.append("Column has more than 50% null values.")
+            warnings_list.append("Column has more than 50% null values.")
         if is_identifier_candidate and null_count > 0:
-            warnings.append("Identifier candidate contains null values.")
+            warnings_list.append("Identifier candidate contains null values.")
         if inferred_type == "string" and distinct_ratio is not None and distinct_ratio < self.CATEGORY_RATIO_THRESHOLD:
             inferred_type = "category"
 
@@ -112,7 +112,7 @@ class SchemaDiscoveryService:
             is_dimension_candidate=is_dimension_candidate,
             is_measure_candidate=is_measure_candidate,
             is_time_candidate=is_time_candidate,
-            warnings=warnings,
+            warnings=warnings_list,
         )
 
     def _infer_type(self, series: pd.Series) -> str:
