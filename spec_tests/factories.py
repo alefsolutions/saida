@@ -122,5 +122,22 @@ def build_support_schema_dataset() -> Dataset:
     )
 
 
+def build_statistical_dataset() -> Dataset:
+    return Dataset(
+        name="statistical_sales",
+        source_type="pandas",
+        data=pd.DataFrame(
+            {
+                "team": ["Alpha"] * 6 + ["Beta"] * 6 + ["Gamma"] * 6,
+                "segment": ["Retail", "Retail", "Wholesale", "Wholesale", "Retail", "Wholesale"] * 3,
+                "region": ["North", "North", "South", "South", "North", "South"] * 3,
+                "revenue": [100, 104, 98, 102, 101, 99, 135, 138, 132, 140, 136, 134, 160, 158, 162, 159, 161, 157],
+                "cost": [70, 72, 69, 71, 70, 68, 88, 90, 87, 91, 89, 88, 95, 94, 96, 95, 97, 93],
+                "units": [10, 11, 10, 12, 11, 10, 14, 15, 14, 15, 16, 14, 18, 17, 19, 18, 20, 17],
+            }
+        ),
+    )
+
+
 def json_safe(value: Any) -> Any:
     return json.loads(json.dumps(value, sort_keys=True, default=str))
