@@ -1,4 +1,4 @@
-"""Main orchestration engine for SAIDA."""
+"""Main plan-first orchestration runtime for SAIDA."""
 
 from __future__ import annotations
 
@@ -41,7 +41,18 @@ from saida.core.contracts import (
 
 
 class Saida:
-    """Coordinate SAIDA modules through a simple Python API."""
+    """Coordinate SAIDA's plan-first framework layers through a simple Python API.
+
+    Core framework path:
+    - Dataset
+    - AnalysisPlan
+    - validation
+    - execution
+    - AnalysisResult
+
+    Prompt generation and LLM usage remain supported, but they are optional
+    frontend helpers layered on top of the core execution contract.
+    """
 
     HIGH_CARDINALITY_DISTINCT_RATIO = 0.8
 
@@ -128,7 +139,7 @@ class Saida:
         return generator.generate(question, dataset, profile, dataset.context)
 
     def plan(self, dataset: Dataset, question: str) -> AnalysisPlan:
-        """Compile a question into a canonical analysis plan without executing it."""
+        """Optional frontend helper that compiles a question into a candidate plan."""
         self.validator.validate_dataset(dataset)
         profile = self.profile(dataset)
         generation = self._generate_plan_result(question, dataset, profile)
@@ -143,7 +154,7 @@ class Saida:
         plan: AnalysisPlan,
         request: AnalysisRequest | None = None,
     ) -> AnalysisResult:
-        """Execute an existing canonical analysis plan deterministically."""
+        """Execute a validated AnalysisPlan deterministically through the core framework path."""
         self.validator.validate_dataset(dataset)
         trace = [self._trace("adapter", "dataset loaded", {"dataset": dataset.name})]
         if dataset.context is not None:
@@ -181,7 +192,7 @@ class Saida:
         )
 
     def analyze(self, dataset: Dataset, question: str) -> AnalysisResult:
-        """Run an end-to-end deterministic analysis workflow."""
+        """Optional convenience helper for prompt-to-plan-to-result execution."""
         self.validator.validate_dataset(dataset)
         trace = [self._trace("adapter", "dataset loaded", {"dataset": dataset.name})]
         if dataset.context is not None:

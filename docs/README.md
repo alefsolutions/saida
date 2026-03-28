@@ -2,6 +2,16 @@
 
 This folder contains the main SAIDA documentation set.
 
+Framework center of gravity:
+
+- `Dataset`
+- `AnalysisPlan`
+- validation
+- execution
+- `AnalysisResult`
+
+Prompt and LLM documentation supports optional frontend utilities layered on top of that core.
+
 ## Overview
 
 - [Architecture](./overview/architecture.md)

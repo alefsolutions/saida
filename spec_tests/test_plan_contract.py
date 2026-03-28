@@ -70,6 +70,50 @@ def test_engine_execute_plan_supports_user_authored_row_count_plan() -> None:
     assert result.response["interpretation"]["filters"] == {"reopened_flag": "no"}
 
 
+def test_execute_plan_does_not_require_prompt_generation_path_for_authored_plan(monkeypatch: pytest.MonkeyPatch) -> None:
+    engine = Saida()
+    dataset = build_support_dataset()
+    plan = AnalysisPlan(
+        task_type="descriptive",
+        rationale="Count support rows without invoking prompt generation.",
+        steps=[
+            PlanStep(
+                step_id="row_count",
+                tool_family="duckdb",
+                action="row_count",
+                parameters={},
+                description="Count all support rows.",
+            )
+        ],
+        expected_result_name="row_count",
+        expected_result_shape="scalar",
+    )
+
+    def _unexpected_generate_plan_result(question: str, dataset_arg: object, profile_arg: object) -> object:
+        _ = question
+        _ = dataset_arg
+        _ = profile_arg
+        raise AssertionError("Prompt-generation path should not run during execute_plan().")
+
+    monkeypatch.setattr(engine, "_generate_plan_result", _unexpected_generate_plan_result)
+
+    result = engine.execute_plan(dataset, plan)
+
+    assert result.response["status"] == "ok"
+    assert result.response["result"]["name"] == "row_count"
+    assert result.response["result"]["value"] == 7
+
+
+def test_capabilities_expose_execute_plan_as_core_framework_surface() -> None:
+    capabilities = Saida().capabilities()
+
+    assert capabilities["execute_plan"] is True
+    assert capabilities["profile"] is True
+    assert capabilities["render_output"] is True
+    assert capabilities["plan"] is True
+    assert capabilities["analyze"] is True
+
+
 def test_plan_validator_rejects_duplicate_step_ids() -> None:
     validator = PlanValidator()
     plan = AnalysisPlan(

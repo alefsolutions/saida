@@ -20,7 +20,15 @@ SAIDA is now centered on:
 - deterministic execution
 - standardized results
 
-Prompt handling and LLM usage are still supported, but they are sub-systems rather than the heart of the framework.
+Prompt handling and LLM usage are still supported, but they are optional frontend subsystems rather than the heart of the framework.
+
+The execution core can be stated very plainly:
+
+- `Dataset`
+- `AnalysisPlan`
+- validation
+- execution
+- `AnalysisResult`
 
 ## Architectural Principles
 
@@ -48,7 +56,7 @@ Optional frontend contracts exist too, such as:
 - `PromptCapabilityContract`
 - plan generator proposals
 
-But those support the frontend path. They are not the execution core.
+But those support the frontend path. They are not the framework source of truth.
 
 ### Clear Layer Separation
 

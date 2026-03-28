@@ -15,12 +15,15 @@ from saida import Saida
 The most important public methods are:
 
 - `execute_plan(dataset, plan, request=None)`
-- `plan(dataset, question)`
-- `analyze(dataset, question)`
 - `profile(dataset)`
 - `render_output(result, output_format="json", adapter=None)`
 - `load_context(markdown)`
 - `capabilities()`
+
+Optional frontend helpers:
+
+- `plan(dataset, question)`
+- `analyze(dataset, question)`
 
 ## Recommended Core Workflow
 
@@ -30,6 +33,10 @@ The recommended framework-first workflow is:
 2. create or receive an `AnalysisPlan`
 3. execute it with `execute_plan`
 4. use the standardized `AnalysisResult`
+
+This is the primary framework path.
+
+If you use prompt or LLM features, treat them as optional plan-generation utilities that sit before this path.
 
 ### Execute An Authored Plan
 
@@ -72,6 +79,8 @@ print(result.response["result"]["value"])
 
 If you want a prompt frontend, SAIDA still supports it.
 
+But this is a convenience layer, not the framework source of truth.
+
 ### Build A Plan From A Prompt
 
 ```python
@@ -105,6 +114,8 @@ print(result.response["execution"]["plan_id"])
 Core execution API.
 
 Use this when you already have a valid `AnalysisPlan`.
+
+This is the primary SAIDA framework API.
 
 What it does:
 

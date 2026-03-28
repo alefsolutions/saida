@@ -21,11 +21,11 @@ The core idea is simple:
 - SAIDA executes it through built-in adapters
 - SAIDA returns a stable result contract you can use in apps, APIs, dashboards, and output pipelines
 
-Natural language and LLMs can still help, but they are now optional frontend layers. They are not the compute layer, and they are not the core identity of SAIDA.
+Natural language and LLMs can still help, but they are now optional frontend utilities. They are not the compute layer, and they are not the core identity of SAIDA.
 
 ## What SAIDA Is
 
-SAIDA is a contract-first analytics engine.
+SAIDA is a contract-first analytics framework with a deterministic execution engine inside it.
 
 Its main job is to standardize:
 
@@ -40,6 +40,14 @@ The center of the framework is:
 - `AnalysisPlan`
 - `PlanValidator`
 - compute adapters
+- `AnalysisResult`
+
+If you strip everything else away, the framework's core runtime is:
+
+- `Dataset`
+- `AnalysisPlan`
+- validation
+- execution
 - `AnalysisResult`
 
 ## What The Goal Is
