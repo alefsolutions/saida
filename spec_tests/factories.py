@@ -5,7 +5,7 @@ from typing import Any
 
 import pandas as pd
 
-from saida.core.contracts import Dataset
+from saida.core.contracts import AnalysisPlan, Dataset, PlanStep
 
 
 def build_sales_dataset() -> Dataset:
@@ -136,6 +136,27 @@ def build_statistical_dataset() -> Dataset:
                 "units": [10, 11, 10, 12, 11, 10, 14, 15, 14, 15, 16, 14, 18, 17, 19, 18, 20, 17],
             }
         ),
+    )
+
+
+def build_basic_row_count_plan(dataset_name: str = "support") -> AnalysisPlan:
+    return AnalysisPlan(
+        task_type="descriptive",
+        rationale="Count rows deterministically for core execution tests.",
+        expected_result_name="row_count",
+        expected_result_shape="scalar",
+        dataset_refs=[dataset_name],
+        steps=[
+            PlanStep(
+                step_id="row_count",
+                tool_family="duckdb",
+                action="row_count",
+                method_id="row_count",
+                family="aggregation_grouping",
+                parameters={},
+                description="Count all rows.",
+            )
+        ],
     )
 
 

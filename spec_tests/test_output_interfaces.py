@@ -1,14 +1,19 @@
 from __future__ import annotations
 
-from saida import PromptAnalysisFrontend
+from saida import Saida
 from saida.outputs import JsonOutputAdapter, OutputInterface, SummaryOutputAdapter
-from .factories import build_support_dataset
+from .factories import build_basic_row_count_plan, build_support_dataset
+
+
+def _build_core_result() -> object:
+    engine = Saida()
+    dataset = build_support_dataset()
+    plan = build_basic_row_count_plan(dataset.name)
+    return engine.execute_plan(dataset, plan)
 
 
 def test_json_output_adapter_implements_output_interface() -> None:
-    engine = PromptAnalysisFrontend()
-    dataset = build_support_dataset()
-    result = engine.analyze(dataset, "How many rows do we have?")
+    result = _build_core_result()
     adapter = JsonOutputAdapter()
 
     payload = adapter.render(result)
@@ -19,9 +24,7 @@ def test_json_output_adapter_implements_output_interface() -> None:
 
 
 def test_summary_output_adapter_implements_output_interface() -> None:
-    engine = PromptAnalysisFrontend()
-    dataset = build_support_dataset()
-    result = engine.analyze(dataset, "How many rows do we have?")
+    result = _build_core_result()
     adapter = SummaryOutputAdapter()
 
     summary_text = adapter.render(result)
@@ -32,9 +35,9 @@ def test_summary_output_adapter_implements_output_interface() -> None:
 
 
 def test_engine_render_output_uses_registered_json_adapter() -> None:
-    engine = PromptAnalysisFrontend()
+    engine = Saida()
     dataset = build_support_dataset()
-    result = engine.analyze(dataset, "How many rows do we have?")
+    result = engine.execute_plan(dataset, build_basic_row_count_plan(dataset.name))
 
     payload = engine.render_output(result, output_format="json")
 
@@ -42,9 +45,9 @@ def test_engine_render_output_uses_registered_json_adapter() -> None:
 
 
 def test_engine_render_output_uses_registered_summary_adapter() -> None:
-    engine = PromptAnalysisFrontend()
+    engine = Saida()
     dataset = build_support_dataset()
-    result = engine.analyze(dataset, "How many rows do we have?")
+    result = engine.execute_plan(dataset, build_basic_row_count_plan(dataset.name))
 
     payload = engine.render_output(result, output_format="summary")
 
