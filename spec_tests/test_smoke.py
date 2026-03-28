@@ -1443,7 +1443,7 @@ def test_analyze_supports_grouped_entity_count_prompt() -> None:
     assert result.response["interpretation"]["options"]["intent_name"] == "grouped_tabular_query"
     assert result.response["interpretation"]["target"] is None
     assert result.response["interpretation"]["aggregation"] == "count"
-    assert result.response["interpretation"]["capability_contract"]["status"] == "supported_and_data_feasible"
+    assert result.response["interpretation"]["prompt_contract"]["status"] == "supported_and_data_feasible"
     assert any(table.name == "grouped_tabular_query" for table in result.tables)
 
 

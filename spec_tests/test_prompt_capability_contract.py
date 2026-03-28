@@ -1,6 +1,6 @@
 from saida.core import ColumnProfile, DatasetProfile, build_default_analytics_registry
 from saida.core.contracts import AnalysisRequest
-from saida.plan_generation import build_prompt_capability_contract
+from saida.plan_generation import build_prompt_plan_contract
 
 
 def build_profile() -> DatasetProfile:
@@ -57,8 +57,8 @@ def test_default_analytics_registry_exposes_graph_like_relationships() -> None:
     assert "ranked_breakdown" in registry.related("top_n_by_metric", "uses")
 
 
-def test_prompt_capability_contract_marks_supported_time_comparison_as_feasible() -> None:
-    contract = build_prompt_capability_contract(
+def test_prompt_plan_contract_marks_supported_time_comparison_as_feasible() -> None:
+    contract = build_prompt_plan_contract(
         AnalysisRequest(
             question="Compare revenue this quarter to last quarter",
             intent_name="time_period_comparison",
@@ -73,8 +73,8 @@ def test_prompt_capability_contract_marks_supported_time_comparison_as_feasible(
     assert "period_over_period_comparison" in contract.selected_capabilities
 
 
-def test_prompt_capability_contract_marks_missing_grouping_as_partial_fallback() -> None:
-    contract = build_prompt_capability_contract(
+def test_prompt_plan_contract_marks_missing_grouping_as_partial_fallback() -> None:
+    contract = build_prompt_plan_contract(
         AnalysisRequest(
             question="Do regions differ in revenue?",
             task_type_hint="statistical",

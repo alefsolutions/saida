@@ -52,7 +52,7 @@ class PromptAnalysisFrontend:
             {
                 "analyze": True,
                 "plan": True,
-                "prompt_capability_contract": True,
+                "prompt_plan_contract": True,
                 "llm_plan_generation": bool(self.engine.llm_provider and self.engine.config.llm.use_for_prompting),
             }
         )
@@ -111,14 +111,14 @@ class PromptAnalysisFrontend:
             )
         )
 
-        capability_contract = generation.capability_contract
+        prompt_contract = generation.prompt_contract
         trace.append(
             self.engine._trace(
                 "contract",
-                "prompt capability contract built",
+                "prompt plan contract built",
                 {
-                    "status": capability_contract.status,
-                    "selected_capabilities": list(capability_contract.selected_capabilities),
+                    "status": prompt_contract.status,
+                    "selected_capabilities": list(prompt_contract.selected_capabilities),
                 },
             )
         )
@@ -136,14 +136,14 @@ class PromptAnalysisFrontend:
                 [],
                 self.engine._merge_warnings(
                     generation.request_warnings,
-                    capability_contract.warnings,
+                    prompt_contract.warnings,
                     generation.contract_warning_messages,
                 ),
                 plan,
                 interpretation,
                 profile,
                 trace,
-                capability_contract,
+                prompt_contract,
             )
 
         return self.engine._execute_prepared_plan(
@@ -153,11 +153,11 @@ class PromptAnalysisFrontend:
             profile=profile,
             plan=plan,
             trace=trace,
-            capability_contract=capability_contract,
+            prompt_contract=prompt_contract,
             warning_groups=(
                 profile.warnings,
                 generation.request_warnings,
-                capability_contract.warnings,
+                prompt_contract.warnings,
                 generation.contract_warning_messages,
             ),
         )

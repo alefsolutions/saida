@@ -5,7 +5,7 @@ import pytest
 
 from saida import PromptAnalysisFrontend, Saida
 from saida.config import LlmConfig
-from saida.plan_generation import get_capability_contract
+from saida.plan_generation import get_llm_contract
 from saida.core.contracts import Dataset
 from saida.llm import BaseLlmProvider, IntentProposal, OpenAiLlmProvider, OllamaLlmProvider, SummaryContext, SummaryProposal, build_llm_provider
 from saida.exceptions import ValidationError
@@ -456,14 +456,14 @@ def test_engine_analysis_response_contract_records_intent_and_operations() -> No
     assert result.response["status"] == "ok"
     assert result.response["interpretation"]["aggregation"] == "mean"
     assert result.response["interpretation"]["target"] == "revenue"
-    assert result.response["interpretation"]["capability_contract"]["status"] in {
+    assert result.response["interpretation"]["prompt_contract"]["status"] in {
         "supported_and_data_feasible",
         "supported_with_partial_fallback",
     }
     assert result.response["execution"]["step_count"] >= 1
     assert any(operation["action"] == "aggregate_value" for operation in result.response["execution"]["steps"])
     assert "revenue_mean" in result.response["meta"]["metric_lookup"]
-    assert result.response["meta"]["capability_contract_status"] in {
+    assert result.response["meta"]["prompt_contract_status"] in {
         "supported_and_data_feasible",
         "supported_with_partial_fallback",
     }
@@ -732,8 +732,8 @@ def test_ollama_intent_prompt_mentions_tabular_query_capabilities() -> None:
     assert "pagination-friendly requests" in prompt
 
 
-def test_capability_contract_exposes_live_input_and_result_surfaces() -> None:
-    contract = get_capability_contract()
+def test_llm_contract_exposes_live_input_and_result_surfaces() -> None:
+    contract = get_llm_contract()
 
     assert "input_surface" in contract
     assert "intent_families" in contract

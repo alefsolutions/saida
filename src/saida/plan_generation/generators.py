@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-from saida.plan_generation.planning import PlanBuilder
+from saida.plan_generation.planning import PlanBuilder, build_prompt_plan_contract
 from saida.core.contracts import AnalysisPlan, AnalysisRequest, Dataset, DatasetProfile, ExecutionTraceEvent, SourceContext
 from saida.exceptions import LlmIntegrationError, PlanningError
 from saida.llm import BaseLlmProvider
 from saida.plan_generation.canonicalization import InputCanonicalizer
 from saida.plan_generation.interfaces import AnalysisPlanGeneratorInterface, PlanGenerationResult
-from saida.plan_generation.prompt_capability_contract import build_prompt_capability_contract
 
 
 class RuleBasedPlanGenerator(AnalysisPlanGeneratorInterface):
@@ -180,9 +179,9 @@ def _compile_plan_generation_result(
     trace_event: ExecutionTraceEvent | None,
     generator_name: str,
 ) -> PlanGenerationResult:
-    capability_contract = build_prompt_capability_contract(request, profile)
+    prompt_contract = build_prompt_plan_contract(request, profile)
     contract_warning_messages = [
-        issue.message for issue in capability_contract.validation_issues if issue.severity != "error"
+        issue.message for issue in prompt_contract.validation_issues if issue.severity != "error"
     ]
     terminal_summary: str | None = None
 
@@ -202,44 +201,44 @@ def _compile_plan_generation_result(
             warnings=request_warnings,
         )
         terminal_summary = request.options.get("llm_message") or "We are not able to provide this information at this time."
-    elif capability_contract.status == "unsupported_capability":
+    elif prompt_contract.status == "unsupported_capability":
         plan = AnalysisPlan(
             task_type="unavailable",
-            rationale="Prompt capability contract determined the request is unsupported before planning.",
+            rationale="Prompt contract determined the request is unsupported before planning.",
             steps=[],
-            warnings=_merge_warnings(request_warnings, capability_contract.warnings, contract_warning_messages),
+            warnings=_merge_warnings(request_warnings, prompt_contract.warnings, contract_warning_messages),
         )
         terminal_summary = "The request mapped to capabilities that SAIDA does not currently support."
     elif (
         request.options.get("nlp_backend") == "llm+validation"
-        and capability_contract.status in {"supported_but_data_infeasible", "supported_but_data_insufficient"}
+        and prompt_contract.status in {"supported_but_data_infeasible", "supported_but_data_insufficient"}
     ):
         plan = AnalysisPlan(
             task_type="clarification",
-            rationale="Prompt capability contract requires clarification or better data support before planning.",
+            rationale="Prompt contract requires clarification or better data support before planning.",
             steps=[],
-            warnings=_merge_warnings(request_warnings, capability_contract.warnings, contract_warning_messages),
+            warnings=_merge_warnings(request_warnings, prompt_contract.warnings, contract_warning_messages),
         )
-        terminal_summary = _contract_guidance_message(capability_contract)
+        terminal_summary = _contract_guidance_message(prompt_contract)
     else:
         try:
-            plan = plan_builder.build_plan_from_contract(capability_contract, request, profile, context)
+            plan = plan_builder.build_plan_from_contract(prompt_contract, request, profile, context)
         except PlanningError as exc:
-            if request.options.get("nlp_backend") != "llm+validation" or not capability_contract.missing_parameters:
+            if request.options.get("nlp_backend") != "llm+validation" or not prompt_contract.missing_parameters:
                 raise
             plan = AnalysisPlan(
                 task_type="clarification",
-                rationale="Prompt capability contract could not be compiled into a safe deterministic plan.",
+                rationale="Prompt contract could not be compiled into a safe deterministic plan.",
                 steps=[],
-                warnings=_merge_warnings(request_warnings, capability_contract.warnings, contract_warning_messages),
+                warnings=_merge_warnings(request_warnings, prompt_contract.warnings, contract_warning_messages),
             )
-            terminal_summary = _contract_guidance_message(capability_contract, fallback_message=str(exc))
+            terminal_summary = _contract_guidance_message(prompt_contract, fallback_message=str(exc))
 
     return PlanGenerationResult(
         question=question,
         request=request,
         request_warnings=request_warnings,
-        capability_contract=capability_contract,
+        prompt_contract=prompt_contract,
         contract_warning_messages=contract_warning_messages,
         plan=plan,
         terminal_summary=terminal_summary,
@@ -295,11 +294,11 @@ def _is_confident_deterministic_request(request: AnalysisRequest, warnings: list
 
 
 def _contract_guidance_message(
-    capability_contract: object,
+    prompt_contract: object,
     fallback_message: str | None = None,
 ) -> str:
-    missing_parameters = getattr(capability_contract, "missing_parameters", [])
-    issues = getattr(capability_contract, "validation_issues", [])
+    missing_parameters = getattr(prompt_contract, "missing_parameters", [])
+    issues = getattr(prompt_contract, "validation_issues", [])
     if missing_parameters:
         joined = ", ".join(str(parameter) for parameter in missing_parameters)
         return f"We need clarification before running this analysis. Missing or unresolved inputs: {joined}."

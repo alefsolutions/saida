@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
 from saida.core.contracts import AnalysisPlan, AnalysisRequest, Dataset, DatasetProfile, ExecutionTraceEvent, SourceContext
-from saida.plan_generation.prompt_capability_contract import PromptCapabilityContract
+from saida.plan_generation.planning import PromptPlanContract
 
 
 @dataclass(slots=True)
@@ -16,7 +16,7 @@ class PlanGenerationResult:
     question: str
     request: AnalysisRequest
     request_warnings: list[str]
-    capability_contract: PromptCapabilityContract
+    prompt_contract: PromptPlanContract
     contract_warning_messages: list[str]
     plan: AnalysisPlan
     terminal_summary: str | None = None

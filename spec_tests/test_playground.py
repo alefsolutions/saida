@@ -36,7 +36,7 @@ class _FakeEngine:
             "status": self.status,
             "interpretation": {
                 "options": {"clarification_reason": "ambiguous_metric_target"},
-                "capability_contract": {
+                "prompt_contract": {
                     "status": "supported_with_partial_fallback",
                     "selected_capabilities": ["descriptive"],
                 }
@@ -188,7 +188,7 @@ def test_openai_yellow_json_playground_renders_clarification_summary_in_result_m
     assert '"name": "empty_result"' in output
 
 
-def test_openai_yellow_json_playground_can_render_capability_contract(
+def test_openai_yellow_json_playground_can_render_prompt_contract(
     monkeypatch: object,
     capsys: object,
 ) -> None:

@@ -39,7 +39,7 @@ class ResultCanonicalizer:
         request: AnalysisInterpretation,
         profile: DatasetProfile,
         trace: list[ExecutionTraceEvent],
-        capability_contract: object | None = None,
+        prompt_contract: object | None = None,
     ) -> AnalysisResult:
         artifacts = self._build_analysis_artifacts(
             metrics,
@@ -52,7 +52,7 @@ class ResultCanonicalizer:
             deterministic_summary,
             llm_summary,
             summary_source,
-            capability_contract,
+            prompt_contract,
         )
         response = self._build_analysis_response(
             summary,
@@ -66,7 +66,7 @@ class ResultCanonicalizer:
             deterministic_summary,
             llm_summary,
             summary_source,
-            capability_contract,
+            prompt_contract,
         )
         return AnalysisResult(
             summary=summary,
@@ -110,7 +110,7 @@ class ResultCanonicalizer:
         deterministic_summary: str | None,
         llm_summary: str | None,
         summary_source: str,
-        capability_contract: object | None,
+        prompt_contract: object | None,
     ) -> dict[str, object]:
         metric_lookup = {metric.name: metric.value for metric in metrics}
         table_index = {
@@ -127,7 +127,7 @@ class ResultCanonicalizer:
         return self._json_safe(
             {
             "request": asdict(request),
-            "prompt_capability_contract": self._contract_to_dict(capability_contract),
+            "prompt_contract": self._contract_to_dict(prompt_contract),
             "profile": {
                 "dataset_name": profile.dataset_name,
                 "row_count": profile.row_count,
@@ -162,7 +162,7 @@ class ResultCanonicalizer:
         deterministic_summary: str | None,
         llm_summary: str | None,
         summary_source: str,
-        capability_contract: object | None,
+        prompt_contract: object | None,
     ) -> dict[str, object]:
         operations = [
             {
@@ -206,7 +206,7 @@ class ResultCanonicalizer:
                 "time_reference": dict(request.time_reference or {}),
                 "horizon": request.horizon,
                 "options": dict(request.options),
-                "capability_contract": self._contract_to_dict(capability_contract),
+                "prompt_contract": self._contract_to_dict(prompt_contract),
             },
             "execution": {
                 "status": self._resolve_status(plan),
@@ -244,7 +244,7 @@ class ResultCanonicalizer:
                     "profile_warnings": list(profile.warnings),
                 },
                 "prompt_family": request.prompt_family,
-                "capability_contract_status": self._contract_status(capability_contract),
+                "prompt_contract_status": self._contract_status(prompt_contract),
                 "plan_id": plan.plan_id,
                 "plan_version": plan.version,
                 "plan_warnings": list(plan.warnings),
@@ -598,19 +598,19 @@ class ResultCanonicalizer:
             "value": None,
         }
 
-    def _contract_to_dict(self, capability_contract: object | None) -> dict[str, object] | None:
-        if capability_contract is None:
+    def _contract_to_dict(self, prompt_contract: object | None) -> dict[str, object] | None:
+        if prompt_contract is None:
             return None
-        to_dict = getattr(capability_contract, "to_dict", None)
+        to_dict = getattr(prompt_contract, "to_dict", None)
         if callable(to_dict):
             payload = to_dict()
             return payload if isinstance(payload, dict) else None
         return None
 
-    def _contract_status(self, capability_contract: object | None) -> object | None:
-        if capability_contract is None:
+    def _contract_status(self, prompt_contract: object | None) -> object | None:
+        if prompt_contract is None:
             return None
-        return getattr(capability_contract, "status", None)
+        return getattr(prompt_contract, "status", None)
 
     def _metric_result_payload(self, metric: Metric, logical_shape: str) -> dict[str, object]:
         return {

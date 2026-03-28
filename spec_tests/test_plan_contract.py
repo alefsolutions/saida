@@ -109,7 +109,7 @@ def test_capabilities_expose_execute_plan_as_core_framework_surface() -> None:
     assert capabilities["render_output"] is True
     assert "plan" not in capabilities
     assert "analyze" not in capabilities
-    assert "prompt_capability_contract" not in capabilities
+    assert "prompt_plan_contract" not in capabilities
 
 
 def test_prompt_frontend_exposes_prompt_surface_capabilities() -> None:
@@ -119,7 +119,7 @@ def test_prompt_frontend_exposes_prompt_surface_capabilities() -> None:
     assert capabilities["profile"] is True
     assert capabilities["plan"] is True
     assert capabilities["analyze"] is True
-    assert capabilities["prompt_capability_contract"] is True
+    assert capabilities["prompt_plan_contract"] is True
 
 
 def test_plan_validator_rejects_duplicate_step_ids() -> None:

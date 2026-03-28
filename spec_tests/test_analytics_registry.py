@@ -3,7 +3,7 @@ from __future__ import annotations
 from saida import PromptAnalysisFrontend, Saida
 from saida.core import get_analytics_registry
 from saida.core.contracts import AnalysisRequest
-from saida.plan_generation import build_prompt_capability_contract
+from saida.plan_generation import build_prompt_plan_contract
 from .factories import build_support_dataset
 
 
@@ -46,7 +46,7 @@ def test_engine_plan_binds_step_family_from_analytics_registry() -> None:
     }
 
 
-def test_prompt_capability_contract_exposes_analytics_families_and_methods() -> None:
+def test_prompt_plan_contract_exposes_analytics_families_and_methods() -> None:
     engine = Saida()
     dataset = build_support_dataset()
     profile = engine.profile(dataset)
@@ -57,7 +57,7 @@ def test_prompt_capability_contract_exposes_analytics_families_and_methods() -> 
         task_type_hint="descriptive",
     )
 
-    contract = build_prompt_capability_contract(request, profile)
+    contract = build_prompt_plan_contract(request, profile)
 
     assert contract.analytics_method_ids == ["row_count"]
     assert contract.analytics_family_ids == ["aggregation_grouping"]

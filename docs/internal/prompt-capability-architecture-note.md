@@ -24,7 +24,7 @@ It is responsible for:
 
 - turning natural language into a candidate `AnalysisPlan`
 - building request-side artifacts such as `AnalysisRequest`
-- building `PromptCapabilityContract`
+- building `PromptPlanContract`
 - helping explain why SAIDA clarified or refused a prompt
 
 It is not responsible for:
@@ -37,13 +37,13 @@ It is not responsible for:
 
 The live prompt-driven flow is:
 
-- `prompt -> AnalysisPlanGenerator -> AnalysisRequest + PromptCapabilityContract + candidate AnalysisPlan -> PlanValidator -> execution`
+- `prompt -> AnalysisPlanGenerator -> AnalysisRequest + PromptPlanContract + candidate AnalysisPlan -> PlanValidator -> execution`
 
 This means prompt interpretation now feeds the execution core instead of defining the core.
 
 ## Why The Capability Contract Still Matters
 
-`PromptCapabilityContract` is still useful because it captures:
+`PromptPlanContract` is still useful because it captures:
 
 - what the frontend thinks the user is asking for
 - what capabilities are being activated
@@ -76,8 +76,8 @@ The current prompt/capability side of the codebase mainly lives in:
 
 - `src/saida/plan_generation/canonicalization.py`
 - `src/saida/plan_generation/prompt_family_catalog.py`
-- `src/saida/plan_generation/prompt_capability_contract.py`
-- `src/saida/plan_generation/capability_contract.py`
+- `src/saida/plan_generation/planning.py`
+- `src/saida/plan_generation/llm_contract.py`
 - `src/saida/plan_generation/`
 - `src/saida/llm/`
 

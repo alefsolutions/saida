@@ -80,12 +80,12 @@ def _colorize_json_value_blocks(formatted_json: str) -> str:
 
 def _render_json_output(result: object, output_mode: str) -> str:
     payload = result.to_response_dict()
-    contract_payload = payload.get("interpretation", {}).get("capability_contract")
+    contract_payload = payload.get("interpretation", {}).get("prompt_contract")
     if output_mode == "contract":
-        rendered_payload = contract_payload or {"status": "missing_contract", "message": "No capability contract payload was returned."}
+        rendered_payload = contract_payload or {"status": "missing_contract", "message": "No prompt contract payload was returned."}
     elif output_mode == "both":
         rendered_payload = {
-            "capability_contract": contract_payload,
+            "prompt_contract": contract_payload,
             "response": payload,
         }
     else:

@@ -142,7 +142,7 @@ class Saida:
             profile=profile,
             plan=bound_plan,
             trace=trace,
-            capability_contract=None,
+            prompt_contract=None,
             warning_groups=(profile.warnings,),
         )
     def _execute_prepared_plan(
@@ -153,7 +153,7 @@ class Saida:
         profile: DatasetProfile,
         plan: AnalysisPlan,
         trace: list[ExecutionTraceEvent],
-        capability_contract: object | None,
+        prompt_contract: object | None,
         warning_groups: tuple[list[str], ...] = (),
     ) -> AnalysisResult:
         self.validator.validate_plan(plan, dataset=dataset, profile=profile, router=self.router)
@@ -201,7 +201,7 @@ class Saida:
             interpretation,
             profile,
             trace,
-            capability_contract,
+            prompt_contract,
         )
 
     def _execute_step(

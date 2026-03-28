@@ -32,7 +32,7 @@ The main optional/frontend test files are:
 - `test_plan_generators.py`
 - `test_plan_reproducibility.py`
 - `test_prompt_acceptance_matrix.py`
-- `test_prompt_capability_contract.py`
+- prompt plan-contract coverage
 - `test_prompt_capability_matrix.py`
 - `test_prompt_family_catalog.py`
 - prompt-oriented sections inside `test_engine.py`, `test_smoke.py`, and `test_playground.py`

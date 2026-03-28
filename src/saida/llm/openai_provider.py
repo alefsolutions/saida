@@ -7,7 +7,7 @@ import os
 from urllib import error, request
 
 from saida.config import LlmConfig
-from saida.plan_generation.capability_contract import build_intent_prompt_contract_text, build_summary_contract_text
+from saida.plan_generation.llm_contract import build_intent_prompt_contract_text, build_summary_contract_text
 from saida.exceptions import LlmIntegrationError
 from saida.llm.base import BaseLlmProvider
 from saida.llm.models import IntentProposal, SummaryContext, SummaryProposal

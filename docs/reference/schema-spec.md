@@ -193,7 +193,7 @@ These contracts are still useful for prompt-driven usage, but they are optional.
 
 Represents normalized prompt interpretation before plan generation.
 
-### `PromptCapabilityContract`
+### `PromptPlanContract`
 
 Represents prompt-side validation between interpretation and planning.
 

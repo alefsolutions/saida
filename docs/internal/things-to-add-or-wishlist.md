@@ -152,7 +152,7 @@ Another important improvement is to maintain a formal capability contract in cod
 
 The desired direction is:
 
-- define a `capability_contract.py` inside core
+- define a prompt or LLM contract module only where frontend guidance still needs it
 - make it describe the current live framework surface
 - use it as a reusable source of truth for:
   - intent families

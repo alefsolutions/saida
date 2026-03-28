@@ -57,7 +57,7 @@ Quick links:
 
 - Prompt-driven analysis through `analyze(...)`
 - LLM-assisted plan generation
-- prompt family and capability contract artifacts
+- prompt family and prompt contract artifacts
 
 These remain supported, but they are now documented as optional frontend functionality.
 

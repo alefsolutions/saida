@@ -14,7 +14,7 @@ from saida.core import (
 )
 from saida.core.contracts import AnalysisRequest, Dataset
 from saida.llm import BaseLlmProvider, IntentProposal, SummaryContext, SummaryProposal
-from saida.plan_generation import build_prompt_capability_contract
+from saida.plan_generation import build_prompt_plan_contract
 
 
 def build_profile(*, include_time: bool = True, include_dimension: bool = True) -> DatasetProfile:
@@ -244,7 +244,7 @@ class CandidateCapabilityLlmProvider(BaseLlmProvider):
         "unsupported-forecast-capability",
     ],
 )
-def test_prompt_capability_contract_status_matrix(
+def test_prompt_plan_contract_status_matrix(
     analysis_request: AnalysisRequest,
     profile: DatasetProfile,
     registry: AnalyticsRegistry | None,
@@ -254,7 +254,7 @@ def test_prompt_capability_contract_status_matrix(
     expected_data_statuses: set[str],
     expected_unsupported_capabilities: list[str],
 ) -> None:
-    contract = build_prompt_capability_contract(analysis_request, profile, registry)
+    contract = build_prompt_plan_contract(analysis_request, profile, registry)
 
     assert contract.status == expected_status
     assert contract.missing_parameters == expected_missing_parameters
@@ -295,7 +295,7 @@ def test_engine_grouped_tabular_prompt_matrix(
     assert interpretation["target"] == expected_target
     assert interpretation["aggregation"] == expected_aggregation
     assert interpretation["group_by"] == expected_group_by
-    assert interpretation["capability_contract"]["status"] == "supported_and_data_feasible"
+    assert interpretation["prompt_contract"]["status"] == "supported_and_data_feasible"
     assert any(table.name == "grouped_tabular_query" for table in result.tables)
 
 
@@ -367,10 +367,10 @@ def test_engine_llm_candidate_capability_matrix(
     result = engine.analyze(dataset_builder(), question)
 
     interpretation = result.response["interpretation"]
-    capability_contract = interpretation["capability_contract"]
+    prompt_contract = interpretation["prompt_contract"]
     llm_candidates = [
         candidate
-        for candidate in capability_contract["candidate_capabilities"]
+        for candidate in prompt_contract["candidate_capabilities"]
         if candidate["source"] == "llm"
     ]
 

@@ -1,4 +1,4 @@
-"""Central capability contract for SAIDA's current deterministic surface."""
+"""LLM-facing prompt contract for SAIDA's optional frontend surface."""
 
 from __future__ import annotations
 
@@ -441,8 +441,8 @@ LLM_SUMMARY_PROMPT_CONTRACT = {
 }
 
 
-def get_capability_contract() -> dict[str, Any]:
-    """Return a deep-copied view of the current live capability contract."""
+def get_llm_contract() -> dict[str, Any]:
+    """Return a deep-copied view of the current live LLM-facing contract."""
     return deepcopy(
         {
             "input_surface": INPUT_SURFACE,
@@ -470,7 +470,7 @@ def build_intent_capability_summary() -> str:
 
 
 def build_intent_prompt_contract_text() -> str:
-    """Build prompt text from the current capability contract for LLM intent routing."""
+    """Build prompt text from the current LLM contract for intent routing."""
     rules = " ".join(LLM_INTENT_PROMPT_CONTRACT["routing_rules"])
     return_keys = ", ".join(LLM_INTENT_PROMPT_CONTRACT["return_keys"])
     statuses = ", ".join(f'"{value}"' for value in LLM_INTENT_PROMPT_CONTRACT["allowed_status_values"])
@@ -484,7 +484,7 @@ def build_intent_prompt_contract_text() -> str:
 
 
 def build_summary_contract_text() -> str:
-    """Build prompt text from the current result contract for LLM summary generation."""
+    """Build prompt text from the current result contract for optional LLM summaries."""
     statuses = ", ".join(f'"{value}"' for value in LLM_SUMMARY_PROMPT_CONTRACT["allowed_status_values"])
     return_keys = ", ".join(LLM_SUMMARY_PROMPT_CONTRACT["return_keys"])
     grounding_rules = " ".join(LLM_SUMMARY_PROMPT_CONTRACT["grounding_rules"])

@@ -11,7 +11,7 @@ from saida.core.contracts import AnalysisRequest
 from saida.plan_generation import (
     AnalysisPlanner,
     build_default_prompt_family_catalog,
-    build_prompt_capability_contract,
+    build_prompt_plan_contract,
     derive_prompt_family,
 )
 
@@ -198,7 +198,7 @@ def test_high_volume_prompt_families_use_template_result_shaping(family_id: str)
     assert family_spec.to_dict()["result_compilation"] == "template"
 
 
-def test_prompt_capability_contract_exposes_prompt_family_and_family_spec() -> None:
+def test_prompt_plan_contract_exposes_prompt_family_and_family_spec() -> None:
     engine = PromptAnalysisFrontend()
     dataset = build_support_dataset()
     profile = engine.profile(dataset)
@@ -211,7 +211,7 @@ def test_prompt_capability_contract_exposes_prompt_family_and_family_spec() -> N
         options={"intent_name": "grouped_tabular_query"},
     )
 
-    contract = build_prompt_capability_contract(request, profile)
+    contract = build_prompt_plan_contract(request, profile)
 
     assert contract.prompt_family == "grouped_entity_count"
     assert contract.family_spec is not None
@@ -219,7 +219,7 @@ def test_prompt_capability_contract_exposes_prompt_family_and_family_spec() -> N
     assert not any(issue.code == "prompt_family_request_invariant" for issue in contract.validation_issues)
 
 
-def test_prompt_capability_contract_flags_prompt_family_request_mismatch() -> None:
+def test_prompt_plan_contract_flags_prompt_family_request_mismatch() -> None:
     engine = PromptAnalysisFrontend()
     dataset = build_support_dataset()
     profile = engine.profile(dataset)
@@ -231,7 +231,7 @@ def test_prompt_capability_contract_flags_prompt_family_request_mismatch() -> No
         options={"intent_name": "column_inventory"},
     )
 
-    contract = build_prompt_capability_contract(request, profile)
+    contract = build_prompt_plan_contract(request, profile)
 
     mismatch_messages = [
         issue.message
@@ -274,12 +274,12 @@ def test_engine_response_exposes_prompt_family_end_to_end(question: str, expecte
     result = engine.analyze(dataset, question)
 
     interpretation = result.response["interpretation"]
-    capability_contract = interpretation["capability_contract"]
+    prompt_contract = interpretation["prompt_contract"]
 
     assert interpretation["prompt_family"] == expected_family
     assert result.response["meta"]["prompt_family"] == expected_family
-    assert capability_contract["prompt_family"] == expected_family
-    assert capability_contract["family_spec"]["family_id"] == expected_family
+    assert prompt_contract["prompt_family"] == expected_family
+    assert prompt_contract["family_spec"]["family_id"] == expected_family
 
 
 def test_planner_builds_grouped_entity_count_plan_from_prompt_family_only() -> None:
@@ -332,7 +332,7 @@ def test_planner_builds_column_presence_plan_from_contract_using_prompt_family()
         task_type_hint="descriptive",
         options={"requested_column": "created_at"},
     )
-    contract = build_prompt_capability_contract(request, profile)
+    contract = build_prompt_plan_contract(request, profile)
 
     plan = planner.build_plan_from_contract(contract, request, profile)
 
