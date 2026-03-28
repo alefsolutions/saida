@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from saida.core import InputCanonicalizer, PlanBuilder, build_prompt_capability_contract
+from saida.core import PlanBuilder, build_prompt_capability_contract
 from saida.core.contracts import AnalysisPlan, AnalysisRequest, Dataset, DatasetProfile, ExecutionTraceEvent, SourceContext
 from saida.exceptions import PlanningError, ReasoningError
 from saida.llm import BaseLlmProvider
+from saida.plan_generation.canonicalization import InputCanonicalizer
 from saida.plan_generation.interfaces import AnalysisPlanGeneratorInterface, PlanGenerationResult
 
 

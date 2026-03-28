@@ -356,7 +356,7 @@ The strongest parts of the current architecture are:
 
 The main remaining cleanup work is removing prompt-first deadweight that still exists for backward compatibility inside:
 
-- `canonicalization`
+- prompt normalization and prompt-family routing
 - `planning`
 - engine-side prompt reconstruction helpers
 

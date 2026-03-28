@@ -3,10 +3,10 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from saida.core import RequestNormalizer
 from saida.exceptions import ValidationError
 from saida.core.contracts import ColumnProfile, Dataset, DatasetProfile, SourceContext
 from saida.llm import IntentProposal
+from saida.plan_generation import RequestNormalizer
 
 
 def build_profile() -> DatasetProfile:

@@ -82,6 +82,7 @@ Owns optional plan generation.
 Live responsibilities:
 
 - `AnalysisPlanGeneratorInterface`
+- prompt normalization / canonicalization
 - rule-based plan generation
 - LLM-assisted plan generation
 - OpenAI plan generation

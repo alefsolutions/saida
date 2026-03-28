@@ -1,4 +1,4 @@
-"""Core canonicalization, contracts, validation, routing, and result normalization."""
+"""Core contracts, validation, routing, and result normalization."""
 
 from saida.core.analytics_registry import (
     AnalyticsFamilySpec,
@@ -14,7 +14,6 @@ from saida.core.capability_registry import (
     build_default_capability_registry,
     get_capability_registry,
 )
-from saida.core.canonicalization import InputCanonicalizer, RequestNormalizer
 from saida.core.capability_contract import get_capability_contract
 from saida.core.context import SourceContextParser
 from saida.core.contracts import (
@@ -96,7 +95,6 @@ __all__ = [
     "get_analytics_registry",
     "get_capability_registry",
     "get_prompt_family_catalog",
-    "InputCanonicalizer",
     "Metric",
     "MLReadinessProfile",
     "ModelSpec",
@@ -113,7 +111,6 @@ __all__ = [
     "PromptFamilySpec",
     "PromptFamilyValueSpec",
     "RequestLike",
-    "RequestNormalizer",
     "ResolvedParameter",
     "ResultBuilder",
     "ResultCanonicalizer",
