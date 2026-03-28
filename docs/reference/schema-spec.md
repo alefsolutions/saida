@@ -151,6 +151,7 @@ Live fields:
 - `version` is currently `saida.plan.v2`
 - `dataset_refs` and `inputs` allow the plan to be explicit about its source dependencies
 - `expected_result_name` and `expected_result_shape` describe the intended primary result
+- result canonicalization uses those expected-result fields first, then step metadata and produced artifacts, to decide the primary `AnalysisResult.result`
 - `metadata` carries execution and provenance hints such as:
   - dataset name
   - prompt family

@@ -270,120 +270,38 @@ class ResultCanonicalizer:
         metrics: list[Metric],
         tables: list[TableArtifact],
     ) -> dict[str, object]:
-        candidate_keys: list[str] = []
-        for value in (plan.expected_result_name, request.prompt_family, request.intent_name):
-            if isinstance(value, str) and value and value not in candidate_keys:
-                candidate_keys.append(value)
+        candidate_keys = self._plan_result_candidate_keys(plan)
 
         for candidate_key in candidate_keys:
-            primary_result = self._select_primary_result_for_key(candidate_key, plan, request, metrics, tables)
+            primary_result = self._select_primary_result_for_key(candidate_key, plan, metrics, tables)
             if primary_result is not None:
                 return primary_result
 
-        if request.target and request.aggregation and not request.group_by:
-            metric_name = f"{request.target}_{request.aggregation}"
-            aggregate_metric = self._metric_by_name(metrics, metric_name)
-            if aggregate_metric is not None:
-                logical_shape = {
-                    "sum": "aggregate",
-                    "mean": "aggregate",
-                    "max": "aggregate",
-                    "min": "aggregate",
-                    "count": "count",
-                }.get(request.aggregation, "scalar")
-                return self._metric_result_payload(aggregate_metric, logical_shape=logical_shape)
-
-        table_priority = [
-            "grouped_tabular_query",
-            "tabular_query",
-            "column_inventory",
-            "column_type_inventory",
-            "numeric_column_inventory",
-            "categorical_column_inventory",
-            "measure_inventory",
-            "dimension_inventory",
-            "time_column_inventory",
-            "missing_value_inventory",
-            "identifier_inventory",
-            "high_cardinality_inventory",
-            "time_value_exists",
-            "row_existence",
-            "column_presence_check",
-            "null_check",
-            "threshold_check",
-            "column_property_check",
-            "ranked_rows",
-            "ranked_breakdown",
-            "group_row_counts",
-            "time_bucket_counts",
-            "time_bucket_breakdown",
-            "distinct_values",
-            "time_coverage",
-            "significance_test",
-            "t_test",
-            "chi_square_test",
-            "anova_test",
-            "mann_whitney_test",
-            "confidence_interval",
-            "regression_significance",
-            "power_analysis",
-            "sample_size_estimate",
-            "group_breakdown",
-            "period_comparison",
-            "time_trend",
-            "grouped_period_comparison",
-            "top_movers",
-            "contribution_breakdown",
-            "target_correlation",
-            "correlation_matrix",
-            "distribution_summary",
-            "numeric_summary",
-            "missingness_summary",
-            "anomaly_summary",
-            "time_series_diagnostics",
-            "group_mean_comparison",
-            "dataset_preview",
-        ]
-        for table_name in table_priority:
-            table = self._table_by_name(tables, table_name)
-            if table is not None:
-                return self._table_result_payload(table)
-
-        if metrics:
-            return self._metric_result_payload(metrics[-1], logical_shape="scalar")
-        return {
-            "name": "empty_result",
-            "description": "No primary result was produced.",
-            "physical_shape": "object",
-            "logical_shape": "empty",
-            "dtype": "null",
-            "schema": [],
-            "dimensions": [],
-            "row_count": 0,
-            "labels": [],
-            "value": None,
-        }
+        return self._fallback_primary_result(plan, metrics, tables)
 
     def _select_primary_result_for_key(
         self,
         key: str,
         plan: AnalysisPlan,
-        request: AnalysisInterpretation,
         metrics: list[Metric],
         tables: list[TableArtifact],
     ) -> dict[str, object] | None:
         if key == "exploratory_metric_overview":
-            return self._select_exploratory_metric_primary_result(request, tables)
+            return self._select_exploratory_metric_primary_result(plan, tables)
 
         direct_metric = self._metric_by_name(metrics, key)
         if direct_metric is not None:
-            return self._metric_result_payload(direct_metric, logical_shape=self._logical_shape_for_metric(key, request))
+            return self._metric_result_payload(direct_metric, logical_shape=self._logical_shape_for_metric(key))
 
         if key == "column_type_lookup" or key.endswith("_dtype"):
-            return self._column_type_lookup_result(key, request, tables)
+            return self._column_type_lookup_result(key, plan, tables)
 
         if key == "distinct_value_count" or key.endswith("_distinct_count"):
-            result_name = f"{request.target}_distinct_count" if key == "distinct_value_count" and request.target else key
+            result_name = key
+            if key == "distinct_value_count":
+                target = self._targeted_step_parameter(plan, {"distinct_value_count"}, "target")
+                if target is not None:
+                    result_name = f"{target}_distinct_count"
             return self._table_scalar_result(
                 table_name="distinct_value_count",
                 value_field="distinct_count",
@@ -396,7 +314,7 @@ class ResultCanonicalizer:
         if direct_table is not None:
             return self._table_result_payload(direct_table)
 
-        table_aliases = self._table_aliases_for_key(key, request)
+        table_aliases = self._table_aliases_for_key(key)
         if table_aliases:
             for table_name in table_aliases:
                 table = self._table_by_name(tables, table_name)
@@ -405,15 +323,6 @@ class ResultCanonicalizer:
                 if key == "representation_ranking":
                     return self._table_head_result(table, head_rows=1)
                 return self._table_result_payload(table)
-
-        if key == "metric_aggregate" and request.target and request.aggregation:
-            metric_name = f"{request.target}_{request.aggregation}"
-            aggregate_metric = self._metric_by_name(metrics, metric_name)
-            if aggregate_metric is not None:
-                return self._metric_result_payload(
-                    aggregate_metric,
-                    logical_shape=self._logical_shape_for_metric(metric_name, request),
-                )
 
         if key == "row_count":
             row_count_metric = self._metric_by_name(metrics, "row_count")
@@ -427,55 +336,50 @@ class ResultCanonicalizer:
 
         return None
 
-    def _select_exploratory_metric_primary_result(
-        self,
-        request: AnalysisInterpretation,
-        tables: list[TableArtifact],
-    ) -> dict[str, object] | None:
-        table_priority: list[str]
-        if request.group_by and request.time_reference:
-            table_priority = [
-                "grouped_period_comparison",
-                "top_movers",
-                "contribution_breakdown",
-                "group_breakdown",
-                "period_comparison",
-                "time_trend",
-                "ranked_breakdown",
-                "distribution_summary",
-                "numeric_summary",
-            ]
-        elif request.group_by:
-            table_priority = [
-                "group_breakdown",
-                "ranked_breakdown",
-                "time_trend",
-                "distribution_summary",
-                "numeric_summary",
-            ]
-        elif request.time_reference:
-            table_priority = [
-                "period_comparison",
-                "time_trend",
-                "contribution_breakdown",
-                "distribution_summary",
-                "numeric_summary",
-            ]
-        else:
-            table_priority = [
-                "time_trend",
-                "distribution_summary",
-                "numeric_summary",
-                "anomaly_summary",
-                "target_correlation",
-            ]
+    def _select_exploratory_metric_primary_result(self, plan: AnalysisPlan, tables: list[TableArtifact]) -> dict[str, object] | None:
+        step_methods = {step.method_id or step.action for step in plan.steps}
+        table_priority = [
+            "grouped_period_comparison",
+            "top_movers",
+            "contribution_breakdown",
+            "period_comparison",
+            "group_breakdown",
+            "ranked_breakdown",
+            "time_trend",
+            "distribution_summary",
+            "numeric_summary",
+            "anomaly_summary",
+            "target_correlation",
+        ]
+        if "grouped_period_comparison" not in step_methods:
+            table_priority.remove("grouped_period_comparison")
+        if "top_movers" not in step_methods:
+            table_priority.remove("top_movers")
+        if "contribution_breakdown" not in step_methods:
+            table_priority.remove("contribution_breakdown")
+        if "period_comparison" not in step_methods:
+            table_priority.remove("period_comparison")
+        if "group_breakdown" not in step_methods:
+            table_priority.remove("group_breakdown")
+        if "ranked_breakdown" not in step_methods:
+            table_priority.remove("ranked_breakdown")
+        if "time_trend" not in step_methods:
+            table_priority.remove("time_trend")
+        if "distribution_summary" not in step_methods:
+            table_priority.remove("distribution_summary")
+        if "numeric_summary" not in step_methods:
+            table_priority.remove("numeric_summary")
+        if "anomaly_summary" not in step_methods:
+            table_priority.remove("anomaly_summary")
+        if "target_correlation" not in step_methods:
+            table_priority.remove("target_correlation")
         for table_name in table_priority:
             table = self._table_by_name(tables, table_name)
             if table is not None:
                 return self._table_result_payload(table)
         return None
 
-    def _table_aliases_for_key(self, key: str, request: AnalysisInterpretation) -> list[str]:
+    def _table_aliases_for_key(self, key: str) -> list[str]:
         if key == "tabular_record_retrieval":
             return ["tabular_query"]
         if key in {"grouped_metric_table", "grouped_tabular_query"}:
@@ -503,24 +407,34 @@ class ResultCanonicalizer:
         if key == "column_property_check":
             return ["column_property_check"]
         if key == "time_period_comparison":
-            if request.group_by:
-                return ["grouped_period_comparison", "period_comparison"]
-            return ["period_comparison", "grouped_period_comparison"]
+            return ["grouped_period_comparison", "period_comparison"]
         if key == "time_bucket_counts":
             return ["time_bucket_counts"]
         if key == "time_bucket_breakdown":
             return ["time_bucket_breakdown"]
         if key == "time_coverage":
             return ["time_coverage"]
+        if key == "significance_inference":
+            return ["significance_test"]
+        if key == "chi_square":
+            return ["chi_square_test"]
+        if key == "anova":
+            return ["anova_test"]
+        if key == "mann_whitney":
+            return ["mann_whitney_test"]
         return []
 
     def _column_type_lookup_result(
         self,
         key: str,
-        request: AnalysisInterpretation,
+        plan: AnalysisPlan,
         tables: list[TableArtifact],
     ) -> dict[str, object] | None:
-        result_name = key if key.endswith("_dtype") else f"{request.target}_dtype" if request.target else "column_dtype"
+        result_name = key if key.endswith("_dtype") else "column_dtype"
+        if key == "column_type_lookup":
+            target = self._targeted_step_parameter(plan, {"column_type_inventory"}, "target")
+            if target is not None:
+                result_name = f"{target}_dtype"
         return self._table_scalar_result(
             table_name="column_type_inventory",
             value_field="dtype",
@@ -592,14 +506,97 @@ class ResultCanonicalizer:
             )
         )
 
-    def _logical_shape_for_metric(self, metric_name: str, request: AnalysisInterpretation) -> str:
-        if request.aggregation == "count" or metric_name == "row_count" or metric_name.endswith("_count"):
+    def _logical_shape_for_metric(self, metric_name: str) -> str:
+        if metric_name == "row_count" or metric_name.endswith("_count"):
             return "count"
-        if request.aggregation in {"sum", "mean", "max", "min"}:
-            return "aggregate"
         if any(metric_name.endswith(suffix) for suffix in ("_sum", "_mean", "_max", "_min")):
             return "aggregate"
         return "scalar"
+
+    def _plan_result_candidate_keys(self, plan: AnalysisPlan) -> list[str]:
+        candidate_keys: list[str] = []
+        if isinstance(plan.expected_result_name, str) and plan.expected_result_name:
+            candidate_keys.append(plan.expected_result_name)
+        for step in plan.steps:
+            for value in (*step.output_refs, *self._derived_result_keys_for_step(step)):
+                if isinstance(value, str) and value and value not in candidate_keys:
+                    candidate_keys.append(value)
+        return candidate_keys
+
+    def _derived_result_keys_for_step(self, step: object) -> list[str]:
+        method_id = step.method_id or step.action
+        parameters = dict(step.parameters)
+        keys: list[str] = [method_id, step.action, step.step_id]
+
+        if method_id == "aggregate_value":
+            target = parameters.get("target")
+            aggregation = parameters.get("aggregation")
+            if isinstance(target, str) and isinstance(aggregation, str):
+                keys.insert(0, f"{target}_{aggregation}")
+        if method_id == "count_rows_by_group":
+            keys.insert(0, "group_row_counts")
+        if method_id == "distinct_value_count":
+            target = parameters.get("target")
+            if isinstance(target, str):
+                keys.insert(0, f"{target}_distinct_count")
+            keys.insert(0, "distinct_value_count")
+        if method_id == "column_type_inventory":
+            target = parameters.get("target")
+            if isinstance(target, str):
+                keys.insert(0, f"{target}_dtype")
+        if method_id == "dataset_summary":
+            keys.insert(0, "dataset_preview")
+        statistical_output_aliases = {
+            "significance_inference": "significance_test",
+            "chi_square": "chi_square_test",
+            "anova": "anova_test",
+            "mann_whitney": "mann_whitney_test",
+        }
+        alias = statistical_output_aliases.get(method_id)
+        if alias is not None:
+            keys.insert(0, alias)
+        deduped: list[str] = []
+        for value in keys:
+            if value not in deduped:
+                deduped.append(value)
+        return deduped
+
+    def _fallback_primary_result(
+        self,
+        plan: AnalysisPlan,
+        metrics: list[Metric],
+        tables: list[TableArtifact],
+    ) -> dict[str, object]:
+        if plan.expected_result_shape == "scalar" and metrics:
+            return self._metric_result_payload(metrics[-1], logical_shape=self._logical_shape_for_metric(metrics[-1].name))
+        if plan.expected_result_shape == "verification":
+            for table in tables:
+                if self._logical_shape_for_table(table.name) == "verification":
+                    return self._table_result_payload(table)
+        if plan.expected_result_shape == "table":
+            for step in plan.steps:
+                for candidate in self._derived_result_keys_for_step(step):
+                    table = self._table_by_name(tables, candidate)
+                    if table is not None:
+                        return self._table_result_payload(table)
+            if tables:
+                return self._table_result_payload(tables[0])
+        if tables:
+            return self._table_result_payload(tables[0])
+        if metrics:
+            return self._metric_result_payload(metrics[-1], logical_shape=self._logical_shape_for_metric(metrics[-1].name))
+        return {
+            "name": "empty_result",
+            "description": "No primary result was produced.",
+            "physical_shape": "object",
+            "logical_shape": "empty",
+            "dtype": "null",
+            "schema": [],
+            "dimensions": [],
+            "row_count": 0,
+            "labels": [],
+            "value": None,
+        }
 
     def _contract_to_dict(self, capability_contract: object | None) -> dict[str, object] | None:
         if capability_contract is None:
@@ -818,6 +815,20 @@ class ResultCanonicalizer:
 
     def _table_by_name(self, tables: list[TableArtifact], name: str) -> TableArtifact | None:
         return next((table for table in tables if table.name == name), None)
+
+    def _targeted_step_parameter(
+        self,
+        plan: AnalysisPlan,
+        method_ids: set[str],
+        parameter_name: str,
+    ) -> str | None:
+        for step in plan.steps:
+            if (step.method_id or step.action) not in method_ids:
+                continue
+            value = step.parameters.get(parameter_name)
+            if isinstance(value, str) and value:
+                return value
+        return None
 
 
 ResultBuilder = ResultCanonicalizer

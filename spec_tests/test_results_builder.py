@@ -220,7 +220,12 @@ def test_build_analysis_result_uses_row_count_family_template() -> None:
             )
         ],
         warnings=[],
-        plan=AnalysisPlan(task_type="descriptive", rationale="Row count."),
+        plan=AnalysisPlan(
+            task_type="descriptive",
+            rationale="Row count.",
+            expected_result_name="row_count",
+            expected_result_shape="scalar",
+        ),
         request=AnalysisRequest(question="How many rows?", prompt_family="row_count"),
         profile=build_profile(),
         trace=[],
@@ -254,7 +259,23 @@ def test_build_analysis_result_uses_column_type_lookup_family_template() -> None
             )
         ],
         warnings=[],
-        plan=AnalysisPlan(task_type="descriptive", rationale="Type lookup."),
+        plan=AnalysisPlan(
+            task_type="descriptive",
+            rationale="Type lookup.",
+            expected_result_name="posted_at_dtype",
+            expected_result_shape="scalar",
+            steps=[
+                PlanStep(
+                    step_id="column_type_inventory",
+                    tool_family="metadata",
+                    action="column_type_inventory",
+                    parameters={"target": "posted_at"},
+                    description="Return the schema type for posted_at.",
+                    family="schema_metadata_inspection",
+                    method_id="column_type_inventory",
+                )
+            ],
+        ),
         request=AnalysisRequest(question="What type is posted_at?", prompt_family="column_type_lookup", target="posted_at"),
         profile=build_profile(),
         trace=[],
@@ -287,7 +308,32 @@ def test_build_analysis_result_uses_exploratory_metric_family_result_priority() 
             ),
         ],
         warnings=[],
-        plan=AnalysisPlan(task_type="descriptive", rationale="Exploratory overview."),
+        plan=AnalysisPlan(
+            task_type="descriptive",
+            rationale="Exploratory overview.",
+            expected_result_name="exploratory_metric_overview",
+            expected_result_shape="table",
+            steps=[
+                PlanStep(
+                    step_id="summary_metrics",
+                    tool_family="duckdb",
+                    action="dataset_summary",
+                    parameters={"target": "revenue"},
+                    description="Compute top-level metrics.",
+                    family="diagnostic_workflows",
+                    method_id="dataset_summary",
+                ),
+                PlanStep(
+                    step_id="time_trend",
+                    tool_family="duckdb",
+                    action="time_trend",
+                    parameters={"target": "revenue", "time_column": "posted_at", "aggregation": "sum"},
+                    description="Compute a time trend.",
+                    family="time_series_time_bucketing",
+                    method_id="time_trend",
+                ),
+            ],
+        ),
         request=AnalysisRequest(question="Show revenue", prompt_family="exploratory_metric_overview", target="revenue"),
         profile=build_profile(),
         trace=[],
@@ -359,7 +405,23 @@ def test_build_analysis_result_uses_representation_ranking_family_template() -> 
             )
         ],
         warnings=[],
-        plan=AnalysisPlan(task_type="descriptive", rationale="Representation ranking."),
+        plan=AnalysisPlan(
+            task_type="descriptive",
+            rationale="Representation ranking.",
+            expected_result_name="representation_ranking",
+            expected_result_shape="table",
+            steps=[
+                PlanStep(
+                    step_id="count_rows_by_group",
+                    tool_family="duckdb",
+                    action="count_rows_by_group",
+                    parameters={"group_by": ["channel"], "limit": 1},
+                    description="Rank channels by row count.",
+                    family="aggregation_grouping",
+                    method_id="count_rows_by_group",
+                )
+            ],
+        ),
         request=AnalysisRequest(question="Which channel has the most tickets?", prompt_family="representation_ranking", target="channel"),
         profile=build_profile(),
         trace=[],
@@ -369,6 +431,50 @@ def test_build_analysis_result_uses_representation_ranking_family_template() -> 
     assert result.response["result"]["physical_shape"] == "object"
     assert result.response["result"]["logical_shape"] == "table"
     assert result.response["result"]["value"] == {"channel": "Email", "row_count": 3}
+
+
+def test_build_analysis_result_prefers_plan_result_over_conflicting_interpretation() -> None:
+    builder = ResultBuilder()
+
+    result = builder.build_analysis_result(
+        summary="Plan wins.",
+        deterministic_summary="Plan wins.",
+        llm_summary=None,
+        summary_source="deterministic",
+        metrics=[Metric(name="row_count", value=7)],
+        tables=[
+            TableArtifact(
+                name="tabular_query",
+                description="A conflicting table artifact.",
+                dataframe=pd.DataFrame({"ticket_id": ["T1", "T2"]}),
+            )
+        ],
+        warnings=[],
+        plan=AnalysisPlan(
+            task_type="descriptive",
+            rationale="Count rows.",
+            expected_result_name="row_count",
+            expected_result_shape="scalar",
+            steps=[
+                PlanStep(
+                    step_id="row_count",
+                    tool_family="duckdb",
+                    action="row_count",
+                    parameters={},
+                    description="Count rows.",
+                    family="aggregation_grouping",
+                    method_id="row_count",
+                )
+            ],
+        ),
+        request=AnalysisRequest(question="Show me the rows", prompt_family="tabular_record_retrieval"),
+        profile=build_profile(),
+        trace=[],
+    )
+
+    assert result.response["result"]["name"] == "row_count"
+    assert result.response["result"]["logical_shape"] == "count"
+    assert result.response["result"]["value"] == 7
 
 
 def test_build_analysis_result_indexes_multiple_tables() -> None:

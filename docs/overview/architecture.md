@@ -243,6 +243,7 @@ This keeps `AnalysisResult` as the source of truth while allowing different deli
 5. Validate the plan with dataset/profile/backend context.
 6. Execute plan steps through compute adapters.
 7. Canonicalize the final result into `AnalysisResult`.
+   Primary-result selection is driven by `AnalysisPlan.expected_result_name`, `AnalysisPlan.expected_result_shape`, ordered step metadata, and the artifacts actually produced during execution.
 8. Render through an output adapter if needed.
 
 ### Optional Prompt-First Flow
