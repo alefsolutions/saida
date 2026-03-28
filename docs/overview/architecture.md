@@ -241,7 +241,7 @@ This keeps `AnalysisResult` as the source of truth while allowing different deli
 
 1. Load and profile the dataset.
 2. Use an optional plan generator to build a candidate plan.
-3. Build request-side artifacts such as `AnalysisRequest` and `PromptCapabilityContract`.
+3. Build optional frontend artifacts such as `AnalysisRequest`, `AnalysisInterpretation`, and `PromptCapabilityContract`.
 4. Bind the plan to the dataset.
 5. Validate the plan.
 6. Execute it deterministically.

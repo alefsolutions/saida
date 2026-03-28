@@ -18,6 +18,7 @@ from saida.core.canonicalization import InputCanonicalizer, RequestNormalizer
 from saida.core.capability_contract import get_capability_contract
 from saida.core.context import SourceContextParser
 from saida.core.contracts import (
+    AnalysisInterpretation,
     AnalysisPlan,
     AnalysisRequest,
     AnalysisResult,
@@ -34,6 +35,7 @@ from saida.core.contracts import (
     PlanStep,
     PlanInput,
     PredictionResult,
+    RequestLike,
     SourceContext,
     TableArtifact,
     TrainResult,
@@ -66,6 +68,7 @@ from saida.core.validation import PlanValidator
 __all__ = [
     "AnalysisPlan",
     "AnalysisPlanner",
+    "AnalysisInterpretation",
     "AnalysisRequest",
     "AnalysisResult",
     "AnalyticsFamilySpec",
@@ -109,6 +112,7 @@ __all__ = [
     "PromptFamilyResultSpec",
     "PromptFamilySpec",
     "PromptFamilyValueSpec",
+    "RequestLike",
     "RequestNormalizer",
     "ResolvedParameter",
     "ResultBuilder",

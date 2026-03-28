@@ -152,7 +152,7 @@ Live fields:
 - `metadata` carries execution and provenance hints such as:
   - dataset name
   - prompt family
-  - request snapshot
+  - interpretation snapshot
   - profile summary
 
 ### `AnalysisPlan.to_dict()`

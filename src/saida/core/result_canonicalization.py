@@ -11,7 +11,7 @@ import pandas as pd
 
 from saida.core.contracts import (
     AnalysisPlan,
-    AnalysisRequest,
+    RequestLike,
     AnalysisResult,
     DatasetProfile,
     ExecutionTraceEvent,
@@ -45,7 +45,7 @@ class ResultCanonicalizer:
         tables: list[TableArtifact],
         warnings: list[str],
         plan: AnalysisPlan,
-        request: AnalysisRequest,
+        request: RequestLike,
         profile: DatasetProfile,
         trace: list[ExecutionTraceEvent],
         capability_contract: PromptCapabilityContract | None = None,
@@ -113,7 +113,7 @@ class ResultCanonicalizer:
         tables: list[TableArtifact],
         warnings: list[str],
         plan: AnalysisPlan,
-        request: AnalysisRequest,
+        request: RequestLike,
         profile: DatasetProfile,
         trace: list[ExecutionTraceEvent],
         deterministic_summary: str | None,
@@ -165,7 +165,7 @@ class ResultCanonicalizer:
         tables: list[TableArtifact],
         warnings: list[str],
         plan: AnalysisPlan,
-        request: AnalysisRequest,
+        request: RequestLike,
         profile: DatasetProfile,
         trace: list[ExecutionTraceEvent],
         deterministic_summary: str | None,
@@ -274,7 +274,7 @@ class ResultCanonicalizer:
 
     def _select_primary_result(
         self,
-        request: AnalysisRequest,
+        request: RequestLike,
         metrics: list[Metric],
         tables: list[TableArtifact],
     ) -> dict[str, object]:
@@ -386,7 +386,7 @@ class ResultCanonicalizer:
 
     def _select_exploratory_metric_primary_result(
         self,
-        request: AnalysisRequest,
+        request: RequestLike,
         tables: list[TableArtifact],
     ) -> dict[str, object] | None:
         table_priority: list[str]
@@ -435,7 +435,7 @@ class ResultCanonicalizer:
     def _compile_family_primary_result(
         self,
         result_spec: PromptFamilyResultSpec,
-        request: AnalysisRequest,
+        request: RequestLike,
         metrics: list[Metric],
         tables: list[TableArtifact],
     ) -> dict[str, object] | None:
@@ -488,7 +488,7 @@ class ResultCanonicalizer:
 
         return None
 
-    def _render_result_template(self, template: str | None, request: AnalysisRequest) -> str | None:
+    def _render_result_template(self, template: str | None, request: RequestLike) -> str | None:
         if template is None:
             return None
         values = {
@@ -704,3 +704,4 @@ class ResultCanonicalizer:
 
 
 ResultBuilder = ResultCanonicalizer
+

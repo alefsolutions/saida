@@ -22,7 +22,7 @@ def test_engine_plan_builds_bound_vnext_plan() -> None:
     assert plan.expected_result_name == "row_count"
     assert plan.expected_result_shape == "scalar"
     assert plan.metadata["dataset_name"] == dataset.name
-    assert plan.metadata["request_snapshot"]["question"] == "How many rows do we have?"
+    assert plan.metadata["interpretation_snapshot"]["question"] == "How many rows do we have?"
     assert plan.steps[0].family == "aggregation_grouping"
     assert plan.steps[0].method_id == "row_count"
     assert plan.steps[0].output_refs == ["row_count"]

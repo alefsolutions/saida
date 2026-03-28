@@ -20,9 +20,9 @@ from saida.exceptions import ReasoningError, ValidationError
 from saida.llm import BaseLlmProvider, ResponseContext, build_llm_provider
 from saida.outputs import JsonOutputAdapter, OutputInterface, SummaryFormatter, SummaryOutputAdapter
 from saida.core.contracts import (
+    AnalysisInterpretation,
     AnalysisResult,
     AnalysisPlan,
-    AnalysisRequest,
     Dataset,
     DatasetProfile,
     ExecutionTraceEvent,
@@ -111,7 +111,6 @@ class Saida:
         self,
         dataset: Dataset,
         plan: AnalysisPlan,
-        request: AnalysisRequest | None = None,
     ) -> AnalysisResult:
         """Execute a validated AnalysisPlan deterministically through the core framework path."""
         self.validator.validate_dataset(dataset)
@@ -122,15 +121,15 @@ class Saida:
         profile = self.profile(dataset)
         trace.append(self._trace("profiling", "profile generated", {"row_count": profile.row_count}))
 
-        bound_request = request or self._request_from_plan(plan, dataset, profile)
+        bound_plan = self._bind_plan_to_dataset(deepcopy(plan), dataset, profile)
+        interpretation = self._interpretation_from_plan(bound_plan, profile=profile, dataset_name=dataset.name)
         trace.append(
             self._trace(
                 "contract",
-                "request reconstructed from plan",
-                {"prompt_family": bound_request.prompt_family, "intent_name": bound_request.intent_name},
+                "interpretation derived from plan",
+                {"prompt_family": interpretation.prompt_family, "intent_name": interpretation.intent_name},
             )
         )
-        bound_plan = self._bind_plan_to_dataset(deepcopy(plan), dataset, bound_request, profile)
         trace.append(
             self._trace(
                 "planning",
@@ -141,8 +140,8 @@ class Saida:
 
         return self._execute_prepared_plan(
             dataset=dataset,
-            question=bound_request.question,
-            request=bound_request,
+            question=interpretation.question,
+            interpretation=interpretation,
             profile=profile,
             plan=bound_plan,
             trace=trace,
@@ -153,7 +152,7 @@ class Saida:
         self,
         dataset: Dataset,
         question: str,
-        request: AnalysisRequest,
+        interpretation: AnalysisInterpretation,
         profile: DatasetProfile,
         plan: AnalysisPlan,
         trace: list[ExecutionTraceEvent],
@@ -171,10 +170,17 @@ class Saida:
             self._execute_step(dataset, profile, step, metrics, tables)
             trace.append(self._trace("compute", f"executed {step.action}", step.parameters))
 
-        deterministic_summary = self.summary_formatter.summarize(plan, metrics, tables, warnings, request, profile, dataset.context)
+        deterministic_summary = self.summary_formatter.summarize(
+            plan,
+            metrics,
+            tables,
+            warnings,
+            interpretation,
+            profile,
+            dataset.context,
+        )
         summary, llm_summary, summary_source, llm_reasoning_warning = self._build_summary(
             question,
-            request,
             profile,
             plan,
             metrics,
@@ -195,7 +201,7 @@ class Saida:
             tables,
             warnings,
             plan,
-            request,
+            interpretation,
             profile,
             trace,
             capability_contract,
@@ -225,8 +231,8 @@ class Saida:
         self,
         plan: AnalysisPlan,
         dataset: Dataset,
-        request: AnalysisRequest,
         profile: DatasetProfile,
+        interpretation: AnalysisInterpretation | None = None,
     ) -> AnalysisPlan:
         analytics_registry = get_analytics_registry()
         if not plan.dataset_refs:
@@ -247,10 +253,13 @@ class Saida:
         plan.metadata = deepcopy(plan.metadata)
         plan.metadata["dataset_name"] = dataset.name
         plan.metadata["dataset_source_type"] = dataset.source_type
-        plan.metadata["origin_question"] = request.question
-        plan.metadata["prompt_family"] = request.prompt_family
-        plan.metadata["intent_name"] = request.intent_name
-        plan.metadata["request_snapshot"] = self._request_snapshot(request)
+        if interpretation is not None:
+            plan.metadata["origin_question"] = interpretation.question
+            plan.metadata["prompt_family"] = interpretation.prompt_family
+            plan.metadata["intent_name"] = interpretation.intent_name
+            plan.metadata["interpretation_snapshot"] = self._interpretation_snapshot(interpretation)
+        elif isinstance(plan.metadata.get("request_snapshot"), dict) and "interpretation_snapshot" not in plan.metadata:
+            plan.metadata["interpretation_snapshot"] = deepcopy(plan.metadata["request_snapshot"])
         plan.metadata.setdefault(
             "profile_summary",
             {
@@ -260,13 +269,6 @@ class Saida:
             },
         )
 
-        if plan.plan_id is None:
-            plan.plan_id = self._deterministic_plan_id(plan, dataset, request)
-        if plan.expected_result_name is None:
-            plan.expected_result_name = self._infer_expected_result_name(request, plan)
-        if plan.expected_result_shape is None:
-            plan.expected_result_shape = self._infer_expected_result_shape(request, plan)
-
         for index, step in enumerate(plan.steps, start=1):
             method_id = step.method_id or step.action
             method_spec = analytics_registry.get_method(method_id)
@@ -274,7 +276,9 @@ class Saida:
                 step.family = (
                     method_spec.family_id
                     if method_spec is not None
-                    else request.prompt_family or request.intent_name or plan.task_type
+                    else self._string_or_none(plan.metadata.get("prompt_family"))
+                    or self._string_or_none(plan.metadata.get("intent_name"))
+                    or plan.task_type
                 )
             if step.method_id is None:
                 step.method_id = method_id
@@ -286,63 +290,68 @@ class Saida:
                     step.expected_output = inferred_output
             step.metadata = deepcopy(step.metadata)
             step.metadata.setdefault("execution_order", index)
+
+        bound_interpretation = self._interpretation_from_plan(plan, profile=profile, dataset_name=dataset.name)
+        plan.metadata["origin_question"] = bound_interpretation.question
+        plan.metadata["prompt_family"] = bound_interpretation.prompt_family
+        plan.metadata["intent_name"] = bound_interpretation.intent_name
+        plan.metadata["interpretation_snapshot"] = self._interpretation_snapshot(bound_interpretation)
+        if plan.plan_id is None:
+            plan.plan_id = self._deterministic_plan_id(plan, dataset, bound_interpretation)
+        if plan.expected_result_name is None:
+            plan.expected_result_name = self._infer_expected_result_name(bound_interpretation, plan)
+        if plan.expected_result_shape is None:
+            plan.expected_result_shape = self._infer_expected_result_shape(bound_interpretation, plan)
         return plan
 
-    def _request_from_plan(
+    def _interpretation_from_plan(
         self,
         plan: AnalysisPlan,
-        dataset: Dataset,
-        profile: DatasetProfile,
-    ) -> AnalysisRequest:
-        request_snapshot = plan.metadata.get("request_snapshot")
-        if isinstance(request_snapshot, dict):
-            return self._request_from_snapshot(request_snapshot)
+        profile: DatasetProfile | None = None,
+        dataset_name: str | None = None,
+    ) -> AnalysisInterpretation:
+        interpretation_snapshot = plan.metadata.get("interpretation_snapshot")
+        if isinstance(interpretation_snapshot, dict):
+            interpretation = AnalysisInterpretation.from_snapshot(interpretation_snapshot)
+        else:
+            legacy_request_snapshot = plan.metadata.get("request_snapshot")
+            if isinstance(legacy_request_snapshot, dict):
+                interpretation = AnalysisInterpretation.from_snapshot(legacy_request_snapshot)
+            else:
+                question = str(plan.metadata.get("origin_question") or f"Execute {plan.plan_id or plan.task_type} plan")
+                interpretation = AnalysisInterpretation(
+                    question=question,
+                    task_type_hint=plan.task_type,
+                    options={},
+                )
+                interpretation.prompt_family = self._string_or_none(plan.metadata.get("prompt_family"))
+                interpretation.intent_name = self._string_or_none(plan.metadata.get("intent_name"))
+                if plan.steps:
+                    inferred = self._interpretation_fields_from_step(plan.steps[0], plan)
+                    interpretation.prompt_family = inferred.get("prompt_family") or interpretation.prompt_family
+                    interpretation.intent_name = inferred.get("intent_name") or interpretation.intent_name
+                    interpretation.target = inferred.get("target")
+                    interpretation.aggregation = inferred.get("aggregation")
+                    interpretation.filters = inferred.get("filters")
+                    interpretation.group_by = inferred.get("group_by")
+                    interpretation.time_reference = inferred.get("time_reference")
+                    interpretation.horizon = inferred.get("horizon")
+                    interpretation.options.update(inferred.get("options", {}))
 
-        question = str(plan.metadata.get("origin_question") or f"Execute {plan.plan_id or plan.task_type} plan")
-        request = AnalysisRequest(question=question, task_type_hint=plan.task_type, options={"dataset": dataset.name})
-        request.prompt_family = self._string_or_none(plan.metadata.get("prompt_family"))
-        request.intent_name = self._string_or_none(plan.metadata.get("intent_name"))
+        interpretation.options = deepcopy(interpretation.options)
+        if dataset_name is not None:
+            interpretation.options.setdefault("dataset", dataset_name)
+        interpretation.options.setdefault("plan_execution", True)
+        if interpretation.prompt_family is None and plan.expected_result_name:
+            interpretation.prompt_family = plan.expected_result_name
+        if interpretation.intent_name is None:
+            interpretation.intent_name = interpretation.prompt_family
+        if profile is not None and interpretation.target is not None:
+            if interpretation.target not in {column.name for column in profile.columns}:
+                interpretation.target = None
+        return interpretation
 
-        if not plan.steps:
-            return request
-
-        inferred = self._request_fields_from_step(plan.steps[0], plan)
-        request.prompt_family = inferred.get("prompt_family") or request.prompt_family
-        request.intent_name = inferred.get("intent_name") or request.intent_name
-        request.target = inferred.get("target")
-        request.aggregation = inferred.get("aggregation")
-        request.filters = inferred.get("filters")
-        request.group_by = inferred.get("group_by")
-        request.time_reference = inferred.get("time_reference")
-        request.options.update(inferred.get("options", {}))
-        request.options.setdefault("dataset", dataset.name)
-        request.options.setdefault("plan_execution", True)
-
-        if request.prompt_family is None and plan.expected_result_name:
-            request.prompt_family = plan.expected_result_name
-        if request.intent_name is None:
-            request.intent_name = request.prompt_family
-
-        if request.target is not None and request.target not in {column.name for column in profile.columns}:
-            request.target = None
-        return request
-
-    def _request_from_snapshot(self, snapshot: dict[str, object]) -> AnalysisRequest:
-        return AnalysisRequest(
-            question=str(snapshot.get("question") or "Execute analysis plan"),
-            prompt_family=self._string_or_none(snapshot.get("prompt_family")),
-            intent_name=self._string_or_none(snapshot.get("intent_name")),
-            task_type_hint=self._string_or_none(snapshot.get("task_type_hint")),
-            target=self._string_or_none(snapshot.get("target")),
-            aggregation=self._string_or_none(snapshot.get("aggregation")),
-            horizon=snapshot.get("horizon") if isinstance(snapshot.get("horizon"), int) else None,
-            filters=deepcopy(snapshot.get("filters")) if isinstance(snapshot.get("filters"), dict) else None,
-            group_by=list(snapshot.get("group_by")) if isinstance(snapshot.get("group_by"), list) else None,
-            time_reference=deepcopy(snapshot.get("time_reference")) if isinstance(snapshot.get("time_reference"), dict) else None,
-            options=deepcopy(snapshot.get("options")) if isinstance(snapshot.get("options"), dict) else {},
-        )
-
-    def _request_fields_from_step(self, step: object, plan: AnalysisPlan) -> dict[str, object]:
+    def _interpretation_fields_from_step(self, step: object, plan: AnalysisPlan) -> dict[str, object]:
         if step.action == "row_count":
             return {
                 "prompt_family": "row_count",
@@ -410,6 +419,31 @@ class Saida:
                 "intent_name": "column_type_inventory",
                 "target": target,
                 "options": deepcopy(step.parameters),
+            }
+        if step.action == "time_bucket_counts":
+            bucket = step.parameters.get("bucket", "year")
+            return {
+                "prompt_family": "time_bucket_counts",
+                "intent_name": "time_bucket_counts",
+                "target": step.parameters.get("time_column"),
+                "options": {
+                    **deepcopy(step.parameters),
+                    "time_bucket": bucket,
+                },
+            }
+        if step.action == "time_bucket_breakdown":
+            bucket = step.parameters.get("bucket", "month")
+            return {
+                "prompt_family": "time_bucket_breakdown",
+                "intent_name": "time_bucket_breakdown",
+                "target": step.parameters.get("target"),
+                "aggregation": step.parameters.get("aggregation"),
+                "group_by": list(step.parameters.get("group_by") or []),
+                "filters": deepcopy(step.parameters.get("filters")),
+                "options": {
+                    **deepcopy(step.parameters),
+                    "time_bucket": bucket,
+                },
             }
         if step.tool_family == "metadata":
             return {
@@ -491,42 +525,35 @@ class Saida:
             "options": {},
         }
 
-    def _request_snapshot(self, request: AnalysisRequest) -> dict[str, object]:
-        return {
-            "question": request.question,
-            "prompt_family": request.prompt_family,
-            "intent_name": request.intent_name,
-            "task_type_hint": request.task_type_hint,
-            "target": request.target,
-            "aggregation": request.aggregation,
-            "horizon": request.horizon,
-            "filters": deepcopy(request.filters),
-            "group_by": list(request.group_by or []) if request.group_by is not None else None,
-            "time_reference": deepcopy(request.time_reference),
-            "options": deepcopy(request.options),
-        }
+    def _interpretation_snapshot(self, interpretation: AnalysisInterpretation) -> dict[str, object]:
+        return interpretation.to_dict()
 
-    def _deterministic_plan_id(self, plan: AnalysisPlan, dataset: Dataset, request: AnalysisRequest) -> str:
+    def _deterministic_plan_id(
+        self,
+        plan: AnalysisPlan,
+        dataset: Dataset,
+        interpretation: AnalysisInterpretation,
+    ) -> str:
         action_signature = "-".join((step.method_id or step.action) for step in plan.steps[:3]) or plan.task_type
-        family = request.prompt_family or request.intent_name or plan.task_type
+        family = interpretation.prompt_family or interpretation.intent_name or plan.task_type
         return f"{dataset.name}:{family}:{action_signature}"
 
-    def _infer_expected_result_name(self, request: AnalysisRequest, plan: AnalysisPlan) -> str | None:
-        if request.target and request.aggregation and not request.group_by:
-            return f"{request.target}_{request.aggregation}"
-        if request.prompt_family == "tabular_record_retrieval":
+    def _infer_expected_result_name(self, interpretation: AnalysisInterpretation, plan: AnalysisPlan) -> str | None:
+        if interpretation.target and interpretation.aggregation and not interpretation.group_by:
+            return f"{interpretation.target}_{interpretation.aggregation}"
+        if interpretation.prompt_family == "tabular_record_retrieval":
             return "tabular_query"
-        if request.prompt_family == "grouped_tabular_query":
+        if interpretation.prompt_family == "grouped_tabular_query":
             return "grouped_tabular_query"
-        if request.prompt_family:
-            return request.prompt_family
+        if interpretation.prompt_family:
+            return interpretation.prompt_family
         if plan.steps:
             return plan.steps[0].action
         return None
 
-    def _infer_expected_result_shape(self, request: AnalysisRequest, plan: AnalysisPlan) -> str | None:
-        if request.prompt_family:
-            family_spec = get_prompt_family_catalog().get(request.prompt_family)
+    def _infer_expected_result_shape(self, interpretation: AnalysisInterpretation, plan: AnalysisPlan) -> str | None:
+        if interpretation.prompt_family:
+            family_spec = get_prompt_family_catalog().get(interpretation.prompt_family)
             if family_spec is not None and family_spec.primary_result_shapes:
                 return self._normalize_expected_result_shape(family_spec.primary_result_shapes[0])
         if plan.steps:
@@ -595,7 +622,6 @@ class Saida:
     def _build_summary(
         self,
         question: str,
-        request: AnalysisRequest,
         profile: DatasetProfile,
         plan: AnalysisPlan,
         metrics: list[Metric],

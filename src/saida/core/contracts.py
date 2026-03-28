@@ -90,6 +90,59 @@ class AnalysisRequest:
 
 
 @dataclass(slots=True)
+class AnalysisInterpretation:
+    question: str
+    prompt_family: str | None = None
+    intent_name: str | None = None
+    task_type_hint: str | None = None
+    target: str | None = None
+    aggregation: str | None = None
+    horizon: int | None = None
+    filters: dict[str, Any] | None = None
+    group_by: list[str] | None = None
+    time_reference: dict[str, Any] | None = None
+    options: dict[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def from_request(cls, request: AnalysisRequest) -> "AnalysisInterpretation":
+        return cls(
+            question=request.question,
+            prompt_family=request.prompt_family,
+            intent_name=request.intent_name,
+            task_type_hint=request.task_type_hint,
+            target=request.target,
+            aggregation=request.aggregation,
+            horizon=request.horizon,
+            filters=deepcopy(request.filters),
+            group_by=list(request.group_by or []) if request.group_by is not None else None,
+            time_reference=deepcopy(request.time_reference),
+            options=deepcopy(request.options),
+        )
+
+    @classmethod
+    def from_snapshot(cls, snapshot: dict[str, Any]) -> "AnalysisInterpretation":
+        return cls(
+            question=str(snapshot.get("question") or "Execute analysis plan"),
+            prompt_family=snapshot.get("prompt_family") if isinstance(snapshot.get("prompt_family"), str) else None,
+            intent_name=snapshot.get("intent_name") if isinstance(snapshot.get("intent_name"), str) else None,
+            task_type_hint=snapshot.get("task_type_hint") if isinstance(snapshot.get("task_type_hint"), str) else None,
+            target=snapshot.get("target") if isinstance(snapshot.get("target"), str) else None,
+            aggregation=snapshot.get("aggregation") if isinstance(snapshot.get("aggregation"), str) else None,
+            horizon=snapshot.get("horizon") if isinstance(snapshot.get("horizon"), int) else None,
+            filters=deepcopy(snapshot.get("filters")) if isinstance(snapshot.get("filters"), dict) else None,
+            group_by=list(snapshot.get("group_by")) if isinstance(snapshot.get("group_by"), list) else None,
+            time_reference=deepcopy(snapshot.get("time_reference")) if isinstance(snapshot.get("time_reference"), dict) else None,
+            options=deepcopy(snapshot.get("options")) if isinstance(snapshot.get("options"), dict) else {},
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+RequestLike = AnalysisRequest | AnalysisInterpretation
+
+
+@dataclass(slots=True)
 class PlanStep:
     step_id: str
     tool_family: str

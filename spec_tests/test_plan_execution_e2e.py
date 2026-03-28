@@ -3,7 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 
 from saida import Saida
-from saida.core.contracts import AnalysisPlan, AnalysisRequest, PlanStep
+from saida.core.contracts import AnalysisPlan, PlanStep
 from .factories import build_sales_dataset, build_support_dataset
 
 
@@ -218,7 +218,7 @@ def test_execute_plan_returns_scalar_distinct_value_count() -> None:
     assert result.response["result"]["value"] == 2
 
 
-def test_execute_plan_returns_scalar_column_type_lookup_with_explicit_request() -> None:
+def test_execute_plan_returns_scalar_column_type_lookup_from_plan_metadata() -> None:
     engine = Saida()
     dataset = build_support_dataset()
     plan = AnalysisPlan(
@@ -239,16 +239,7 @@ def test_execute_plan_returns_scalar_column_type_lookup_with_explicit_request() 
             )
         ],
     )
-    request = AnalysisRequest(
-        question="What is the data type of created_at?",
-        prompt_family="column_type_lookup",
-        intent_name="column_type_inventory",
-        target="created_at",
-        task_type_hint="descriptive",
-        options={"dataset": dataset.name},
-    )
-
-    result = engine.execute_plan(dataset, deepcopy(plan), request=request)
+    result = engine.execute_plan(dataset, deepcopy(plan))
 
     assert result.response["result"]["name"] == "created_at_dtype"
     assert result.response["result"]["logical_shape"] == "scalar"

@@ -14,7 +14,7 @@ from saida import Saida
 
 The most important public methods are:
 
-- `execute_plan(dataset, plan, request=None)`
+- `execute_plan(dataset, plan)`
 - `profile(dataset)`
 - `render_output(result, output_format="json", adapter=None)`
 - `load_context(markdown)`
@@ -84,9 +84,9 @@ But this is a convenience layer, not the framework source of truth.
 ### Build A Plan From A Prompt
 
 ```python
-from saida import Saida
+from saida import PromptAnalysisFrontend
 
-engine = Saida()
+engine = PromptAnalysisFrontend()
 plan = engine.plan(dataset, "How many tickets do we have by team?")
 
 print(plan.plan_id)
@@ -112,7 +112,7 @@ print(result.response["execution"]["plan_id"])
 
 ## Public Methods
 
-### `Saida().execute_plan(dataset, plan, request=None)`
+### `Saida().execute_plan(dataset, plan)`
 
 Core execution API.
 
@@ -127,8 +127,6 @@ What it does:
 - validates the plan against dataset/profile/backend context
 - executes plan steps
 - returns a canonical `AnalysisResult`
-
-The optional `request` argument is useful when you want explicit result-shaping context for a plan that could otherwise be interpreted more generically.
 
 ### `PromptAnalysisFrontend().plan(dataset, question)`
 

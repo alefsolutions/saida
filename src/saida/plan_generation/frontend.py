@@ -6,7 +6,7 @@ from typing import Any
 
 from saida.config import SaidaConfig
 from saida.core import InputCanonicalizer, PlanBuilder
-from saida.core.contracts import AnalysisPlan, AnalysisResult, Dataset, DatasetProfile
+from saida.core.contracts import AnalysisInterpretation, AnalysisPlan, AnalysisResult, Dataset, DatasetProfile
 from saida.engine import Saida
 from saida.llm import BaseLlmProvider
 from saida.plan_generation.generators import LlmAssistedPlanGenerator, OpenAIPlanGenerator, RuleBasedPlanGenerator
@@ -75,7 +75,8 @@ class PromptAnalysisFrontend:
         self.engine.validator.validate_dataset(dataset)
         profile = self.engine.profile(dataset)
         generation = self._generate_plan_result(question, dataset, profile)
-        plan = self.engine._bind_plan_to_dataset(generation.plan, dataset, generation.request, profile)
+        interpretation = AnalysisInterpretation.from_request(generation.request)
+        plan = self.engine._bind_plan_to_dataset(generation.plan, dataset, profile, interpretation=interpretation)
         if plan.steps:
             self.engine.validator.validate_plan(plan, dataset=dataset, profile=profile, router=self.engine.router)
         return plan
@@ -98,6 +99,7 @@ class PromptAnalysisFrontend:
 
         generation = self._generate_plan_result(question, dataset, profile)
         request = generation.request
+        interpretation = AnalysisInterpretation.from_request(request)
         if generation.trace_event is not None:
             trace.append(generation.trace_event)
         trace.append(
@@ -120,7 +122,7 @@ class PromptAnalysisFrontend:
             )
         )
 
-        plan = self.engine._bind_plan_to_dataset(generation.plan, dataset, request, profile)
+        plan = self.engine._bind_plan_to_dataset(generation.plan, dataset, profile, interpretation=interpretation)
         if generation.terminal_summary is not None:
             summary = generation.terminal_summary
             trace.append(self.engine._trace("results", "planning clarification returned", {"summary_length": len(summary)}))
@@ -137,7 +139,7 @@ class PromptAnalysisFrontend:
                     generation.contract_warning_messages,
                 ),
                 plan,
-                request,
+                interpretation,
                 profile,
                 trace,
                 capability_contract,
@@ -146,7 +148,7 @@ class PromptAnalysisFrontend:
         return self.engine._execute_prepared_plan(
             dataset=dataset,
             question=question,
-            request=request,
+            interpretation=interpretation,
             profile=profile,
             plan=plan,
             trace=trace,
