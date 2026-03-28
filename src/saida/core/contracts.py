@@ -139,9 +139,6 @@ class AnalysisInterpretation:
         return asdict(self)
 
 
-RequestLike = AnalysisRequest | AnalysisInterpretation
-
-
 @dataclass(slots=True)
 class PlanStep:
     step_id: str

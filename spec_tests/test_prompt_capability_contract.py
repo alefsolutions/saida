@@ -1,4 +1,5 @@
-from saida.core import AnalysisRequest, ColumnProfile, DatasetProfile, build_default_analytics_registry
+from saida.core import ColumnProfile, DatasetProfile, build_default_analytics_registry
+from saida.core.contracts import AnalysisRequest
 from saida.plan_generation import build_prompt_capability_contract
 
 

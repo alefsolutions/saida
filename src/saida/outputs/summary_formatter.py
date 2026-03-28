@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from saida.core.contracts import AnalysisPlan, RequestLike, DatasetProfile, Metric, SourceContext, TableArtifact
+from saida.core.contracts import AnalysisInterpretation, AnalysisPlan, DatasetProfile, Metric, SourceContext, TableArtifact
 
 
 class SummaryFormatter:
@@ -16,7 +16,7 @@ class SummaryFormatter:
         metrics: list[Metric],
         tables: list[TableArtifact],
         warnings: list[str],
-        request: RequestLike,
+        request: AnalysisInterpretation,
         profile: DatasetProfile,
         context: SourceContext | None = None,
     ) -> str:
@@ -223,7 +223,7 @@ class SummaryFormatter:
             f"to {current_total:.2f} in {current_row['period']} ({pct_change:+.1%})."
         )
 
-    def _describe_requested_aggregation(self, metrics: list[Metric], request: RequestLike) -> str | None:
+    def _describe_requested_aggregation(self, metrics: list[Metric], request: AnalysisInterpretation) -> str | None:
         if not request.target or not request.aggregation:
             return None
         metric_name = f"{request.target}_{request.aggregation}"
@@ -244,7 +244,7 @@ class SummaryFormatter:
             return f"Count of {label} is {int(metric_value)}."
         return None
 
-    def _describe_distinct_values(self, tables: list[TableArtifact], request: RequestLike) -> str | None:
+    def _describe_distinct_values(self, tables: list[TableArtifact], request: AnalysisInterpretation) -> str | None:
         if not request.options.get("distinct_values") or not request.target:
             return None
         distinct_table = self._table(tables, "distinct_values")
@@ -263,7 +263,7 @@ class SummaryFormatter:
             summary += f" {remaining_values} more value{'s' if remaining_values != 1 else ''} are available in distinct_values."
         return summary
 
-    def _describe_representation_ranking(self, tables: list[TableArtifact], request: RequestLike) -> str | None:
+    def _describe_representation_ranking(self, tables: list[TableArtifact], request: AnalysisInterpretation) -> str | None:
         if request.intent_name != "representation_ranking" or not request.target:
             return None
         count_table = self._table(tables, "group_row_counts")
@@ -276,7 +276,7 @@ class SummaryFormatter:
             return f"The least represented {request.target.replace('_', ' ')} is {row_label} with {row_count} rows."
         return f"The most represented {request.target.replace('_', ' ')} is {row_label} with {row_count} rows."
 
-    def _describe_ranked_rows(self, tables: list[TableArtifact], request: RequestLike) -> str | None:
+    def _describe_ranked_rows(self, tables: list[TableArtifact], request: AnalysisInterpretation) -> str | None:
         if request.intent_name != "row_ranking" or not request.target:
             return None
         ranked_rows = self._table(tables, "ranked_rows")
@@ -296,7 +296,7 @@ class SummaryFormatter:
                 entries.append(f"#{rank} {value:.2f}")
         return f"{direction} {min(limit, len(ranked_rows.dataframe))} {label} values: {'; '.join(entries)}."
 
-    def _describe_ranked_groups(self, tables: list[TableArtifact], request: RequestLike) -> str | None:
+    def _describe_ranked_groups(self, tables: list[TableArtifact], request: AnalysisInterpretation) -> str | None:
         if request.intent_name != "group_ranking" or not request.target:
             return None
         ranked_groups = self._table(tables, "ranked_breakdown")
@@ -313,7 +313,7 @@ class SummaryFormatter:
             entries.append(f"#{rank} {row_label} = {value:.2f}")
         return f"{direction} {min(limit, len(ranked_groups.dataframe))} {label} groups: {'; '.join(entries)}."
 
-    def _describe_row_count_only(self, metrics: list[Metric], request: RequestLike) -> str | None:
+    def _describe_row_count_only(self, metrics: list[Metric], request: AnalysisInterpretation) -> str | None:
         if request.intent_name != "row_count":
             return None
         row_count = self._metric_value(metrics, "row_count")
@@ -321,7 +321,7 @@ class SummaryFormatter:
             return None
         return f"The dataset contains {int(row_count)} rows."
 
-    def _describe_metadata_inventory(self, tables: list[TableArtifact], request: RequestLike) -> str | None:
+    def _describe_metadata_inventory(self, tables: list[TableArtifact], request: AnalysisInterpretation) -> str | None:
         inventory_mapping = {
             "column_inventory": ("column_inventory", "column_name", "Available columns"),
             "numeric_column_inventory": ("numeric_column_inventory", "column_name", "Numeric columns"),
@@ -398,7 +398,7 @@ class SummaryFormatter:
         values = [str(value) for value in inventory_table.dataframe[column_name].tolist()]
         return f"{prefix}: {', '.join(values)}."
 
-    def _describe_distinct_value_count(self, tables: list[TableArtifact], request: RequestLike) -> str | None:
+    def _describe_distinct_value_count(self, tables: list[TableArtifact], request: AnalysisInterpretation) -> str | None:
         if request.intent_name != "distinct_value_count" or not request.target:
             return None
         count_table = self._table(tables, "distinct_value_count")
@@ -408,7 +408,7 @@ class SummaryFormatter:
         label = request.target.replace("_", " ")
         return f"The column {label} has {count} distinct value{'s' if count != 1 else ''}."
 
-    def _describe_time_coverage(self, tables: list[TableArtifact], request: RequestLike) -> str | None:
+    def _describe_time_coverage(self, tables: list[TableArtifact], request: AnalysisInterpretation) -> str | None:
         if request.intent_name != "time_coverage":
             return None
         coverage_table = self._table(tables, "time_coverage")
@@ -433,7 +433,7 @@ class SummaryFormatter:
             return f"The data covers {row['earliest_date']} to {row['latest_date']}."
         return None
 
-    def _describe_time_bucket_counts(self, tables: list[TableArtifact], request: RequestLike) -> str | None:
+    def _describe_time_bucket_counts(self, tables: list[TableArtifact], request: AnalysisInterpretation) -> str | None:
         if request.intent_name != "time_bucket_counts":
             return None
         count_table = self._table(tables, "time_bucket_counts")
@@ -452,7 +452,7 @@ class SummaryFormatter:
             return f"Ticket counts by quarter: {'; '.join(entries)}."
         return f"Ticket counts by year: {'; '.join(entries)}."
 
-    def _describe_time_bucket_breakdown(self, tables: list[TableArtifact], request: RequestLike) -> str | None:
+    def _describe_time_bucket_breakdown(self, tables: list[TableArtifact], request: AnalysisInterpretation) -> str | None:
         if request.intent_name != "time_bucket_breakdown" or not request.target:
             return None
         breakdown_table = self._table(tables, "time_bucket_breakdown")
@@ -471,7 +471,7 @@ class SummaryFormatter:
             return None
         return f"{label.title()} by {bucket_column}: {'; '.join(entries)}."
 
-    def _describe_existence_check(self, tables: list[TableArtifact], request: RequestLike) -> str | None:
+    def _describe_existence_check(self, tables: list[TableArtifact], request: AnalysisInterpretation) -> str | None:
         if request.intent_name != "existence_check":
             return None
         existence_mode = request.options.get("existence_mode", "filtered_rows")
@@ -565,7 +565,7 @@ class SummaryFormatter:
             return f"Yes, the dataset contains rows matching {filter_text} ({matching_row_count} rows)."
         return f"No, the dataset does not contain rows matching {filter_text}."
 
-    def _describe_tabular_query(self, tables: list[TableArtifact], request: RequestLike) -> str | None:
+    def _describe_tabular_query(self, tables: list[TableArtifact], request: AnalysisInterpretation) -> str | None:
         if request.intent_name != "tabular_query":
             return None
         table = self._table(tables, "tabular_query")
@@ -586,7 +586,7 @@ class SummaryFormatter:
             f"{'s' if total_rows != 1 else ''} on page {page} (page size {page_size}){selected_text}."
         )
 
-    def _describe_grouped_tabular_query(self, tables: list[TableArtifact], request: RequestLike) -> str | None:
+    def _describe_grouped_tabular_query(self, tables: list[TableArtifact], request: AnalysisInterpretation) -> str | None:
         if request.intent_name != "grouped_tabular_query":
             return None
         table = self._table(tables, "grouped_tabular_query")
@@ -696,7 +696,7 @@ class SummaryFormatter:
             )
         return None
 
-    def _describe_grouped_aggregation(self, tables: list[TableArtifact], request: RequestLike) -> str | None:
+    def _describe_grouped_aggregation(self, tables: list[TableArtifact], request: AnalysisInterpretation) -> str | None:
         if not request.target or not request.group_by or not request.aggregation:
             return None
 

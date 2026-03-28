@@ -56,7 +56,7 @@ Optional frontend contracts exist too, such as:
 - `PromptCapabilityContract`
 - plan generator proposals
 
-But those support the frontend path. They are not the framework source of truth.
+But those support the frontend path only. They are not the framework source of truth and they are not part of the primary `saida.core` API surface.
 
 ### Clear Layer Separation
 

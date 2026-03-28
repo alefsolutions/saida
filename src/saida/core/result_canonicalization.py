@@ -9,8 +9,8 @@ from typing import Any
 import pandas as pd
 
 from saida.core.contracts import (
+    AnalysisInterpretation,
     AnalysisPlan,
-    RequestLike,
     AnalysisResult,
     DatasetProfile,
     ExecutionTraceEvent,
@@ -36,7 +36,7 @@ class ResultCanonicalizer:
         tables: list[TableArtifact],
         warnings: list[str],
         plan: AnalysisPlan,
-        request: RequestLike,
+        request: AnalysisInterpretation,
         profile: DatasetProfile,
         trace: list[ExecutionTraceEvent],
         capability_contract: object | None = None,
@@ -104,7 +104,7 @@ class ResultCanonicalizer:
         tables: list[TableArtifact],
         warnings: list[str],
         plan: AnalysisPlan,
-        request: RequestLike,
+        request: AnalysisInterpretation,
         profile: DatasetProfile,
         trace: list[ExecutionTraceEvent],
         deterministic_summary: str | None,
@@ -156,7 +156,7 @@ class ResultCanonicalizer:
         tables: list[TableArtifact],
         warnings: list[str],
         plan: AnalysisPlan,
-        request: RequestLike,
+        request: AnalysisInterpretation,
         profile: DatasetProfile,
         trace: list[ExecutionTraceEvent],
         deterministic_summary: str | None,
@@ -266,7 +266,7 @@ class ResultCanonicalizer:
     def _select_primary_result(
         self,
         plan: AnalysisPlan,
-        request: RequestLike,
+        request: AnalysisInterpretation,
         metrics: list[Metric],
         tables: list[TableArtifact],
     ) -> dict[str, object]:
@@ -368,7 +368,7 @@ class ResultCanonicalizer:
         self,
         key: str,
         plan: AnalysisPlan,
-        request: RequestLike,
+        request: AnalysisInterpretation,
         metrics: list[Metric],
         tables: list[TableArtifact],
     ) -> dict[str, object] | None:
@@ -429,7 +429,7 @@ class ResultCanonicalizer:
 
     def _select_exploratory_metric_primary_result(
         self,
-        request: RequestLike,
+        request: AnalysisInterpretation,
         tables: list[TableArtifact],
     ) -> dict[str, object] | None:
         table_priority: list[str]
@@ -475,7 +475,7 @@ class ResultCanonicalizer:
                 return self._table_result_payload(table)
         return None
 
-    def _table_aliases_for_key(self, key: str, request: RequestLike) -> list[str]:
+    def _table_aliases_for_key(self, key: str, request: AnalysisInterpretation) -> list[str]:
         if key == "tabular_record_retrieval":
             return ["tabular_query"]
         if key in {"grouped_metric_table", "grouped_tabular_query"}:
@@ -517,7 +517,7 @@ class ResultCanonicalizer:
     def _column_type_lookup_result(
         self,
         key: str,
-        request: RequestLike,
+        request: AnalysisInterpretation,
         tables: list[TableArtifact],
     ) -> dict[str, object] | None:
         result_name = key if key.endswith("_dtype") else f"{request.target}_dtype" if request.target else "column_dtype"
@@ -592,7 +592,7 @@ class ResultCanonicalizer:
             )
         )
 
-    def _logical_shape_for_metric(self, metric_name: str, request: RequestLike) -> str:
+    def _logical_shape_for_metric(self, metric_name: str, request: AnalysisInterpretation) -> str:
         if request.aggregation == "count" or metric_name == "row_count" or metric_name.endswith("_count"):
             return "count"
         if request.aggregation in {"sum", "mean", "max", "min"}:

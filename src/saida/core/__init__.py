@@ -13,7 +13,6 @@ from saida.core.context import SourceContextParser
 from saida.core.contracts import (
     AnalysisInterpretation,
     AnalysisPlan,
-    AnalysisRequest,
     AnalysisResult,
     ColumnProfile,
     Dataset,
@@ -28,7 +27,6 @@ from saida.core.contracts import (
     PlanStep,
     PlanInput,
     PredictionResult,
-    RequestLike,
     SourceContext,
     TableArtifact,
     TrainResult,
@@ -41,7 +39,6 @@ from saida.core.validation import PlanValidator
 __all__ = [
     "AnalysisPlan",
     "AnalysisInterpretation",
-    "AnalysisRequest",
     "AnalysisResult",
     "AnalyticsConceptSpec",
     "AnalyticsFamilySpec",
@@ -66,7 +63,6 @@ __all__ = [
     "PlanStep",
     "PlanValidator",
     "PredictionResult",
-    "RequestLike",
     "ResultBuilder",
     "ResultCanonicalizer",
     "SchemaDiscoveryService",

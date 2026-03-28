@@ -7,13 +7,12 @@ import pytest
 
 from saida import PromptAnalysisFrontend
 from saida.core import (
-    AnalysisRequest,
     AnalyticsConceptSpec,
     AnalyticsRegistry,
     ColumnProfile,
     DatasetProfile,
 )
-from saida.core.contracts import Dataset
+from saida.core.contracts import AnalysisRequest, Dataset
 from saida.llm import BaseLlmProvider, IntentProposal, ResponseContext, ResponseProposal
 from saida.plan_generation import build_prompt_capability_contract
 

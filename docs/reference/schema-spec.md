@@ -28,6 +28,8 @@ Optional frontend contracts include:
 - `PromptCapabilityContract`
 - plan generation proposals
 
+These remain available for optional prompt-generation workflows, not as the primary core framework API.
+
 ## `Dataset`
 
 Represents one loaded dataset after passing through a source adapter.
