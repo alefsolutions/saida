@@ -1,18 +1,13 @@
 """Core contracts, validation, routing, and result normalization."""
 
 from saida.core.analytics_registry import (
+    AnalyticsConceptSpec,
     AnalyticsFamilySpec,
     AnalyticsMethodSpec,
+    AnalyticsRelationSpec,
     AnalyticsRegistry,
     build_default_analytics_registry,
     get_analytics_registry,
-)
-from saida.core.capability_registry import (
-    CapabilityEdge,
-    CapabilityNode,
-    CapabilityRegistry,
-    build_default_capability_registry,
-    get_capability_registry,
 )
 from saida.core.context import SourceContextParser
 from saida.core.contracts import (
@@ -48,15 +43,13 @@ __all__ = [
     "AnalysisInterpretation",
     "AnalysisRequest",
     "AnalysisResult",
+    "AnalyticsConceptSpec",
     "AnalyticsFamilySpec",
     "AnalyticsMethodSpec",
+    "AnalyticsRelationSpec",
     "AnalyticsRegistry",
     "BackendRouter",
     "build_default_analytics_registry",
-    "build_default_capability_registry",
-    "CapabilityEdge",
-    "CapabilityNode",
-    "CapabilityRegistry",
     "ColumnProfile",
     "Dataset",
     "DatasetProfiler",
@@ -65,7 +58,6 @@ __all__ = [
     "ForecastAnalysisResult",
     "ForecastResult",
     "get_analytics_registry",
-    "get_capability_registry",
     "Metric",
     "MLReadinessProfile",
     "ModelSpec",

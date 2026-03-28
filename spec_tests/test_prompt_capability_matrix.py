@@ -8,8 +8,8 @@ import pytest
 from saida import PromptAnalysisFrontend
 from saida.core import (
     AnalysisRequest,
-    CapabilityNode,
-    CapabilityRegistry,
+    AnalyticsConceptSpec,
+    AnalyticsRegistry,
     ColumnProfile,
     DatasetProfile,
 )
@@ -100,11 +100,11 @@ def build_tickets_dataset_with_missing_priority() -> Dataset:
     )
 
 
-def build_null_verification_registry_without_target_requirement() -> CapabilityRegistry:
-    registry = CapabilityRegistry()
-    registry.add_node(CapabilityNode("verification", "domain", "Verification", "Yes/no checks against the dataset."))
+def build_null_verification_registry_without_target_requirement() -> AnalyticsRegistry:
+    registry = AnalyticsRegistry()
+    registry.add_concept(AnalyticsConceptSpec("verification", "domain", "Verification", "Yes/no checks against the dataset."))
     registry.add_node(
-        CapabilityNode(
+        AnalyticsConceptSpec(
             "null_verification",
             "pattern",
             "Null Verification",
@@ -229,7 +229,7 @@ class CandidateCapabilityLlmProvider(BaseLlmProvider):
                 horizon=3,
             ),
             build_profile(),
-            CapabilityRegistry(),
+            AnalyticsRegistry(),
             "unsupported_capability",
             [],
             set(),
@@ -248,7 +248,7 @@ class CandidateCapabilityLlmProvider(BaseLlmProvider):
 def test_prompt_capability_contract_status_matrix(
     analysis_request: AnalysisRequest,
     profile: DatasetProfile,
-    registry: CapabilityRegistry | None,
+    registry: AnalyticsRegistry | None,
     expected_status: str,
     expected_missing_parameters: list[str],
     expected_issue_codes: set[str],

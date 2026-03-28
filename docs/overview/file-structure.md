@@ -30,7 +30,6 @@ Main responsibilities:
 
 - `Dataset`, `DatasetProfile`, `AnalysisPlan`, `AnalysisResult`
 - analytics registry
-- capability registry
 - validation
 - routing
 - result canonicalization

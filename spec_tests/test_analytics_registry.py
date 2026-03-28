@@ -20,6 +20,17 @@ def test_default_analytics_registry_covers_live_row_count_method() -> None:
     assert method.output_shapes == ("scalar",)
 
 
+def test_default_analytics_registry_exposes_prompt_relevant_concepts_and_relations() -> None:
+    registry = get_analytics_registry()
+
+    concept = registry.get_concept("top_n_by_metric")
+
+    assert concept is not None
+    assert concept.category == "pattern"
+    assert "requires_metric" in registry.related("top_n_by_metric", "requires")
+    assert "ranked_breakdown" in registry.related("top_n_by_metric", "uses")
+
+
 def test_engine_plan_binds_step_family_from_analytics_registry() -> None:
     engine = PromptAnalysisFrontend()
     dataset = build_support_dataset()

@@ -5,8 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from saida.core.analytics_registry import get_analytics_registry
-from saida.core.capability_registry import CapabilityRegistry, build_default_capability_registry
+from saida.core.analytics_registry import AnalyticsRegistry, get_analytics_registry
 from saida.core.contracts import AnalysisRequest, DatasetProfile
 from saida.plan_generation.prompt_family_catalog import (
     PromptFamilyCatalog,
@@ -214,21 +213,20 @@ class PromptCapabilityContract:
 def build_prompt_capability_contract(
     request: AnalysisRequest,
     profile: DatasetProfile,
-    registry: CapabilityRegistry | None = None,
+    registry: AnalyticsRegistry | None = None,
     family_catalog: PromptFamilyCatalog | None = None,
 ) -> PromptCapabilityContract:
     """Bootstrap a prompt capability contract from the current normalized request."""
 
-    active_registry = registry or build_default_capability_registry()
+    active_registry = registry or get_analytics_registry()
     active_family_catalog = family_catalog or get_prompt_family_catalog()
-    active_analytics_registry = get_analytics_registry()
     prompt_family = request.prompt_family or derive_prompt_family(request, active_family_catalog)
     family_spec = active_family_catalog.get(prompt_family)
     analytics_method_ids = _resolve_analytics_methods(request, family_spec)
     analytics_family_ids = sorted(
         {
             family_id
-            for family_id in (active_analytics_registry.family_for_method(method_id) for method_id in analytics_method_ids)
+            for family_id in (active_registry.family_for_method(method_id) for method_id in analytics_method_ids)
             if family_id is not None
         }
     )
@@ -244,9 +242,9 @@ def build_prompt_capability_contract(
 
     warnings: list[str] = []
     notes: list[str] = [
-        "This contract is currently a bootstrap layer derived from the normalized AnalysisRequest.",
-        "The live planner is not yet compiling directly from the capability registry.",
-        "Analytics methods are now categorized through the canonical analytics family registry.",
+        "This contract is a prompt-generation bootstrap layer derived from the normalized AnalysisRequest.",
+        "Prompt capability metadata now resolves through SAIDA's canonical analytics registry.",
+        "The core framework still validates and executes only authored or generated AnalysisPlan objects.",
     ]
     if prompt_family is None:
         warnings.append("No explicit prompt family was derived from the normalized request.")
@@ -311,7 +309,7 @@ def derive_contract_status(contract: PromptCapabilityContract) -> ContractStatus
 
 def _select_capabilities(
     request: AnalysisRequest,
-    registry: CapabilityRegistry,
+    registry: AnalyticsRegistry,
 ) -> list[str]:
     selected: list[str] = []
 
@@ -375,7 +373,7 @@ def _resolve_analytics_methods(
 def _build_capability_activations(
     request: AnalysisRequest,
     selected_capabilities: list[str],
-    registry: CapabilityRegistry,
+    registry: AnalyticsRegistry,
 ) -> list[CapabilityActivation]:
     activations: list[CapabilityActivation] = []
     seen: set[tuple[str, str]] = set()
@@ -463,7 +461,7 @@ def _evaluate_feasibility(
     request: AnalysisRequest,
     profile: DatasetProfile,
     selected_capabilities: list[str],
-    registry: CapabilityRegistry,
+    registry: AnalyticsRegistry,
 ) -> tuple[list[DataFeasibilityCheck], list[str], list[ValidationIssue]]:
     checks: list[DataFeasibilityCheck] = []
     missing_parameters: list[str] = []

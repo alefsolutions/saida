@@ -1,4 +1,4 @@
-from saida.core import AnalysisRequest, ColumnProfile, DatasetProfile, build_default_capability_registry
+from saida.core import AnalysisRequest, ColumnProfile, DatasetProfile, build_default_analytics_registry
 from saida.plan_generation import build_prompt_capability_contract
 
 
@@ -47,11 +47,11 @@ def build_profile() -> DatasetProfile:
     )
 
 
-def test_default_capability_registry_exposes_graph_like_relationships() -> None:
-    registry = build_default_capability_registry()
+def test_default_analytics_registry_exposes_graph_like_relationships() -> None:
+    registry = build_default_analytics_registry()
 
-    assert registry.get_node("top_n_by_metric") is not None
-    assert registry.get_node("requires_metric") is not None
+    assert registry.get_concept("top_n_by_metric") is not None
+    assert registry.get_concept("requires_metric") is not None
     assert "requires_metric" in registry.related("top_n_by_metric", "requires")
     assert "ranked_breakdown" in registry.related("top_n_by_metric", "uses")
 

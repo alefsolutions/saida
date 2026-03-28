@@ -152,14 +152,14 @@ Responsibility:
 
 Live registries:
 
-- analytics family and method registry
+- canonical analytics registry
 - prompt family catalog
-- capability registry
 
-The analytics registry is the compute-oriented definition:
+The analytics registry is the single canonical metadata definition for core analytics support:
 
 - family ids
 - method ids
+- analytics concepts and relations
 - required inputs
 - allowed configs
 - output shapes
