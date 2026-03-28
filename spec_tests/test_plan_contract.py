@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import pandas as pd
 import pytest
 
 from saida import PromptAnalysisFrontend, Saida
 from saida.core import PlanValidator
-from saida.core.contracts import AnalysisPlan, PlanInput, PlanStep
+from saida.core.contracts import AnalysisPlan, Dataset, PlanInput, PlanStep
 from saida.exceptions import PlanningError
 from .factories import build_support_dataset, json_safe
 
@@ -208,3 +209,61 @@ def test_analysis_plan_to_dict_contains_vnext_contract_fields() -> None:
     assert payload["steps"][0]["family"] == "aggregation_grouping"
     assert payload["steps"][0]["output_refs"] == ["row_count"]
     assert payload["expected_result_shape"] == "scalar"
+
+
+def test_prompt_frontend_metadata_plan_strips_placeholder_parameters() -> None:
+    engine = PromptAnalysisFrontend()
+    dataset = build_support_dataset()
+
+    plan = engine.plan(dataset, "What are the dataset columns?")
+
+    assert plan.steps[0].method_id == "column_inventory"
+    assert plan.steps[0].parameters == {}
+
+
+def test_prompt_frontend_generated_plan_keeps_only_supported_statistical_parameters() -> None:
+    engine = PromptAnalysisFrontend()
+    dataset = Dataset(
+        name="sales",
+        source_type="pandas",
+        data=pd.DataFrame(
+            {
+                "region": ["North"] * 6 + ["South"] * 6,
+                "revenue": [100, 104, 98, 102, 101, 99, 135, 138, 132, 140, 136, 134],
+            }
+        ),
+    )
+
+    plan = engine.plan(dataset, "Do regions differ in revenue?")
+
+    assert plan.steps[0].method_id == "significance_inference"
+    assert set(plan.steps[0].parameters) == {"target", "group_by", "alpha"}
+
+
+def test_prompt_frontend_generated_plan_omits_group_by_for_ungrouped_period_comparison() -> None:
+    engine = PromptAnalysisFrontend()
+    dataset = Dataset(
+        name="sales",
+        source_type="pandas",
+        data=pd.DataFrame(
+            {
+                "posted_at": [
+                    "2025-01-01",
+                    "2025-04-01",
+                    "2025-07-01",
+                    "2025-10-01",
+                    "2026-01-01",
+                    "2026-04-01",
+                    "2026-07-01",
+                    "2026-10-01",
+                ],
+                "revenue": [100.0, 120.0, 140.0, 160.0, 180.0, 200.0, 220.0, 240.0],
+                "region": ["West", "East", "West", "East", "West", "East", "West", "East"],
+            }
+        ),
+    )
+
+    plan = engine.plan(dataset, "Compare revenue this quarter to last quarter")
+
+    assert plan.steps[0].method_id == "period_comparison"
+    assert "group_by" not in plan.steps[0].parameters

@@ -138,11 +138,19 @@ The validator now checks:
 - step dependencies
 - analytics method validity
 - required method inputs
+- allowed method parameters and parameter shapes
 - dataset reference compatibility
 - field existence
 - backend compatibility
 - expected output compatibility
 - expected result compatibility
+
+The validator is now driven by:
+
+- `AnalysisPlan`
+- `Dataset` / `DatasetProfile`
+- the canonical analytics registry
+- backend routing support
 
 ### 4. Analytics Family Layer
 

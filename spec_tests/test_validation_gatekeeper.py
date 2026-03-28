@@ -211,3 +211,75 @@ def test_plan_validator_rejects_incompatible_plan_result_shape() -> None:
 
     with pytest.raises(PlanningError, match="expects result shape 'verification'"):
         engine.validator.validate_plan(plan, dataset=dataset, profile=profile, router=engine.router)
+
+
+def test_plan_validator_rejects_unsupported_method_parameter() -> None:
+    engine = Saida()
+    dataset = build_support_dataset()
+    profile = engine.profile(dataset)
+    plan = AnalysisPlan(
+        task_type="descriptive",
+        rationale="Attach a non-contract parameter to row_count.",
+        steps=[
+            PlanStep(
+                step_id="row_count",
+                tool_family="duckdb",
+                action="row_count",
+                parameters={"filters": {"reopened_flag": "no"}, "mystery_flag": True},
+                description="Count rows with an unsupported extra parameter.",
+                family="aggregation_grouping",
+                method_id="row_count",
+            )
+        ],
+    )
+
+    with pytest.raises(PlanningError, match="unsupported parameters"):
+        engine.validator.validate_plan(plan, dataset=dataset, profile=profile, router=engine.router)
+
+
+def test_plan_validator_rejects_invalid_group_by_parameter_shape() -> None:
+    engine = Saida()
+    dataset = build_support_dataset()
+    profile = engine.profile(dataset)
+    plan = AnalysisPlan(
+        task_type="descriptive",
+        rationale="Use a malformed group_by payload.",
+        steps=[
+            PlanStep(
+                step_id="group_breakdown",
+                tool_family="duckdb",
+                action="group_breakdown",
+                parameters={"target": "resolution_hours", "group_by": "priority", "aggregation": "mean"},
+                description="Aggregate by a malformed group_by parameter.",
+                family="aggregation_grouping",
+                method_id="group_breakdown",
+            )
+        ],
+    )
+
+    with pytest.raises(PlanningError, match="parameter 'group_by' must be a list of non-empty strings"):
+        engine.validator.validate_plan(plan, dataset=dataset, profile=profile, router=engine.router)
+
+
+def test_plan_validator_rejects_invalid_limit_parameter_value() -> None:
+    engine = Saida()
+    dataset = build_support_dataset()
+    profile = engine.profile(dataset)
+    plan = AnalysisPlan(
+        task_type="descriptive",
+        rationale="Use an invalid pagination limit.",
+        steps=[
+            PlanStep(
+                step_id="ranked_rows",
+                tool_family="duckdb",
+                action="ranked_rows",
+                parameters={"target": "resolution_hours", "limit": 0},
+                description="Rank rows with an invalid limit.",
+                family="ranking",
+                method_id="ranked_rows",
+            )
+        ],
+    )
+
+    with pytest.raises(PlanningError, match="parameter 'limit' must be >= 1"):
+        engine.validator.validate_plan(plan, dataset=dataset, profile=profile, router=engine.router)

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from numbers import Real
+
 import pandas as pd
 
 from saida.core.analytics_registry import AnalyticsMethodSpec, get_analytics_registry
@@ -34,16 +36,6 @@ class PlanValidator:
     ) -> None:
         """Validate that the plan contains executable and coherent steps."""
         self._validate_plan(plan, dataset=dataset, profile=profile, router=router)
-
-    def validate_plan_with_context(
-        self,
-        plan: AnalysisPlan,
-        dataset: Dataset | None = None,
-        profile: DatasetProfile | None = None,
-        router: object | None = None,
-    ) -> None:
-        """Validate a plan using all available runtime context."""
-        self.validate_plan(plan, dataset=dataset, profile=profile, router=router)
 
     def _validate_plan(
         self,
@@ -138,6 +130,8 @@ class PlanValidator:
 
         for step, method_spec, method_id in resolved_methods:
             self._validate_required_inputs(step.step_id, step.parameters, method_spec, dataset)
+            self._validate_supported_parameters(step.step_id, step.parameters, method_spec)
+            self._validate_parameter_shapes(step.step_id, step.parameters)
             self._validate_expected_output(step.step_id, step.expected_output, method_spec)
             if profile is not None:
                 self._validate_parameter_fields(step.step_id, step.parameters, method_spec, profile)
@@ -166,6 +160,127 @@ class PlanValidator:
                 raise PlanningError(f"Plan step {step_id!r} requires a time_column parameter.")
             if required_input == "time_reference" and not isinstance(parameters.get("time_reference"), dict):
                 raise PlanningError(f"Plan step {step_id!r} requires a time_reference parameter.")
+
+    def _validate_supported_parameters(
+        self,
+        step_id: str,
+        parameters: dict[str, object],
+        method_spec: AnalyticsMethodSpec,
+    ) -> None:
+        supported_parameters = {
+            value
+            for value in (*method_spec.required_inputs, *method_spec.allowed_configs)
+            if value != "dataset"
+        }
+        unsupported_parameters = sorted(parameter for parameter in parameters if parameter not in supported_parameters)
+        if unsupported_parameters:
+            joined = ", ".join(unsupported_parameters)
+            raise PlanningError(
+                f"Plan step {step_id!r} declares unsupported parameters for method {method_spec.method_id!r}: {joined}."
+            )
+
+    def _validate_parameter_shapes(
+        self,
+        step_id: str,
+        parameters: dict[str, object],
+    ) -> None:
+        self._validate_string_parameter(step_id, parameters, "target")
+        self._validate_string_parameter(step_id, parameters, "aggregation")
+        self._validate_string_parameter(step_id, parameters, "time_column")
+        self._validate_string_parameter(step_id, parameters, "bucket")
+        self._validate_string_parameter(step_id, parameters, "mode")
+        self._validate_string_parameter(step_id, parameters, "sort_by")
+        self._validate_string_parameter(step_id, parameters, "sort_direction")
+        self._validate_string_parameter(step_id, parameters, "expected_property")
+        self._validate_string_parameter(step_id, parameters, "requested_column")
+        self._validate_string_parameter(step_id, parameters, "null_expectation")
+        self._validate_string_parameter(step_id, parameters, "threshold_operator")
+        self._validate_string_parameter(step_id, parameters, "group_column")
+
+        self._validate_dict_parameter(step_id, parameters, "filters")
+        self._validate_dict_parameter(step_id, parameters, "time_reference")
+
+        self._validate_string_list_parameter(step_id, parameters, "group_by")
+        self._validate_string_list_parameter(step_id, parameters, "selected_columns")
+        self._validate_string_list_parameter(step_id, parameters, "feature_columns")
+        self._validate_string_list_parameter(step_id, parameters, "comparison_columns")
+
+        self._validate_integer_parameter(step_id, parameters, "limit", minimum=1)
+        self._validate_integer_parameter(step_id, parameters, "page", minimum=1)
+        self._validate_integer_parameter(step_id, parameters, "page_size", minimum=1)
+        self._validate_integer_parameter(step_id, parameters, "horizon", minimum=1)
+        self._validate_integer_parameter(step_id, parameters, "expected_year", minimum=1)
+
+        self._validate_numeric_parameter(step_id, parameters, "alpha")
+        self._validate_numeric_parameter(step_id, parameters, "confidence_level")
+        self._validate_numeric_parameter(step_id, parameters, "desired_power")
+        self._validate_numeric_parameter(step_id, parameters, "threshold_value")
+        self._validate_numeric_parameter(step_id, parameters, "lower_bound")
+        self._validate_numeric_parameter(step_id, parameters, "upper_bound")
+
+    def _validate_string_parameter(
+        self,
+        step_id: str,
+        parameters: dict[str, object],
+        name: str,
+    ) -> None:
+        value = parameters.get(name)
+        if value is None:
+            return
+        if not isinstance(value, str) or not value.strip():
+            raise PlanningError(f"Plan step {step_id!r} parameter {name!r} must be a non-empty string.")
+
+    def _validate_dict_parameter(
+        self,
+        step_id: str,
+        parameters: dict[str, object],
+        name: str,
+    ) -> None:
+        value = parameters.get(name)
+        if value is None:
+            return
+        if not isinstance(value, dict):
+            raise PlanningError(f"Plan step {step_id!r} parameter {name!r} must be a dictionary.")
+
+    def _validate_string_list_parameter(
+        self,
+        step_id: str,
+        parameters: dict[str, object],
+        name: str,
+    ) -> None:
+        value = parameters.get(name)
+        if value is None:
+            return
+        if not isinstance(value, list) or not all(isinstance(item, str) and item.strip() for item in value):
+            raise PlanningError(f"Plan step {step_id!r} parameter {name!r} must be a list of non-empty strings.")
+
+    def _validate_integer_parameter(
+        self,
+        step_id: str,
+        parameters: dict[str, object],
+        name: str,
+        *,
+        minimum: int | None = None,
+    ) -> None:
+        value = parameters.get(name)
+        if value is None:
+            return
+        if not isinstance(value, int) or isinstance(value, bool):
+            raise PlanningError(f"Plan step {step_id!r} parameter {name!r} must be an integer.")
+        if minimum is not None and value < minimum:
+            raise PlanningError(f"Plan step {step_id!r} parameter {name!r} must be >= {minimum}.")
+
+    def _validate_numeric_parameter(
+        self,
+        step_id: str,
+        parameters: dict[str, object],
+        name: str,
+    ) -> None:
+        value = parameters.get(name)
+        if value is None:
+            return
+        if not isinstance(value, Real) or isinstance(value, bool):
+            raise PlanningError(f"Plan step {step_id!r} parameter {name!r} must be numeric.")
 
     def _validate_expected_output(
         self,

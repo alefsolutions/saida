@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from saida.core.analytics_registry import get_analytics_registry
 from saida.exceptions import PlanningError
 from saida.core.contracts import AnalysisPlan, AnalysisRequest, DatasetProfile, PlanStep, SourceContext
 from saida.plan_generation.prompt_family_catalog import derive_prompt_family, get_prompt_family_catalog
@@ -737,11 +738,29 @@ class PlanBuilder:
         steps: list[PlanStep],
         warnings: list[str],
     ) -> AnalysisPlan:
+        normalized_steps = [self._normalize_step_parameters(step) for step in steps]
         rationale = self._build_rationale(task_type, request, context)
-        plan = AnalysisPlan(task_type=task_type, rationale=rationale, steps=steps, warnings=list(warnings))
+        plan = AnalysisPlan(task_type=task_type, rationale=rationale, steps=normalized_steps, warnings=list(warnings))
         if request.prompt_family:
             self._validate_family_plan(request.prompt_family, plan)
         return plan
+
+    def _normalize_step_parameters(self, step: PlanStep) -> PlanStep:
+        method_id = step.method_id or step.action
+        method_spec = get_analytics_registry().get_method(method_id)
+        if method_spec is None:
+            return step
+        supported_parameters = {
+            value
+            for value in (*method_spec.required_inputs, *method_spec.allowed_configs)
+            if value != "dataset"
+        }
+        step.parameters = {
+            name: value
+            for name, value in step.parameters.items()
+            if name in supported_parameters and value is not None
+        }
+        return step
 
     def _validate_family_plan(self, prompt_family: str, plan: AnalysisPlan) -> None:
         family_spec = get_prompt_family_catalog().get(prompt_family)
