@@ -5,7 +5,6 @@ from __future__ import annotations
 import pandas as pd
 
 from saida.core.analytics_registry import AnalyticsMethodSpec, get_analytics_registry
-from saida.core.prompt_family_catalog import get_prompt_family_catalog
 from saida.exceptions import PlanningError, ValidationError
 from saida.core.contracts import AnalysisPlan, Dataset, DatasetProfile
 
@@ -257,8 +256,6 @@ class PlanValidator:
     def _validate_plan_result_expectation(self, plan: AnalysisPlan, analytics_registry: object) -> None:
         if plan.expected_result_shape is None:
             return
-        if self._plan_family_can_produce_expected_shape(plan):
-            return
         step_shapes: set[str] = set()
         for step in plan.steps:
             method_spec = analytics_registry.get_method(step.method_id or step.action)
@@ -271,29 +268,24 @@ class PlanValidator:
             "verification": {"verification"},
             "table": {"table", "recordset", "timeseries", "statistical_test"},
         }.get(plan.expected_result_shape, {plan.expected_result_shape})
+        if plan.expected_result_shape == "scalar" and self._plan_can_project_scalar_from_table(plan):
+            return
         if not compatible_shapes.intersection(step_shapes):
             raise PlanningError(
                 f"Analysis plan expects result shape {plan.expected_result_shape!r}, "
                 f"but step methods produce {sorted(step_shapes)!r}."
             )
 
-    def _plan_family_can_produce_expected_shape(self, plan: AnalysisPlan) -> bool:
-        prompt_family = plan.metadata.get("prompt_family") if isinstance(plan.metadata, dict) else None
-        if not isinstance(prompt_family, str):
-            return False
-        family_spec = get_prompt_family_catalog().get(prompt_family)
-        if family_spec is None:
-            return False
-        family_shapes = {
-            self._normalize_output_shape(shape)
-            for shape in family_spec.primary_result_shapes
-        }
-        if plan.expected_result_shape not in family_shapes:
-            return False
-        allowed_actions = set(family_spec.allowed_plan_actions)
-        if not allowed_actions:
-            return False
-        return all((step.method_id or step.action) in allowed_actions for step in plan.steps)
+    def _plan_can_project_scalar_from_table(self, plan: AnalysisPlan) -> bool:
+        expected_result_name = plan.expected_result_name or ""
+        method_ids = {step.method_id or step.action for step in plan.steps}
+        if "column_type_inventory" in method_ids and expected_result_name.endswith("_dtype"):
+            return True
+        if "distinct_value_count" in method_ids and (
+            expected_result_name == "distinct_value_count" or expected_result_name.endswith("_distinct_count")
+        ):
+            return True
+        return False
 
     def _normalize_output_shape(self, shape: str) -> str:
         if shape in {"count", "aggregate"}:

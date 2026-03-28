@@ -12,10 +12,10 @@ from saida.core import (
     CapabilityRegistry,
     ColumnProfile,
     DatasetProfile,
-    build_prompt_capability_contract,
 )
 from saida.core.contracts import Dataset
 from saida.llm import BaseLlmProvider, IntentProposal, ResponseContext, ResponseProposal
+from saida.plan_generation import build_prompt_capability_contract
 
 
 def build_profile(*, include_time: bool = True, include_dimension: bool = True) -> DatasetProfile:

@@ -3,7 +3,7 @@ from __future__ import annotations
 from saida import PromptAnalysisFrontend, Saida
 from saida.core import get_analytics_registry
 from saida.core.contracts import AnalysisRequest
-from saida.core.prompt_capability_contract import build_prompt_capability_contract
+from saida.plan_generation import build_prompt_capability_contract
 from .factories import build_support_dataset
 
 

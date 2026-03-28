@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from saida.core import AnalysisPlanner
+from saida.plan_generation import AnalysisPlanner
 from saida.exceptions import PlanningError
 from saida.core.contracts import AnalysisRequest, ColumnProfile, DatasetProfile
 

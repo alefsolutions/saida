@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
 from saida.core.contracts import AnalysisPlan, AnalysisRequest, Dataset, DatasetProfile, ExecutionTraceEvent, SourceContext
-from saida.core.prompt_capability_contract import PromptCapabilityContract
+from saida.plan_generation.prompt_capability_contract import PromptCapabilityContract
 
 
 @dataclass(slots=True)

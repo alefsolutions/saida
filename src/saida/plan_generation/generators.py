@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from saida.core import PlanBuilder, build_prompt_capability_contract
+from saida.plan_generation.planning import PlanBuilder
 from saida.core.contracts import AnalysisPlan, AnalysisRequest, Dataset, DatasetProfile, ExecutionTraceEvent, SourceContext
 from saida.exceptions import PlanningError, ReasoningError
 from saida.llm import BaseLlmProvider
 from saida.plan_generation.canonicalization import InputCanonicalizer
 from saida.plan_generation.interfaces import AnalysisPlanGeneratorInterface, PlanGenerationResult
+from saida.plan_generation.prompt_capability_contract import build_prompt_capability_contract
 
 
 class RuleBasedPlanGenerator(AnalysisPlanGeneratorInterface):

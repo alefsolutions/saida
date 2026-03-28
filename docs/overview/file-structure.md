@@ -32,7 +32,6 @@ Main responsibilities:
 - analytics registry
 - capability registry
 - validation
-- planning
 - routing
 - result canonicalization
 - schema discovery
@@ -83,6 +82,9 @@ Live responsibilities:
 
 - `AnalysisPlanGeneratorInterface`
 - prompt normalization / canonicalization
+- prompt family catalog
+- prompt capability contract
+- plan building / prompt-family routing
 - rule-based plan generation
 - LLM-assisted plan generation
 - OpenAI plan generation

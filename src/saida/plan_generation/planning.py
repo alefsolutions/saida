@@ -6,10 +6,10 @@ from typing import TYPE_CHECKING
 
 from saida.exceptions import PlanningError
 from saida.core.contracts import AnalysisPlan, AnalysisRequest, DatasetProfile, PlanStep, SourceContext
-from saida.core.prompt_family_catalog import derive_prompt_family, get_prompt_family_catalog
+from saida.plan_generation.prompt_family_catalog import derive_prompt_family, get_prompt_family_catalog
 
 if TYPE_CHECKING:
-    from saida.core.prompt_capability_contract import PromptCapabilityContract
+    from saida.plan_generation.prompt_capability_contract import PromptCapabilityContract
 
 
 _PROMPT_FAMILY_TO_INTENT = {

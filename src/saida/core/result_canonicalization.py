@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import asdict
 import math
 from typing import Any
-from typing import TYPE_CHECKING
 
 import pandas as pd
 
@@ -22,14 +21,6 @@ from saida.core.contracts import (
     TableArtifact,
     TrainResult,
 )
-from saida.core.prompt_family_catalog import (
-    PromptFamilyResultSpec,
-    derive_prompt_family,
-    get_prompt_family_catalog,
-)
-
-if TYPE_CHECKING:
-    from saida.core.prompt_capability_contract import PromptCapabilityContract
 
 
 class ResultCanonicalizer:
@@ -48,7 +39,7 @@ class ResultCanonicalizer:
         request: RequestLike,
         profile: DatasetProfile,
         trace: list[ExecutionTraceEvent],
-        capability_contract: PromptCapabilityContract | None = None,
+        capability_contract: object | None = None,
     ) -> AnalysisResult:
         artifacts = self._build_analysis_artifacts(
             metrics,
@@ -119,7 +110,7 @@ class ResultCanonicalizer:
         deterministic_summary: str | None,
         llm_summary: str | None,
         summary_source: str,
-        capability_contract: PromptCapabilityContract | None,
+        capability_contract: object | None,
     ) -> dict[str, object]:
         metric_lookup = {metric.name: metric.value for metric in metrics}
         table_index = {
@@ -136,7 +127,7 @@ class ResultCanonicalizer:
         return self._json_safe(
             {
             "request": asdict(request),
-            "prompt_capability_contract": capability_contract.to_dict() if capability_contract is not None else None,
+            "prompt_capability_contract": self._contract_to_dict(capability_contract),
             "profile": {
                 "dataset_name": profile.dataset_name,
                 "row_count": profile.row_count,
@@ -171,7 +162,7 @@ class ResultCanonicalizer:
         deterministic_summary: str | None,
         llm_summary: str | None,
         summary_source: str,
-        capability_contract: PromptCapabilityContract | None,
+        capability_contract: object | None,
     ) -> dict[str, object]:
         operations = [
             {
@@ -190,7 +181,7 @@ class ResultCanonicalizer:
             for step in plan.steps
         ]
         metric_lookup = {metric.name: metric.value for metric in metrics}
-        primary_result = self._select_primary_result(request, metrics, tables)
+        primary_result = self._select_primary_result(plan, request, metrics, tables)
         table_entries = [self._table_entry(table) for table in tables]
 
         return self._json_safe(
@@ -215,7 +206,7 @@ class ResultCanonicalizer:
                 "time_reference": dict(request.time_reference or {}),
                 "horizon": request.horizon,
                 "options": dict(request.options),
-                "capability_contract": capability_contract.to_dict() if capability_contract is not None else None,
+                "capability_contract": self._contract_to_dict(capability_contract),
             },
             "execution": {
                 "status": self._resolve_status(plan),
@@ -253,7 +244,7 @@ class ResultCanonicalizer:
                     "profile_warnings": list(profile.warnings),
                 },
                 "prompt_family": request.prompt_family,
-                "capability_contract_status": capability_contract.status if capability_contract is not None else None,
+                "capability_contract_status": self._contract_status(capability_contract),
                 "plan_id": plan.plan_id,
                 "plan_version": plan.version,
                 "plan_warnings": list(plan.warnings),
@@ -274,33 +265,22 @@ class ResultCanonicalizer:
 
     def _select_primary_result(
         self,
+        plan: AnalysisPlan,
         request: RequestLike,
         metrics: list[Metric],
         tables: list[TableArtifact],
     ) -> dict[str, object]:
-        prompt_family = request.prompt_family or derive_prompt_family(request)
-        family_spec = get_prompt_family_catalog().get(prompt_family)
-        if family_spec is not None and family_spec.primary_result is not None:
-            primary_result = self._compile_family_primary_result(
-                family_spec.primary_result,
-                request,
-                metrics,
-                tables,
-            )
-            if primary_result is not None:
-                issues = family_spec.result_invariant_issues(primary_result)
-                if issues:
-                    raise ValueError(
-                        f"Prompt family {family_spec.family_id!r} produced an invalid primary result: {' '.join(issues)}"
-                    )
-                return primary_result
+        candidate_keys: list[str] = []
+        for value in (plan.expected_result_name, request.prompt_family, request.intent_name):
+            if isinstance(value, str) and value and value not in candidate_keys:
+                candidate_keys.append(value)
 
-        if prompt_family == "exploratory_metric_overview":
-            primary_result = self._select_exploratory_metric_primary_result(request, tables)
+        for candidate_key in candidate_keys:
+            primary_result = self._select_primary_result_for_key(candidate_key, plan, request, metrics, tables)
             if primary_result is not None:
                 return primary_result
 
-        if prompt_family == "metric_aggregate" or (request.target and request.aggregation and not request.group_by):
+        if request.target and request.aggregation and not request.group_by:
             metric_name = f"{request.target}_{request.aggregation}"
             aggregate_metric = self._metric_by_name(metrics, metric_name)
             if aggregate_metric is not None:
@@ -384,6 +364,69 @@ class ResultCanonicalizer:
             "value": None,
         }
 
+    def _select_primary_result_for_key(
+        self,
+        key: str,
+        plan: AnalysisPlan,
+        request: RequestLike,
+        metrics: list[Metric],
+        tables: list[TableArtifact],
+    ) -> dict[str, object] | None:
+        if key == "exploratory_metric_overview":
+            return self._select_exploratory_metric_primary_result(request, tables)
+
+        direct_metric = self._metric_by_name(metrics, key)
+        if direct_metric is not None:
+            return self._metric_result_payload(direct_metric, logical_shape=self._logical_shape_for_metric(key, request))
+
+        if key == "column_type_lookup" or key.endswith("_dtype"):
+            return self._column_type_lookup_result(key, request, tables)
+
+        if key == "distinct_value_count" or key.endswith("_distinct_count"):
+            result_name = f"{request.target}_distinct_count" if key == "distinct_value_count" and request.target else key
+            return self._table_scalar_result(
+                table_name="distinct_value_count",
+                value_field="distinct_count",
+                result_name=result_name,
+                logical_shape="count",
+                tables=tables,
+            )
+
+        direct_table = self._table_by_name(tables, key)
+        if direct_table is not None:
+            return self._table_result_payload(direct_table)
+
+        table_aliases = self._table_aliases_for_key(key, request)
+        if table_aliases:
+            for table_name in table_aliases:
+                table = self._table_by_name(tables, table_name)
+                if table is None:
+                    continue
+                if key == "representation_ranking":
+                    return self._table_head_result(table, head_rows=1)
+                return self._table_result_payload(table)
+
+        if key == "metric_aggregate" and request.target and request.aggregation:
+            metric_name = f"{request.target}_{request.aggregation}"
+            aggregate_metric = self._metric_by_name(metrics, metric_name)
+            if aggregate_metric is not None:
+                return self._metric_result_payload(
+                    aggregate_metric,
+                    logical_shape=self._logical_shape_for_metric(metric_name, request),
+                )
+
+        if key == "row_count":
+            row_count_metric = self._metric_by_name(metrics, "row_count")
+            if row_count_metric is not None:
+                return self._metric_result_payload(row_count_metric, logical_shape="count")
+
+        if plan.expected_result_shape == "scalar":
+            scalar_table = self._scalar_table_for_result_key(key, tables)
+            if scalar_table is not None:
+                return scalar_table
+
+        return None
+
     def _select_exploratory_metric_primary_result(
         self,
         request: RequestLike,
@@ -432,71 +475,145 @@ class ResultCanonicalizer:
                 return self._table_result_payload(table)
         return None
 
-    def _compile_family_primary_result(
+    def _table_aliases_for_key(self, key: str, request: RequestLike) -> list[str]:
+        if key == "tabular_record_retrieval":
+            return ["tabular_query"]
+        if key in {"grouped_metric_table", "grouped_tabular_query"}:
+            return ["grouped_tabular_query"]
+        if key == "grouped_entity_count":
+            return ["grouped_tabular_query", "group_row_counts"]
+        if key == "distinct_value_listing":
+            return ["distinct_values"]
+        if key == "representation_ranking":
+            return ["group_row_counts"]
+        if key == "row_ranking":
+            return ["ranked_rows"]
+        if key == "group_ranking":
+            return ["ranked_breakdown"]
+        if key == "row_existence_check":
+            return ["row_existence"]
+        if key == "time_value_verification":
+            return ["time_value_exists"]
+        if key == "null_verification":
+            return ["null_check"]
+        if key == "threshold_verification":
+            return ["threshold_check"]
+        if key == "column_presence_check":
+            return ["column_presence_check"]
+        if key == "column_property_check":
+            return ["column_property_check"]
+        if key == "time_period_comparison":
+            if request.group_by:
+                return ["grouped_period_comparison", "period_comparison"]
+            return ["period_comparison", "grouped_period_comparison"]
+        if key == "time_bucket_counts":
+            return ["time_bucket_counts"]
+        if key == "time_bucket_breakdown":
+            return ["time_bucket_breakdown"]
+        if key == "time_coverage":
+            return ["time_coverage"]
+        return []
+
+    def _column_type_lookup_result(
         self,
-        result_spec: PromptFamilyResultSpec,
+        key: str,
         request: RequestLike,
-        metrics: list[Metric],
         tables: list[TableArtifact],
     ) -> dict[str, object] | None:
-        if result_spec.source == "metric":
-            metric_name = self._render_result_template(result_spec.metric_name_template, request)
-            if metric_name is None:
-                return None
-            metric = self._metric_by_name(metrics, metric_name)
-            if metric is None:
-                return None
-            return self._metric_result_payload(metric, logical_shape=result_spec.logical_shape or "scalar")
+        result_name = key if key.endswith("_dtype") else f"{request.target}_dtype" if request.target else "column_dtype"
+        return self._table_scalar_result(
+            table_name="column_type_inventory",
+            value_field="dtype",
+            result_name=result_name,
+            logical_shape="scalar",
+            tables=tables,
+        )
 
-        if result_spec.source == "table":
-            table = self._table_by_name(tables, result_spec.table_name)
-            if table is None:
-                return None
-            return self._table_result_payload(table)
+    def _scalar_table_for_result_key(
+        self,
+        key: str,
+        tables: list[TableArtifact],
+    ) -> dict[str, object] | None:
+        scalar_table_fields = {
+            "column_count": ("column_count", "column_count", "count"),
+            "numeric_column_count": ("numeric_column_count", "numeric_column_count", "count"),
+            "categorical_column_count": ("categorical_column_count", "categorical_column_count", "count"),
+            "measure_count": ("measure_count", "measure_count", "count"),
+            "dimension_count": ("dimension_count", "dimension_count", "count"),
+            "time_column_count": ("time_column_count", "time_column_count", "count"),
+            "identifier_count": ("identifier_count", "identifier_count", "count"),
+            "high_cardinality_count": ("high_cardinality_count", "high_cardinality_count", "count"),
+        }
+        spec = scalar_table_fields.get(key)
+        if spec is None:
+            return None
+        table_name, value_field, logical_shape = spec
+        return self._table_scalar_result(
+            table_name=table_name,
+            value_field=value_field,
+            result_name=key,
+            logical_shape=logical_shape,
+            tables=tables,
+        )
 
-        if result_spec.source == "table_head":
-            table = self._table_by_name(tables, result_spec.table_name)
-            if table is None or table.dataframe.empty:
-                return None
-            return self._table_result_payload(
-                TableArtifact(
-                    name=table.name,
-                    description=table.description,
-                    dataframe=table.dataframe.head(result_spec.head_rows).copy(),
-                    metadata=dict(table.metadata),
-                )
+    def _table_scalar_result(
+        self,
+        table_name: str,
+        value_field: str,
+        result_name: str,
+        logical_shape: str,
+        tables: list[TableArtifact],
+    ) -> dict[str, object] | None:
+        table = self._table_by_name(tables, table_name)
+        if table is None or table.dataframe.empty:
+            return None
+        row = table.dataframe.iloc[0]
+        value = row.get(value_field)
+        return {
+            "name": result_name,
+            "description": table.description,
+            "physical_shape": "scalar",
+            "logical_shape": logical_shape,
+            "dtype": self._dtype_from_value(value),
+            "schema": [],
+            "dimensions": [],
+            "row_count": None,
+            "labels": [],
+            "value": self._json_safe(value),
+        }
+
+    def _table_head_result(self, table: TableArtifact, head_rows: int) -> dict[str, object]:
+        return self._table_result_payload(
+            TableArtifact(
+                name=table.name,
+                description=table.description,
+                dataframe=table.dataframe.head(head_rows).copy(),
+                metadata=dict(table.metadata),
             )
+        )
 
-        if result_spec.source == "table_scalar_field":
-            table = self._table_by_name(tables, result_spec.table_name)
-            if table is None or table.dataframe.empty or result_spec.value_field is None:
-                return None
-            row = table.dataframe.iloc[0]
-            value = row.get(result_spec.value_field)
-            return {
-                "name": self._render_result_template(result_spec.result_name_template, request) or "scalar_result",
-                "description": self._render_result_template(result_spec.description_template, request),
-                "physical_shape": "scalar",
-                "logical_shape": result_spec.logical_shape or "scalar",
-                "dtype": self._dtype_from_value(value),
-                "schema": [],
-                "dimensions": [],
-                "row_count": None,
-                "labels": [],
-                "value": self._json_safe(value),
-            }
+    def _logical_shape_for_metric(self, metric_name: str, request: RequestLike) -> str:
+        if request.aggregation == "count" or metric_name == "row_count" or metric_name.endswith("_count"):
+            return "count"
+        if request.aggregation in {"sum", "mean", "max", "min"}:
+            return "aggregate"
+        if any(metric_name.endswith(suffix) for suffix in ("_sum", "_mean", "_max", "_min")):
+            return "aggregate"
+        return "scalar"
 
+    def _contract_to_dict(self, capability_contract: object | None) -> dict[str, object] | None:
+        if capability_contract is None:
+            return None
+        to_dict = getattr(capability_contract, "to_dict", None)
+        if callable(to_dict):
+            payload = to_dict()
+            return payload if isinstance(payload, dict) else None
         return None
 
-    def _render_result_template(self, template: str | None, request: RequestLike) -> str | None:
-        if template is None:
+    def _contract_status(self, capability_contract: object | None) -> object | None:
+        if capability_contract is None:
             return None
-        values = {
-            "target": request.target or "",
-            "aggregation": request.aggregation or "",
-            "prompt_family": request.prompt_family or "",
-        }
-        return template.format(**values)
+        return getattr(capability_contract, "status", None)
 
     def _metric_result_payload(self, metric: Metric, logical_shape: str) -> dict[str, object]:
         return {

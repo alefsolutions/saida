@@ -6,10 +6,9 @@ import pandas as pd
 import pytest
 
 from saida import PromptAnalysisFrontend
-from saida.core import (
+from saida.core import AnalysisRequest, Dataset
+from saida.plan_generation import (
     AnalysisPlanner,
-    AnalysisRequest,
-    Dataset,
     build_default_prompt_family_catalog,
     build_prompt_capability_contract,
     derive_prompt_family,

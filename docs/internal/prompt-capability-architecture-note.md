@@ -75,9 +75,9 @@ So the prompt capability system is still important, but it is now a supporting l
 The current prompt/capability side of the codebase mainly lives in:
 
 - `src/saida/plan_generation/canonicalization.py`
-- `src/saida/core/prompt_family_catalog.py`
-- `src/saida/core/prompt_capability_contract.py`
-- `src/saida/core/capability_contract.py`
+- `src/saida/plan_generation/prompt_family_catalog.py`
+- `src/saida/plan_generation/prompt_capability_contract.py`
+- `src/saida/plan_generation/capability_contract.py`
 - `src/saida/plan_generation/`
 - `src/saida/llm/`
 

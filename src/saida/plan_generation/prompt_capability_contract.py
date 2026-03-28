@@ -8,7 +8,7 @@ from typing import Any, Literal
 from saida.core.analytics_registry import get_analytics_registry
 from saida.core.capability_registry import CapabilityRegistry, build_default_capability_registry
 from saida.core.contracts import AnalysisRequest, DatasetProfile
-from saida.core.prompt_family_catalog import (
+from saida.plan_generation.prompt_family_catalog import (
     PromptFamilyCatalog,
     derive_prompt_family,
     get_prompt_family_catalog,

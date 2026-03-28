@@ -5,12 +5,12 @@ from __future__ import annotations
 from typing import Any
 
 from saida.config import SaidaConfig
-from saida.core import PlanBuilder
 from saida.core.contracts import AnalysisInterpretation, AnalysisPlan, AnalysisResult, Dataset, DatasetProfile
 from saida.engine import Saida
 from saida.llm import BaseLlmProvider
 from saida.plan_generation.canonicalization import InputCanonicalizer
 from saida.plan_generation.generators import LlmAssistedPlanGenerator, OpenAIPlanGenerator, RuleBasedPlanGenerator
+from saida.plan_generation.planning import PlanBuilder
 
 
 class PromptAnalysisFrontend:

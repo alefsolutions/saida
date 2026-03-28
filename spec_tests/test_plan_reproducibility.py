@@ -7,7 +7,7 @@ import pytest
 
 from saida import PromptAnalysisFrontend
 from saida.core.contracts import AnalysisPlan, AnalysisRequest, Dataset
-from saida.core.prompt_family_catalog import build_default_prompt_family_catalog
+from saida.plan_generation import build_default_prompt_family_catalog
 from .factories import build_recurring_time_dataset, build_sales_dataset, build_support_dataset, json_safe
 
 

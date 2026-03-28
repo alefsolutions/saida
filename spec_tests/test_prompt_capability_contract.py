@@ -1,10 +1,5 @@
-from saida.core import (
-    AnalysisRequest,
-    ColumnProfile,
-    DatasetProfile,
-    build_default_capability_registry,
-    build_prompt_capability_contract,
-)
+from saida.core import AnalysisRequest, ColumnProfile, DatasetProfile, build_default_capability_registry
+from saida.plan_generation import build_prompt_capability_contract
 
 
 def build_profile() -> DatasetProfile:

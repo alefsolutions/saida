@@ -5,7 +5,7 @@ import pytest
 
 from saida import PromptAnalysisFrontend, Saida
 from saida.config import LlmConfig
-from saida.core import get_capability_contract
+from saida.plan_generation import get_capability_contract
 from saida.core.contracts import Dataset
 from saida.llm import BaseLlmProvider, IntentProposal, OpenAiLlmProvider, OllamaLlmProvider, ResponseContext, ResponseProposal, build_llm_provider
 from saida.exceptions import ValidationError

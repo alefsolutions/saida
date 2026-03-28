@@ -10,11 +10,9 @@ from saida.core import (
     BackendRouter,
     PlanValidator,
     get_analytics_registry,
-    get_prompt_family_catalog,
     ResultCanonicalizer,
     SchemaDiscoveryService,
     SourceContextParser,
-    PromptCapabilityContract,
 )
 from saida.exceptions import ReasoningError, ValidationError
 from saida.llm import BaseLlmProvider, ResponseContext, build_llm_provider
@@ -156,7 +154,7 @@ class Saida:
         profile: DatasetProfile,
         plan: AnalysisPlan,
         trace: list[ExecutionTraceEvent],
-        capability_contract: PromptCapabilityContract | None,
+        capability_contract: object | None,
         warning_groups: tuple[list[str], ...] = (),
     ) -> AnalysisResult:
         self.validator.validate_plan(plan, dataset=dataset, profile=profile, router=self.router)
@@ -552,10 +550,6 @@ class Saida:
         return None
 
     def _infer_expected_result_shape(self, interpretation: AnalysisInterpretation, plan: AnalysisPlan) -> str | None:
-        if interpretation.prompt_family:
-            family_spec = get_prompt_family_catalog().get(interpretation.prompt_family)
-            if family_spec is not None and family_spec.primary_result_shapes:
-                return self._normalize_expected_result_shape(family_spec.primary_result_shapes[0])
         if plan.steps:
             method_spec = get_analytics_registry().get_method(plan.steps[0].method_id or plan.steps[0].action)
             if method_spec is not None and method_spec.output_shapes:

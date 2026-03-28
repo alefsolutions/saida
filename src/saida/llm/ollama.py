@@ -6,7 +6,7 @@ import json
 from urllib import error, request
 
 from saida.config import LlmConfig
-from saida.core.capability_contract import build_intent_prompt_contract_text, build_response_contract_text
+from saida.plan_generation.capability_contract import build_intent_prompt_contract_text, build_response_contract_text
 from saida.exceptions import ReasoningError
 from saida.llm.base import BaseLlmProvider
 from saida.llm.models import IntentProposal, ResponseContext, ResponseProposal

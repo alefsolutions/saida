@@ -1,6 +1,6 @@
 # Prompt Family Catalog
 
-This file is a human-readable snapshot of the live prompt family catalog in `src/saida/core/prompt_family_catalog.py`.
+This file is a human-readable snapshot of the live prompt family catalog in `src/saida/plan_generation/prompt_family_catalog.py`.
 
 | Family | Governance | Plan Compilation | Result Shaping | Intents | Required Parameters | Primary Result Shapes | Plan Actions | Forbidden Primary Results |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |

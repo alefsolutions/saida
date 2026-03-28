@@ -10,7 +10,7 @@ from saida.config import NlpConfig
 from saida.exceptions import ValidationError
 from saida.llm import IntentProposal
 from saida.core.contracts import AnalysisRequest, Dataset, DatasetProfile, SourceContext
-from saida.core.prompt_family_catalog import derive_prompt_family, get_prompt_family_catalog
+from saida.plan_generation.prompt_family_catalog import derive_prompt_family, get_prompt_family_catalog
 
 TASK_LABELS = ["descriptive", "diagnostic", "statistical", "predictive", "forecasting"]
 SEMANTIC_OPERATIONS = {"count", "list", "sum", "mean", "max", "min", "verify", "rank", "compare"}
