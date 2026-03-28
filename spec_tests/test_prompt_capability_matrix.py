@@ -103,7 +103,7 @@ def build_tickets_dataset_with_missing_priority() -> Dataset:
 def build_null_verification_registry_without_target_requirement() -> AnalyticsRegistry:
     registry = AnalyticsRegistry()
     registry.add_concept(AnalyticsConceptSpec("verification", "domain", "Verification", "Yes/no checks against the dataset."))
-    registry.add_node(
+    registry.add_concept(
         AnalyticsConceptSpec(
             "null_verification",
             "pattern",

@@ -271,7 +271,7 @@ def test_engine_exposes_current_capabilities() -> None:
         "train": False,
         "predict": False,
         "forecast": False,
-        "capability_registry": True,
+        "analytics_registry": True,
         "llm_reasoning": False,
     }
 

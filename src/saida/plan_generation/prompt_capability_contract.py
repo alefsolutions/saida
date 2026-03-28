@@ -282,7 +282,7 @@ def build_prompt_capability_contract(
         selected_capabilities=selected_capabilities,
         resolved_parameters=resolved_parameters,
         missing_parameters=missing_parameters,
-        unsupported_capabilities=[capability_id for capability_id in selected_capabilities if active_registry.get_node(capability_id) is None],
+        unsupported_capabilities=[capability_id for capability_id in selected_capabilities if active_registry.get_concept(capability_id) is None],
         ambiguity_flags=_derive_ambiguity_flags(request),
         validation_issues=issues,
         data_feasibility=data_feasibility,
@@ -314,17 +314,17 @@ def _select_capabilities(
     selected: list[str] = []
 
     for capability_id in _TASK_TYPE_TO_DOMAINS.get(request.task_type_hint or "", []):
-        if registry.get_node(capability_id) is not None:
+        if registry.get_concept(capability_id) is not None:
             selected.append(capability_id)
 
     for capability_id in _INTENT_TO_PATTERNS.get(request.intent_name or "", []):
-        if registry.get_node(capability_id) is not None:
+        if registry.get_concept(capability_id) is not None:
             selected.append(capability_id)
 
     statistical_test = request.options.get("statistical_test")
     if isinstance(statistical_test, str):
         for capability_id in _STATISTICAL_TEST_TO_PATTERNS.get(statistical_test, []):
-            if registry.get_node(capability_id) is not None:
+            if registry.get_concept(capability_id) is not None:
                 selected.append(capability_id)
 
     if request.group_by:
@@ -383,7 +383,7 @@ def _build_capability_activations(
         for capability_id in llm_candidates:
             if not isinstance(capability_id, str):
                 continue
-            node = registry.get_node(capability_id)
+            node = registry.get_concept(capability_id)
             category = node.category if node is not None else "unknown"
             key = (capability_id, "llm")
             if key in seen:
@@ -400,7 +400,7 @@ def _build_capability_activations(
             )
 
     for capability_id in selected_capabilities:
-        node = registry.get_node(capability_id)
+        node = registry.get_concept(capability_id)
         if node is None:
             continue
         evidence = []
@@ -497,7 +497,7 @@ def _evaluate_feasibility(
             )
 
     for capability_id in selected_capabilities:
-        node = registry.get_node(capability_id)
+        node = registry.get_concept(capability_id)
         if node is None:
             continue
         for constraint_id in registry.related(capability_id, "requires"):

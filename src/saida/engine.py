@@ -88,7 +88,7 @@ class Saida:
             "train": False,
             "predict": False,
             "forecast": False,
-            "capability_registry": True,
+            "analytics_registry": True,
             "llm_reasoning": bool(self.llm_provider and self.config.llm.use_for_reasoning),
         }
 

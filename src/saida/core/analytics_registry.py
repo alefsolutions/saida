@@ -140,22 +140,12 @@ class AnalyticsRegistry:
     def add_concept(self, concept: AnalyticsConceptSpec) -> None:
         self.concepts[concept.concept_id] = concept
 
-    def add_node(self, node: AnalyticsConceptSpec) -> None:
-        """Compatibility alias for the retired capability registry API."""
-
-        self.add_concept(node)
-
     def add_relation(self, relation: AnalyticsRelationSpec) -> None:
         if not self.has_entity(relation.source):
             raise ValueError(f"Unknown analytics relation source: {relation.source}")
         if not self.has_entity(relation.target):
             raise ValueError(f"Unknown analytics relation target: {relation.target}")
         self.relations.append(relation)
-
-    def add_edge(self, edge: AnalyticsRelationSpec) -> None:
-        """Compatibility alias for the retired capability registry API."""
-
-        self.add_relation(edge)
 
     def get_family(self, family_id: str | None) -> AnalyticsFamilySpec | None:
         if family_id is None:
@@ -171,11 +161,6 @@ class AnalyticsRegistry:
         if concept_id is None:
             return None
         return self.concepts.get(concept_id)
-
-    def get_node(self, concept_id: str | None) -> AnalyticsConceptSpec | None:
-        """Compatibility alias for the retired capability registry API."""
-
-        return self.get_concept(concept_id)
 
     def methods_for_family(self, family_id: str) -> list[AnalyticsMethodSpec]:
         family = self.get_family(family_id)
@@ -198,15 +183,6 @@ class AnalyticsRegistry:
             if edge.source == entity_id and (relation is None or edge.relation == relation)
         ]
 
-    def edges_from(
-        self,
-        entity_id: str,
-        relation: AnalyticsRelation | None = None,
-    ) -> list[AnalyticsRelationSpec]:
-        """Compatibility alias for the retired capability registry API."""
-
-        return self.relations_from(entity_id, relation)
-
     def relations_to(
         self,
         entity_id: str,
@@ -218,25 +194,11 @@ class AnalyticsRegistry:
             if edge.target == entity_id and (relation is None or edge.relation == relation)
         ]
 
-    def edges_to(
-        self,
-        entity_id: str,
-        relation: AnalyticsRelation | None = None,
-    ) -> list[AnalyticsRelationSpec]:
-        """Compatibility alias for the retired capability registry API."""
-
-        return self.relations_to(entity_id, relation)
-
     def related(self, entity_id: str, relation: AnalyticsRelation) -> list[str]:
         return [edge.target for edge in self.relations_from(entity_id, relation)]
 
     def concepts_by_category(self, category: AnalyticsConceptCategory) -> list[AnalyticsConceptSpec]:
         return [concept for concept in self.concepts.values() if concept.category == category]
-
-    def nodes_by_category(self, category: AnalyticsConceptCategory) -> list[AnalyticsConceptSpec]:
-        """Compatibility alias for the retired capability registry API."""
-
-        return self.concepts_by_category(category)
 
     def has_entity(self, entity_id: str) -> bool:
         return entity_id in self.families or entity_id in self.methods or entity_id in self.concepts
