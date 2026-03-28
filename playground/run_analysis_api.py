@@ -82,7 +82,7 @@ def _build_engine(use_llm: bool, llm_provider: str, llm_model: str) -> Saida:
                 provider=llm_provider,
                 model=llm_model,
                 use_for_prompting=True,
-                use_for_reasoning=True,
+                use_for_summary=True,
             )
         )
     )

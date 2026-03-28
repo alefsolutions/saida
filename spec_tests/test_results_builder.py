@@ -129,10 +129,10 @@ def test_build_analysis_result_populates_artifacts() -> None:
     assert result.response["meta"]["metric_lookup"]["revenue_sum"] == 270.0
     assert result.response["tables"][0]["name"] == "dataset_preview"
     assert result.response["result"]["name"] == "dataset_preview"
-    assert result.to_response_dict()["reasoning"]["summary"] == "Test summary."
-    assert result.response["reasoning"]["deterministic_summary"] == "Deterministic summary."
-    assert result.response["reasoning"]["llm_summary"] == "LLM summary."
-    assert result.response["reasoning"]["summary_source"] == "llm"
+    assert result.to_response_dict()["summary"]["summary"] == "Test summary."
+    assert result.response["summary"]["deterministic_summary"] == "Deterministic summary."
+    assert result.response["summary"]["llm_summary"] == "LLM summary."
+    assert result.response["summary"]["summary_source"] == "llm"
 
 
 def test_build_train_and_forecast_results_keep_payloads() -> None:
@@ -176,7 +176,7 @@ def test_build_analysis_result_handles_empty_metrics_and_tables() -> None:
     assert result.artifacts["trace_stages"] == []
     assert result.response["meta"]["metrics"] == []
     assert result.response["tables"] == []
-    assert result.response["reasoning"]["summary_source"] == "deterministic"
+    assert result.response["summary"]["summary_source"] == "deterministic"
     assert result.response["result"]["logical_shape"] == "empty"
 
 

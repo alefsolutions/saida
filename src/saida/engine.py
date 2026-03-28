@@ -14,8 +14,8 @@ from saida.core import (
     SchemaDiscoveryService,
     SourceContextParser,
 )
-from saida.exceptions import ReasoningError, ValidationError
-from saida.llm import BaseLlmProvider, ResponseContext, build_llm_provider
+from saida.exceptions import LlmIntegrationError, ValidationError
+from saida.llm import BaseLlmProvider, SummaryContext, build_llm_provider
 from saida.outputs import JsonOutputAdapter, OutputInterface, SummaryFormatter, SummaryOutputAdapter
 from saida.core.contracts import (
     AnalysisInterpretation,
@@ -89,7 +89,7 @@ class Saida:
             "predict": False,
             "forecast": False,
             "analytics_registry": True,
-            "llm_reasoning": bool(self.llm_provider and self.config.llm.use_for_reasoning),
+            "llm_summary": bool(self.llm_provider and self.config.llm.use_for_summary),
         }
 
     def render_output(
@@ -177,7 +177,7 @@ class Saida:
             profile,
             dataset.context,
         )
-        summary, llm_summary, summary_source, llm_reasoning_warning = self._build_summary(
+        summary, llm_summary, summary_source, llm_summary_warning = self._build_summary(
             question,
             profile,
             plan,
@@ -187,8 +187,8 @@ class Saida:
             deterministic_summary,
             dataset.context,
         )
-        if llm_reasoning_warning is not None:
-            warnings = self._merge_warnings(warnings, [llm_reasoning_warning])
+        if llm_summary_warning is not None:
+            warnings = self._merge_warnings(warnings, [llm_summary_warning])
         trace.append(self._trace("results", "analysis result packaged", {"summary_length": len(summary)}))
         return self.result_canonicalizer.build_analysis_result(
             summary,
@@ -624,10 +624,10 @@ class Saida:
         deterministic_summary: str,
         context: SourceContext | None,
     ) -> tuple[str, str | None, str, str | None]:
-        if not self.llm_provider or not self.config.llm.use_for_reasoning:
+        if not self.llm_provider or not self.config.llm.use_for_summary:
             return deterministic_summary, None, "deterministic", None
 
-        response_context = ResponseContext(
+        summary_context = SummaryContext(
             question=question,
             dataset_name=profile.dataset_name,
             task_type=plan.task_type,
@@ -640,20 +640,20 @@ class Saida:
                     "columns": list(table.dataframe.columns),
                     "description": table.description,
                     "metadata": dict(table.metadata),
-                }
-                for table in tables
+            }
+            for table in tables
             },
             warnings=list(warnings),
         )
         try:
-            proposal = self.llm_provider.generate_response(response_context)
-        except ReasoningError:
-            return deterministic_summary, None, "deterministic", "Optional LLM response generation failed; using deterministic summary."
+            proposal = self.llm_provider.generate_summary(summary_context)
+        except LlmIntegrationError:
+            return deterministic_summary, None, "deterministic", "Optional LLM summary generation failed; using deterministic summary."
 
         if proposal is None:
-            return deterministic_summary, None, "deterministic", "Optional LLM response generation was unavailable; using deterministic summary."
+            return deterministic_summary, None, "deterministic", "Optional LLM summary generation was unavailable; using deterministic summary."
         if proposal.status != "ready" or not proposal.summary:
-            return deterministic_summary, None, "deterministic", "Optional LLM response was invalid; using deterministic summary."
+            return deterministic_summary, None, "deterministic", "Optional LLM summary was invalid; using deterministic summary."
         return proposal.summary, proposal.summary, "llm", None
 
     def _context_summary(self, context: SourceContext | None) -> str | None:

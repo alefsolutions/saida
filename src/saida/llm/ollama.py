@@ -6,14 +6,14 @@ import json
 from urllib import error, request
 
 from saida.config import LlmConfig
-from saida.plan_generation.capability_contract import build_intent_prompt_contract_text, build_response_contract_text
-from saida.exceptions import ReasoningError
+from saida.plan_generation.capability_contract import build_intent_prompt_contract_text, build_summary_contract_text
+from saida.exceptions import LlmIntegrationError
 from saida.llm.base import BaseLlmProvider
-from saida.llm.models import IntentProposal, ResponseContext, ResponseProposal
+from saida.llm.models import IntentProposal, SummaryContext, SummaryProposal
 
 
 class OllamaLlmProvider(BaseLlmProvider):
-    """Use a local Ollama model for prompt interpretation and optional response wording."""
+    """Use a local Ollama model for prompt interpretation and optional summary wording."""
 
     provider_name = "ollama"
 
@@ -56,13 +56,13 @@ class OllamaLlmProvider(BaseLlmProvider):
             raw_response=json.dumps(payload),
         )
 
-    def generate_response(self, response_context: ResponseContext) -> ResponseProposal | None:
-        prompt = self._build_response_prompt(response_context)
+    def generate_summary(self, summary_context: SummaryContext) -> SummaryProposal | None:
+        prompt = self._build_summary_prompt(summary_context)
         payload = self._generate_json(prompt)
         if payload is None:
             return None
 
-        return ResponseProposal(
+        return SummaryProposal(
             status=str(payload.get("status", "ready")),
             summary=self._maybe_string(payload.get("summary")),
             message=self._maybe_string(payload.get("message")),
@@ -90,7 +90,7 @@ class OllamaLlmProvider(BaseLlmProvider):
             with request.urlopen(http_request, timeout=self.config.timeout_seconds) as response:
                 raw_payload = json.loads(response.read().decode("utf-8"))
         except (error.URLError, TimeoutError, json.JSONDecodeError) as exc:
-            raise ReasoningError("Ollama request failed during optional LLM handling.") from exc
+            raise LlmIntegrationError("Ollama request failed during optional LLM handling.") from exc
 
         response_text = raw_payload.get("response")
         if not isinstance(response_text, str) or not response_text.strip():
@@ -99,10 +99,10 @@ class OllamaLlmProvider(BaseLlmProvider):
         try:
             parsed = json.loads(response_text)
         except json.JSONDecodeError as exc:
-            raise ReasoningError("Ollama returned invalid JSON for optional LLM handling.") from exc
+            raise LlmIntegrationError("Ollama returned invalid JSON for optional LLM handling.") from exc
 
         if not isinstance(parsed, dict):
-            raise ReasoningError("Ollama returned a non-object JSON payload.")
+            raise LlmIntegrationError("Ollama returned a non-object JSON payload.")
         return parsed
 
     def _build_intent_prompt(
@@ -122,19 +122,19 @@ class OllamaLlmProvider(BaseLlmProvider):
             f"Question: {question}\n"
         )
 
-    def _build_response_prompt(self, response_context: ResponseContext) -> str:
+    def _build_summary_prompt(self, summary_context: SummaryContext) -> str:
         return (
-            "You are a response writer for SAIDA.\n"
+            "You are a summary writer for SAIDA.\n"
             "Return JSON only.\n"
-            f"{build_response_contract_text()}"
-            f"Question: {response_context.question}\n"
-            f"Dataset: {response_context.dataset_name}\n"
-            f"Task type: {response_context.task_type}\n"
-            f"Deterministic summary: {response_context.deterministic_summary}\n"
-            f"Context summary: {response_context.context_summary or 'none'}\n"
-            f"Metric lookup: {json.dumps(response_context.metric_lookup, ensure_ascii=True)}\n"
-            f"Table index: {json.dumps(response_context.table_index, ensure_ascii=True)}\n"
-            f"Warnings: {json.dumps(response_context.warnings, ensure_ascii=True)}\n"
+            f"{build_summary_contract_text()}"
+            f"Question: {summary_context.question}\n"
+            f"Dataset: {summary_context.dataset_name}\n"
+            f"Task type: {summary_context.task_type}\n"
+            f"Deterministic summary: {summary_context.deterministic_summary}\n"
+            f"Context summary: {summary_context.context_summary or 'none'}\n"
+            f"Metric lookup: {json.dumps(summary_context.metric_lookup, ensure_ascii=True)}\n"
+            f"Table index: {json.dumps(summary_context.table_index, ensure_ascii=True)}\n"
+            f"Warnings: {json.dumps(summary_context.warnings, ensure_ascii=True)}\n"
         )
 
     def _maybe_float(self, value: object) -> float | None:

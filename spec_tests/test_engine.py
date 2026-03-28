@@ -7,7 +7,7 @@ from saida import PromptAnalysisFrontend, Saida
 from saida.config import LlmConfig
 from saida.plan_generation import get_capability_contract
 from saida.core.contracts import Dataset
-from saida.llm import BaseLlmProvider, IntentProposal, OpenAiLlmProvider, OllamaLlmProvider, ResponseContext, ResponseProposal, build_llm_provider
+from saida.llm import BaseLlmProvider, IntentProposal, OpenAiLlmProvider, OllamaLlmProvider, SummaryContext, SummaryProposal, build_llm_provider
 from saida.exceptions import ValidationError
 
 
@@ -44,12 +44,12 @@ class FakeLlmProvider(BaseLlmProvider):
             warnings=["llm prompt path used"],
         )
 
-    def generate_response(self, response_context: ResponseContext) -> ResponseProposal | None:
-        self.last_response_context = response_context
-        return ResponseProposal(
+    def generate_summary(self, summary_context: SummaryContext) -> SummaryProposal | None:
+        self.last_summary_context = summary_context
+        return SummaryProposal(
             status="ready",
-            summary=f"LLM_RESPONSE_V1: {response_context.deterministic_summary}",
-            warnings=["llm response path used"],
+            summary=f"LLM_SUMMARY_V1: {summary_context.deterministic_summary}",
+            warnings=["llm summary path used"],
         )
 
 
@@ -69,8 +69,8 @@ class ClarifyingLlmProvider(BaseLlmProvider):
         _ = context_summary
         return IntentProposal(status="clarify", message="Please clarify.", warnings=["llm clarification"])
 
-    def generate_response(self, response_context: ResponseContext) -> ResponseProposal | None:
-        return ResponseProposal(status="ready", summary=response_context.deterministic_summary)
+    def generate_summary(self, summary_context: SummaryContext) -> SummaryProposal | None:
+        return SummaryProposal(status="ready", summary=summary_context.deterministic_summary)
 
 
 class RefusingLlmProvider(BaseLlmProvider):
@@ -89,8 +89,8 @@ class RefusingLlmProvider(BaseLlmProvider):
         _ = context_summary
         return IntentProposal(status="refuse", message="Refused by test provider.", warnings=["llm refusal"])
 
-    def generate_response(self, response_context: ResponseContext) -> ResponseProposal | None:
-        return ResponseProposal(status="ready", summary=response_context.deterministic_summary)
+    def generate_summary(self, summary_context: SummaryContext) -> SummaryProposal | None:
+        return SummaryProposal(status="ready", summary=summary_context.deterministic_summary)
 
 
 class YearMonthFilterLlmProvider(BaseLlmProvider):
@@ -114,8 +114,8 @@ class YearMonthFilterLlmProvider(BaseLlmProvider):
             warnings=["llm prompt path used"],
         )
 
-    def generate_response(self, response_context: ResponseContext) -> ResponseProposal | None:
-        return ResponseProposal(status="ready", summary=response_context.deterministic_summary)
+    def generate_summary(self, summary_context: SummaryContext) -> SummaryProposal | None:
+        return SummaryProposal(status="ready", summary=summary_context.deterministic_summary)
 
 
 class CanonicalQuestionLlmProvider(BaseLlmProvider):
@@ -148,8 +148,8 @@ class CanonicalQuestionLlmProvider(BaseLlmProvider):
             warnings=["llm prompt path used"],
         )
 
-    def generate_response(self, response_context: ResponseContext) -> ResponseProposal | None:
-        return ResponseProposal(status="ready", summary=response_context.deterministic_summary)
+    def generate_summary(self, summary_context: SummaryContext) -> SummaryProposal | None:
+        return SummaryProposal(status="ready", summary=summary_context.deterministic_summary)
 
 
 class SemanticIntentLlmProvider(BaseLlmProvider):
@@ -191,8 +191,8 @@ class SemanticIntentLlmProvider(BaseLlmProvider):
         proposal_fields = prompt_mapping[question]
         return IntentProposal(status="ready", confidence=0.91, warnings=["llm prompt path used"], **proposal_fields)
 
-    def generate_response(self, response_context: ResponseContext) -> ResponseProposal | None:
-        return ResponseProposal(status="ready", summary=response_context.deterministic_summary)
+    def generate_summary(self, summary_context: SummaryContext) -> SummaryProposal | None:
+        return SummaryProposal(status="ready", summary=summary_context.deterministic_summary)
 
 
 class InvalidSemanticIntentLlmProvider(BaseLlmProvider):
@@ -219,8 +219,8 @@ class InvalidSemanticIntentLlmProvider(BaseLlmProvider):
             warnings=["llm prompt path used"],
         )
 
-    def generate_response(self, response_context: ResponseContext) -> ResponseProposal | None:
-        return ResponseProposal(status="ready", summary=response_context.deterministic_summary)
+    def generate_summary(self, summary_context: SummaryContext) -> SummaryProposal | None:
+        return SummaryProposal(status="ready", summary=summary_context.deterministic_summary)
 
 
 def build_canonical_scalar_support_dataset() -> Dataset:
@@ -272,7 +272,7 @@ def test_engine_exposes_current_capabilities() -> None:
         "predict": False,
         "forecast": False,
         "analytics_registry": True,
-        "llm_reasoning": False,
+        "llm_summary": False,
     }
 
 
@@ -367,8 +367,8 @@ def test_engine_with_llm_provider_exposes_llm_capabilities() -> None:
 
     capabilities = engine.capabilities()
 
-    assert capabilities["llm_prompting"] is True
-    assert capabilities["llm_reasoning"] is True
+    assert capabilities["llm_plan_generation"] is True
+    assert capabilities["llm_summary"] is True
 
 
 def test_engine_returns_clarification_when_llm_requests_it() -> None:
@@ -389,7 +389,7 @@ def test_engine_returns_clarification_when_llm_requests_it() -> None:
     assert result.plan.task_type == "clarification"
     assert result.tables == []
     assert result.response["status"] == "clarify"
-    assert result.response["reasoning"]["summary"] == "Please clarify the target metric."
+    assert result.response["summary"]["summary"] == "Please clarify the target metric."
     assert result.response["errors"] == []
 
 
@@ -411,7 +411,7 @@ def test_engine_returns_refusal_when_llm_declines_request() -> None:
     assert result.plan.task_type == "unavailable"
     assert result.metrics == []
     assert result.response["status"] == "refuse"
-    assert result.response["reasoning"]["summary"] == "We are not able to provide this information at this time."
+    assert result.response["summary"]["summary"] == "We are not able to provide this information at this time."
 
 
 def test_engine_overrides_llm_clarification_when_deterministic_intent_is_clear() -> None:
@@ -468,7 +468,7 @@ def test_engine_analysis_response_contract_records_intent_and_operations() -> No
         "supported_with_partial_fallback",
     }
     assert result.deterministic_summary is not None
-    assert result.response["reasoning"]["deterministic_summary"] == result.deterministic_summary
+    assert result.response["summary"]["deterministic_summary"] == result.deterministic_summary
 
 
 def test_engine_coerces_llm_year_month_filter_on_time_column() -> None:
@@ -638,10 +638,10 @@ def test_engine_passes_context_summary_into_llm_response_stage() -> None:
 
     engine.analyze(dataset, "Why did revenue drop in March?")
 
-    assert provider.last_response_context is not None
-    assert provider.last_response_context.context_summary is not None
-    assert "caveats=['refunds arrive one day late']" in provider.last_response_context.context_summary
-    assert "freshness_notes=['source refreshes daily']" in provider.last_response_context.context_summary
+    assert provider.last_summary_context is not None
+    assert provider.last_summary_context.context_summary is not None
+    assert "caveats=['refunds arrive one day late']" in provider.last_summary_context.context_summary
+    assert "freshness_notes=['source refreshes daily']" in provider.last_summary_context.context_summary
 
 
 def test_engine_passes_tabular_table_metadata_into_llm_response_stage() -> None:
@@ -663,9 +663,9 @@ def test_engine_passes_tabular_table_metadata_into_llm_response_stage() -> None:
 
     engine.analyze(dataset, "Give me 2 tickets from the data set")
 
-    assert provider.last_response_context is not None
-    assert "tabular_query" in provider.last_response_context.table_index
-    assert "metadata" in provider.last_response_context.table_index["tabular_query"]
+    assert provider.last_summary_context is not None
+    assert "tabular_query" in provider.last_summary_context.table_index
+    assert "metadata" in provider.last_summary_context.table_index["tabular_query"]
 
 
 def test_llm_factory_builds_openai_provider() -> None:
@@ -750,8 +750,8 @@ def test_capability_contract_exposes_live_input_and_result_surfaces() -> None:
 
 def test_provider_prompts_include_contract_driven_result_surface_text() -> None:
     provider = OpenAiLlmProvider(LlmConfig(enabled=True, provider="openai", model="gpt-4.1-mini", options={"api_key": "test-key"}))
-    response_prompt = provider._build_response_prompt(
-        ResponseContext(
+    summary_prompt = provider._build_summary_prompt(
+        SummaryContext(
             question="Show revenue by region",
             dataset_name="sales",
             task_type="descriptive",
@@ -763,8 +763,8 @@ def test_provider_prompts_include_contract_driven_result_surface_text() -> None:
         )
     )
 
-    assert "schema_version, status, request, interpretation, execution, result, tables, reasoning, history, warnings, errors, meta" in response_prompt
-    assert "name, description, physical_shape, logical_shape, dtype, schema, dimensions, row_count, labels, pagination, metadata, value" in response_prompt
+    assert "schema_version, status, request, interpretation, execution, result, tables, summary, history, warnings, errors, meta" in summary_prompt
+    assert "name, description, physical_shape, logical_shape, dtype, schema, dimensions, row_count, labels, pagination, metadata, value" in summary_prompt
 
 
 _ENGINE_PROFILE_CASES = [
@@ -846,7 +846,7 @@ def test_engine_llm_prompt_and_response_path_across_many_cases(case_id: int, dat
 
     result = engine.analyze(dataset, question)
 
-    assert result.summary.startswith("LLM_RESPONSE_V1:")
+    assert result.summary.startswith("LLM_SUMMARY_V1:")
     assert result.deterministic_summary is not None
     assert result.llm_summary == result.summary
     assert result.summary_source == "llm"

@@ -223,7 +223,7 @@ class ResultCanonicalizer:
             },
             "result": primary_result,
             "tables": table_entries,
-            "reasoning": {
+            "summary": {
                 "summary": summary,
                 "deterministic_summary": deterministic_summary,
                 "llm_summary": llm_summary,

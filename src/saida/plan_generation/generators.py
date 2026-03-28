@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from saida.plan_generation.planning import PlanBuilder
 from saida.core.contracts import AnalysisPlan, AnalysisRequest, Dataset, DatasetProfile, ExecutionTraceEvent, SourceContext
-from saida.exceptions import PlanningError, ReasoningError
+from saida.exceptions import LlmIntegrationError, PlanningError
 from saida.llm import BaseLlmProvider
 from saida.plan_generation.canonicalization import InputCanonicalizer
 from saida.plan_generation.interfaces import AnalysisPlanGeneratorInterface, PlanGenerationResult
@@ -73,7 +73,7 @@ class LlmAssistedPlanGenerator(AnalysisPlanGeneratorInterface):
                 profile_summary=_profile_summary(profile),
                 context_summary=_context_summary(context),
             )
-        except ReasoningError:
+        except LlmIntegrationError:
             request, warnings = self.canonicalizer.normalize(question, dataset, profile, context)
             warnings.append("Optional LLM prompting failed; falling back to deterministic request normalization.")
             return _compile_plan_generation_result(

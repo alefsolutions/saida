@@ -50,7 +50,7 @@ class _FakeEngine:
                 "name": "empty_result",
                 "value": None,
             },
-            "reasoning": {"summary": self.summary},
+            "summary": {"summary": self.summary},
         }
         return SimpleNamespace(
             summary=self.summary,

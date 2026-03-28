@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from saida import PromptAnalysisFrontend
-from saida.llm import BaseLlmProvider, IntentProposal, ResponseContext, ResponseProposal
+from saida.llm import BaseLlmProvider, IntentProposal, SummaryContext, SummaryProposal
 from saida.plan_generation import AnalysisPlanGeneratorInterface, LlmAssistedPlanGenerator, OpenAIPlanGenerator
 from .factories import build_support_dataset
 
@@ -28,8 +28,8 @@ class CanonicalCountProvider(BaseLlmProvider):
             )
         return IntentProposal(status="ready")
 
-    def generate_response(self, response_context: ResponseContext) -> ResponseProposal | None:
-        return ResponseProposal(status="ready", summary=response_context.deterministic_summary)
+    def generate_summary(self, summary_context: SummaryContext) -> SummaryProposal | None:
+        return SummaryProposal(status="ready", summary=summary_context.deterministic_summary)
 
 
 def test_rule_based_plan_generator_produces_row_count_plan() -> None:

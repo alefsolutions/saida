@@ -32,8 +32,8 @@ class IntentProposal:
 
 
 @dataclass(slots=True)
-class ResponseProposal:
-    """Structured natural-language response proposed by an optional LLM."""
+class SummaryProposal:
+    """Structured summary text proposed by an optional LLM."""
 
     status: str = "ready"
     summary: str | None = None
@@ -43,8 +43,8 @@ class ResponseProposal:
 
 
 @dataclass(slots=True)
-class ResponseContext:
-    """Deterministic payload passed to an optional LLM response provider."""
+class SummaryContext:
+    """Deterministic payload passed to an optional LLM summary provider."""
 
     question: str
     dataset_name: str

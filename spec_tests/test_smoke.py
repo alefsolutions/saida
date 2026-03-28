@@ -358,7 +358,7 @@ def test_engine_capabilities_mark_ml_as_deferred() -> None:
     assert capabilities["train"] is False
     assert capabilities["predict"] is False
     assert capabilities["forecast"] is False
-    assert capabilities["llm_reasoning"] is False
+    assert capabilities["llm_summary"] is False
     assert "analyze" not in capabilities
     assert "plan" not in capabilities
 

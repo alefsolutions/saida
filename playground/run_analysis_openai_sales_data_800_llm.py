@@ -52,7 +52,7 @@ def main() -> None:
             provider="openai",
             model=os.getenv("OPENAI_MODEL", "gpt-4.1-mini"),
             use_for_prompting=True,
-            use_for_reasoning=True,
+            use_for_summary=True,
         )
     )
 

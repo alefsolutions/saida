@@ -7,14 +7,14 @@ import os
 from urllib import error, request
 
 from saida.config import LlmConfig
-from saida.plan_generation.capability_contract import build_intent_prompt_contract_text, build_response_contract_text
-from saida.exceptions import ReasoningError
+from saida.plan_generation.capability_contract import build_intent_prompt_contract_text, build_summary_contract_text
+from saida.exceptions import LlmIntegrationError
 from saida.llm.base import BaseLlmProvider
-from saida.llm.models import IntentProposal, ResponseContext, ResponseProposal
+from saida.llm.models import IntentProposal, SummaryContext, SummaryProposal
 
 
 class OpenAiLlmProvider(BaseLlmProvider):
-    """Use the OpenAI Responses API for optional prompt and response handling."""
+    """Use the OpenAI Responses API for optional prompt and summary handling."""
 
     provider_name = "openai"
 
@@ -64,12 +64,12 @@ class OpenAiLlmProvider(BaseLlmProvider):
             raw_response=json.dumps(payload),
         )
 
-    def generate_response(self, response_context: ResponseContext) -> ResponseProposal | None:
-        payload = self._responses_json(self._build_response_prompt(response_context), max_output_tokens=500)
+    def generate_summary(self, summary_context: SummaryContext) -> SummaryProposal | None:
+        payload = self._responses_json(self._build_summary_prompt(summary_context), max_output_tokens=500)
         if payload is None:
             return None
 
-        return ResponseProposal(
+        return SummaryProposal(
             status=str(payload.get("status", "ready")),
             summary=self._maybe_string(payload.get("summary")),
             message=self._maybe_string(payload.get("message")),
@@ -79,7 +79,7 @@ class OpenAiLlmProvider(BaseLlmProvider):
 
     def _responses_json(self, prompt: str, max_output_tokens: int) -> dict[str, object] | None:
         if not self.api_key:
-            raise ReasoningError("OpenAI API key is not configured for optional LLM handling.")
+            raise LlmIntegrationError("OpenAI API key is not configured for optional LLM handling.")
 
         body = {
             "model": self.model,
@@ -101,7 +101,7 @@ class OpenAiLlmProvider(BaseLlmProvider):
             with request.urlopen(http_request, timeout=self.config.timeout_seconds) as response:
                 raw_payload = json.loads(response.read().decode("utf-8"))
         except (error.URLError, TimeoutError, json.JSONDecodeError) as exc:
-            raise ReasoningError("OpenAI request failed during optional LLM handling.") from exc
+            raise LlmIntegrationError("OpenAI request failed during optional LLM handling.") from exc
 
         response_text = self._extract_output_text(raw_payload)
         if not response_text:
@@ -110,10 +110,10 @@ class OpenAiLlmProvider(BaseLlmProvider):
         try:
             parsed = json.loads(response_text)
         except json.JSONDecodeError as exc:
-            raise ReasoningError("OpenAI returned invalid JSON for optional LLM handling.") from exc
+            raise LlmIntegrationError("OpenAI returned invalid JSON for optional LLM handling.") from exc
 
         if not isinstance(parsed, dict):
-            raise ReasoningError("OpenAI returned a non-object JSON payload.")
+            raise LlmIntegrationError("OpenAI returned a non-object JSON payload.")
         return parsed
 
     def _extract_output_text(self, raw_payload: dict[str, object]) -> str | None:
@@ -151,19 +151,19 @@ class OpenAiLlmProvider(BaseLlmProvider):
             f"Question: {question}\n"
         )
 
-    def _build_response_prompt(self, response_context: ResponseContext) -> str:
+    def _build_summary_prompt(self, summary_context: SummaryContext) -> str:
         return (
-            "You are a response writer for SAIDA.\n"
+            "You are a summary writer for SAIDA.\n"
             "Return JSON only.\n"
-            f"{build_response_contract_text()}"
-            f"Question: {response_context.question}\n"
-            f"Dataset: {response_context.dataset_name}\n"
-            f"Task type: {response_context.task_type}\n"
-            f"Deterministic summary: {response_context.deterministic_summary}\n"
-            f"Context summary: {response_context.context_summary or 'none'}\n"
-            f"Metric lookup: {json.dumps(response_context.metric_lookup, ensure_ascii=True)}\n"
-            f"Table index: {json.dumps(response_context.table_index, ensure_ascii=True)}\n"
-            f"Warnings: {json.dumps(response_context.warnings, ensure_ascii=True)}\n"
+            f"{build_summary_contract_text()}"
+            f"Question: {summary_context.question}\n"
+            f"Dataset: {summary_context.dataset_name}\n"
+            f"Task type: {summary_context.task_type}\n"
+            f"Deterministic summary: {summary_context.deterministic_summary}\n"
+            f"Context summary: {summary_context.context_summary or 'none'}\n"
+            f"Metric lookup: {json.dumps(summary_context.metric_lookup, ensure_ascii=True)}\n"
+            f"Table index: {json.dumps(summary_context.table_index, ensure_ascii=True)}\n"
+            f"Warnings: {json.dumps(summary_context.warnings, ensure_ascii=True)}\n"
         )
 
     def _maybe_int(self, value: object) -> int | None:

@@ -13,7 +13,7 @@ from saida.core import (
     DatasetProfile,
 )
 from saida.core.contracts import AnalysisRequest, Dataset
-from saida.llm import BaseLlmProvider, IntentProposal, ResponseContext, ResponseProposal
+from saida.llm import BaseLlmProvider, IntentProposal, SummaryContext, SummaryProposal
 from saida.plan_generation import build_prompt_capability_contract
 
 
@@ -141,8 +141,8 @@ class CandidateCapabilityLlmProvider(BaseLlmProvider):
             warnings=["llm prompt path used"],
         )
 
-    def generate_response(self, response_context: ResponseContext) -> ResponseProposal | None:
-        return ResponseProposal(status="ready", summary=response_context.deterministic_summary)
+    def generate_summary(self, summary_context: SummaryContext) -> SummaryProposal | None:
+        return SummaryProposal(status="ready", summary=summary_context.deterministic_summary)
 
 
 @pytest.mark.parametrize(

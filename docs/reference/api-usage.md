@@ -281,7 +281,7 @@ Top-level fields include:
 - `execution`
 - `result`
 - `tables`
-- `reasoning`
+- `summary`
 - `history`
 - `warnings`
 - `errors`

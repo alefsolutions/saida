@@ -53,7 +53,7 @@ class PromptAnalysisFrontend:
                 "analyze": True,
                 "plan": True,
                 "prompt_capability_contract": True,
-                "llm_prompting": bool(self.engine.llm_provider and self.engine.config.llm.use_for_prompting),
+                "llm_plan_generation": bool(self.engine.llm_provider and self.engine.config.llm.use_for_prompting),
             }
         )
         return capabilities

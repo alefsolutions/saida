@@ -123,6 +123,6 @@ def _build_cli_config(provider: str | None, model: str | None, base_url: str | N
             model=model,
             base_url=base_url,
             use_for_prompting=True,
-            use_for_reasoning=True,
+            use_for_summary=True,
         )
     )

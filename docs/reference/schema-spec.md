@@ -210,7 +210,7 @@ Top-level fields:
 - `execution`
 - `result`
 - `tables`
-- `reasoning`
+- `summary`
 - `history`
 - `warnings`
 - `errors`

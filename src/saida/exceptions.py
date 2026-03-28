@@ -33,5 +33,5 @@ class ModelTrainingError(SaidaError):
     """Raised when model training fails."""
 
 
-class ReasoningError(SaidaError):
-    """Raised when optional reasoning fails."""
+class LlmIntegrationError(SaidaError):
+    """Raised when optional LLM integration fails."""

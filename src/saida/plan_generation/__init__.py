@@ -11,7 +11,7 @@ __all__ = [
     "build_default_prompt_family_catalog",
     "build_intent_prompt_contract_text",
     "build_prompt_capability_contract",
-    "build_response_contract_text",
+    "build_summary_contract_text",
     "CapabilityActivation",
     "DataFeasibilityCheck",
     "derive_contract_status",
@@ -38,7 +38,7 @@ __all__ = [
 
 _EXPORT_TO_MODULE = {
     "build_intent_prompt_contract_text": "saida.plan_generation.capability_contract",
-    "build_response_contract_text": "saida.plan_generation.capability_contract",
+    "build_summary_contract_text": "saida.plan_generation.capability_contract",
     "get_capability_contract": "saida.plan_generation.capability_contract",
     "InputCanonicalizer": "saida.plan_generation.canonicalization",
     "RequestNormalizer": "saida.plan_generation.canonicalization",

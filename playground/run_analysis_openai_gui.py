@@ -66,7 +66,7 @@ class OpenAiPlaygroundApp:
         self._build_ui()
         self._add_assistant_message(
             "SAIDA is ready.\nAsk a question about the sample sales dataset.",
-            meta="OpenAI prompting and reasoning enabled",
+            meta="OpenAI prompting and summary enabled",
         )
         self._set_contract_view(
             {
@@ -95,7 +95,7 @@ class OpenAiPlaygroundApp:
                 provider="openai",
                 model=os.getenv("OPENAI_MODEL", "gpt-4.1-mini"),
                 use_for_prompting=True,
-                use_for_reasoning=True,
+                use_for_summary=True,
             )
         )
         return PromptAnalysisFrontend(config=config)
@@ -125,7 +125,7 @@ class OpenAiPlaygroundApp:
 
         subtitle = tk.Label(
             header,
-            text="Modern chat UI for testing prompts, deterministic analytics, and optional LLM reasoning.",
+            text="Modern chat UI for testing prompts, deterministic analytics, and optional LLM summaries.",
             font=(self.font_family, 11),
             fg=self.SUBTLE_TEXT,
             bg=self.BG,

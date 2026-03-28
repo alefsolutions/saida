@@ -36,7 +36,7 @@ def main() -> None:
             model=os.getenv("OLLAMA_MODEL", "llama3.1"),
             base_url=os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434"),
             use_for_prompting=True,
-            use_for_reasoning=True,
+            use_for_summary=True,
         )
     )
 

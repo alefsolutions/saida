@@ -142,7 +142,7 @@ ANALYSIS_RESULT_TOP_LEVEL_FIELDS = (
     "execution",
     "result",
     "tables",
-    "reasoning",
+    "summary",
     "history",
     "warnings",
     "errors",
@@ -377,7 +377,7 @@ RESULT_CONTRACT = {
     "schema_column_dtypes": list(SUPPORTED_SCHEMA_COLUMN_DTYPES),
     "pagination_fields": list(PAGINATION_FIELDS),
     "status_values": ["ok", "clarify", "refuse"],
-    "reasoning_fields": ["summary", "deterministic_summary", "llm_summary", "summary_source"],
+    "summary_fields": ["summary", "deterministic_summary", "llm_summary", "summary_source"],
     "execution_fields": ["status", "tool_families", "rationale", "step_count", "steps"],
     "interpretation_fields": [
         "intent_name",
@@ -431,7 +431,7 @@ LLM_INTENT_PROMPT_CONTRACT = {
     ],
 }
 
-LLM_RESPONSE_PROMPT_CONTRACT = {
+LLM_SUMMARY_PROMPT_CONTRACT = {
     "allowed_status_values": ["ready", "refuse"],
     "return_keys": ["status", "summary", "message", "warnings"],
     "grounding_rules": [
@@ -449,7 +449,7 @@ def get_capability_contract() -> dict[str, Any]:
             "intent_families": INTENT_FAMILIES,
             "result_contract": RESULT_CONTRACT,
             "llm_intent_prompt_contract": LLM_INTENT_PROMPT_CONTRACT,
-            "llm_response_prompt_contract": LLM_RESPONSE_PROMPT_CONTRACT,
+            "llm_summary_prompt_contract": LLM_SUMMARY_PROMPT_CONTRACT,
         }
     )
 
@@ -483,11 +483,11 @@ def build_intent_prompt_contract_text() -> str:
     )
 
 
-def build_response_contract_text() -> str:
-    """Build prompt text from the current result contract for LLM response generation."""
-    statuses = ", ".join(f'"{value}"' for value in LLM_RESPONSE_PROMPT_CONTRACT["allowed_status_values"])
-    return_keys = ", ".join(LLM_RESPONSE_PROMPT_CONTRACT["return_keys"])
-    grounding_rules = " ".join(LLM_RESPONSE_PROMPT_CONTRACT["grounding_rules"])
+def build_summary_contract_text() -> str:
+    """Build prompt text from the current result contract for LLM summary generation."""
+    statuses = ", ".join(f'"{value}"' for value in LLM_SUMMARY_PROMPT_CONTRACT["allowed_status_values"])
+    return_keys = ", ".join(LLM_SUMMARY_PROMPT_CONTRACT["return_keys"])
+    grounding_rules = " ".join(LLM_SUMMARY_PROMPT_CONTRACT["grounding_rules"])
     result_fields = ", ".join(RESULT_OBJECT_FIELDS)
     top_level_fields = ", ".join(ANALYSIS_RESULT_TOP_LEVEL_FIELDS)
     return (
@@ -495,5 +495,6 @@ def build_response_contract_text() -> str:
         f"{grounding_rules}\n"
         f"The current standardized response envelope fields are: {top_level_fields}.\n"
         f"The current self-describing result object fields are: {result_fields}.\n"
+        f"The summary fields inside the summary block are: {', '.join(RESULT_CONTRACT['summary_fields'])}.\n"
         f"Return keys: {return_keys}.\n"
     )
