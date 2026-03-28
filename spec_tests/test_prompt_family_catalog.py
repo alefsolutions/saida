@@ -5,7 +5,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from saida import Saida
+from saida import PromptAnalysisFrontend
 from saida.core import (
     AnalysisPlanner,
     AnalysisRequest,
@@ -199,7 +199,7 @@ def test_high_volume_prompt_families_use_template_result_shaping(family_id: str)
 
 
 def test_prompt_capability_contract_exposes_prompt_family_and_family_spec() -> None:
-    engine = Saida()
+    engine = PromptAnalysisFrontend()
     dataset = build_support_dataset()
     profile = engine.profile(dataset)
     request = AnalysisRequest(
@@ -220,7 +220,7 @@ def test_prompt_capability_contract_exposes_prompt_family_and_family_spec() -> N
 
 
 def test_prompt_capability_contract_flags_prompt_family_request_mismatch() -> None:
-    engine = Saida()
+    engine = PromptAnalysisFrontend()
     dataset = build_support_dataset()
     profile = engine.profile(dataset)
     request = AnalysisRequest(
@@ -268,7 +268,7 @@ def test_prompt_capability_contract_flags_prompt_family_request_mismatch() -> No
     ],
 )
 def test_engine_response_exposes_prompt_family_end_to_end(question: str, expected_family: str) -> None:
-    engine = Saida()
+    engine = PromptAnalysisFrontend()
     dataset = build_support_dataset()
 
     result = engine.analyze(dataset, question)
@@ -284,7 +284,7 @@ def test_engine_response_exposes_prompt_family_end_to_end(question: str, expecte
 
 def test_planner_builds_grouped_entity_count_plan_from_prompt_family_only() -> None:
     planner = AnalysisPlanner()
-    engine = Saida()
+    engine = PromptAnalysisFrontend()
     profile = engine.profile(build_support_dataset())
     request = AnalysisRequest(
         question="Give me the total tickets per channel.",
@@ -305,7 +305,7 @@ def test_planner_builds_grouped_entity_count_plan_from_prompt_family_only() -> N
 
 def test_planner_builds_column_type_lookup_plan_from_prompt_family_only() -> None:
     planner = AnalysisPlanner()
-    engine = Saida()
+    engine = PromptAnalysisFrontend()
     profile = engine.profile(build_support_dataset())
     request = AnalysisRequest(
         question="What is the data type of created_at?",
@@ -323,7 +323,7 @@ def test_planner_builds_column_type_lookup_plan_from_prompt_family_only() -> Non
 
 def test_planner_builds_column_presence_plan_from_contract_using_prompt_family() -> None:
     planner = AnalysisPlanner()
-    engine = Saida()
+    engine = PromptAnalysisFrontend()
     dataset = build_support_dataset()
     profile = engine.profile(dataset)
     request = AnalysisRequest(
@@ -351,7 +351,7 @@ def test_template_family_spec_can_compile_grouped_entity_count_steps() -> None:
         group_by=["channel"],
         options={"sort_direction": "asc", "page": 1, "page_size": 50},
     )
-    engine = Saida()
+    engine = PromptAnalysisFrontend()
     profile = engine.profile(build_support_dataset())
 
     compiled_steps = family_spec.compile_steps(request, profile) if family_spec is not None else []

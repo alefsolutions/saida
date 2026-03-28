@@ -6,7 +6,7 @@ import sqlite3
 import pandas as pd
 import pytest
 
-from saida import Saida
+from saida import PromptAnalysisFrontend, Saida
 from saida.core import DatasetProfiler, SourceContextParser
 from saida.core.contracts import Dataset
 from saida.exceptions import ModelTrainingError
@@ -113,7 +113,7 @@ def test_analyze_runs_end_to_end(tmp_path: Path) -> None:
 - refunds arrive one day late
 """.strip()
     )
-    result = Saida().analyze(dataset, "Why did revenue drop in March?")
+    result = PromptAnalysisFrontend().analyze(dataset, "Why did revenue drop in March?")
 
     assert result.summary
     assert "Revenue moved from 90.00 in 2026-02 to 80.00 in 2026-03" in result.summary
@@ -186,7 +186,7 @@ def test_analyze_applies_group_and_filter_detection() -> None:
     )
     dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "Show revenue by region for West")
+    result = PromptAnalysisFrontend().analyze(dataset, "Show revenue by region for West")
 
     grouped_tables = [table for table in result.tables if table.name == "group_breakdown"]
     assert grouped_tables
@@ -204,7 +204,7 @@ def test_analyze_applies_implied_flag_filter() -> None:
     )
     dataset = Dataset(name="tickets", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "How many rows for reopened tickets?")
+    result = PromptAnalysisFrontend().analyze(dataset, "How many rows for reopened tickets?")
 
     assert any(metric.name == "row_count" and metric.value == 2 for metric in result.metrics)
 
@@ -219,7 +219,7 @@ def test_analyze_applies_exclusion_filter() -> None:
     )
     dataset = Dataset(name="tickets", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "How many rows excluding reopened tickets?")
+    result = PromptAnalysisFrontend().analyze(dataset, "How many rows excluding reopened tickets?")
 
     assert any(metric.name == "row_count" and metric.value == 2 for metric in result.metrics)
 
@@ -234,7 +234,7 @@ def test_analyze_applies_year_filter() -> None:
     )
     dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "What is the total revenue for West in 2026?")
+    result = PromptAnalysisFrontend().analyze(dataset, "What is the total revenue for West in 2026?")
 
     assert any(metric.name == "revenue_sum" and metric.value == 120.0 for metric in result.metrics)
 
@@ -249,7 +249,7 @@ def test_analyze_applies_month_filter() -> None:
     )
     dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "What is the total revenue for West in March?")
+    result = PromptAnalysisFrontend().analyze(dataset, "What is the total revenue for West in March?")
 
     assert any(metric.name == "revenue_sum" and metric.value == 120.0 for metric in result.metrics)
 
@@ -264,7 +264,7 @@ def test_analyze_applies_multiple_natural_filters() -> None:
     )
     dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "What is the total revenue for West SMB?")
+    result = PromptAnalysisFrontend().analyze(dataset, "What is the total revenue for West SMB?")
 
     assert any(metric.name == "revenue_sum" and metric.value == 170.0 for metric in result.metrics)
 
@@ -284,7 +284,7 @@ def test_analyze_returns_ranked_breakdown_and_contribution_tables() -> None:
     )
     dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "Why did revenue drop in March by region?")
+    result = PromptAnalysisFrontend().analyze(dataset, "Why did revenue drop in March by region?")
 
     ranked_table = next(table for table in result.tables if table.name == "ranked_breakdown")
     contribution_table = next(table for table in result.tables if table.name == "contribution_breakdown")
@@ -318,7 +318,7 @@ def test_analyze_returns_anomaly_summary_for_outlier_series() -> None:
     )
     dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "Show revenue trend")
+    result = PromptAnalysisFrontend().analyze(dataset, "Show revenue trend")
 
     distribution_table = next(table for table in result.tables if table.name == "distribution_summary")
     anomaly_table = next(table for table in result.tables if table.name == "anomaly_summary")
@@ -353,14 +353,14 @@ def test_train_forecast_and_predict_raise_not_implemented() -> None:
 def test_engine_capabilities_mark_ml_as_deferred() -> None:
     capabilities = Saida().capabilities()
 
-    assert capabilities["analyze"] is True
     assert capabilities["profile"] is True
     assert capabilities["load_context"] is True
     assert capabilities["train"] is False
     assert capabilities["predict"] is False
     assert capabilities["forecast"] is False
-    assert capabilities["llm_prompting"] is False
     assert capabilities["llm_reasoning"] is False
+    assert "analyze" not in capabilities
+    assert "plan" not in capabilities
 
 
 def test_profiler_detects_identifiers_dimensions_and_measures() -> None:
@@ -440,7 +440,7 @@ def test_analyze_supports_json_adapter_input(tmp_path: Path) -> None:
     )
 
     dataset = JSONAdapter(json_path).load()
-    result = Saida().analyze(dataset, "Why did revenue drop in March?")
+    result = PromptAnalysisFrontend().analyze(dataset, "Why did revenue drop in March?")
 
     assert result.plan.task_type == "diagnostic"
     assert any(table.name == "period_comparison" for table in result.tables)
@@ -456,7 +456,7 @@ def test_analyze_computes_average_value_for_aggregation_prompt() -> None:
     )
     dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "What is the average revenue?")
+    result = PromptAnalysisFrontend().analyze(dataset, "What is the average revenue?")
 
     assert "Average revenue is 70.00." in result.summary
     assert any(metric.name == "revenue_mean" for metric in result.metrics)
@@ -477,7 +477,7 @@ def test_analyze_prioritizes_grouped_total_answer_for_grouped_aggregation_prompt
     )
     dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "Give me the total revenue by region")
+    result = PromptAnalysisFrontend().analyze(dataset, "Give me the total revenue by region")
 
     assert "Total revenue by region: region=West = 220.00; region=East = 170.00." in result.summary
     assert "The latest period is" not in result.summary
@@ -494,7 +494,7 @@ def test_analyze_lists_distinct_dimension_values_for_list_prompt() -> None:
     )
     dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "Give me a list of all segments")
+    result = PromptAnalysisFrontend().analyze(dataset, "Give me a list of all segments")
 
     assert "Available segment values: Online, Retail, Wholesale." in result.summary
     assert any(table.name == "distinct_values" for table in result.tables)
@@ -511,7 +511,7 @@ def test_analyze_lists_distinct_dimension_values_for_category_prompt() -> None:
     )
     dataset = Dataset(name="support", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "What are the different priority categories in the data?")
+    result = PromptAnalysisFrontend().analyze(dataset, "What are the different priority categories in the data?")
 
     assert "Available priority values: High, Low, Medium, Urgent." in result.summary
     assert result.response["interpretation"]["intent_name"] == "distinct_values"
@@ -529,7 +529,7 @@ def test_analyze_counts_rows_for_row_count_prompt() -> None:
     )
     dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "How many data rows do we have?")
+    result = PromptAnalysisFrontend().analyze(dataset, "How many data rows do we have?")
 
     assert result.summary.endswith("The dataset contains 3 rows.")
     assert result.response["interpretation"]["intent_name"] == "row_count"
@@ -546,7 +546,7 @@ def test_analyze_keeps_clear_open_ended_metric_prompt_on_exploratory_family() ->
     )
     dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "Show revenue")
+    result = PromptAnalysisFrontend().analyze(dataset, "Show revenue")
 
     assert result.response["status"] == "ok"
     assert result.response["interpretation"]["prompt_family"] == "exploratory_metric_overview"
@@ -576,7 +576,7 @@ def test_analyze_returns_column_count_for_metadata_count_prompt(question: str) -
     )
     dataset = Dataset(name="support", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, question)
+    result = PromptAnalysisFrontend().analyze(dataset, question)
 
     assert result.response["status"] == "ok"
     assert result.response["result"]["name"] == "column_count"
@@ -607,7 +607,7 @@ def test_analyze_returns_distinct_value_count_for_dimension_count_prompt(questio
     )
     dataset = Dataset(name="support", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, question)
+    result = PromptAnalysisFrontend().analyze(dataset, question)
 
     assert result.response["status"] == "ok"
     assert result.response["interpretation"]["intent_name"] == "distinct_value_count"
@@ -633,7 +633,7 @@ def test_analyze_returns_high_cardinality_count_without_row_existence_fallback()
     )
     dataset = Dataset(name="support", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "How many high-cardinality columns are there?")
+    result = PromptAnalysisFrontend().analyze(dataset, "How many high-cardinality columns are there?")
 
     assert result.response["status"] == "ok"
     assert result.response["interpretation"]["intent_name"] == "high_cardinality_count"
@@ -657,7 +657,7 @@ def test_analyze_identifies_least_represented_group() -> None:
     )
     dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "Which segment is the least represented in sales data?")
+    result = PromptAnalysisFrontend().analyze(dataset, "Which segment is the least represented in sales data?")
 
     assert "The least represented segment is segment=Online with 1 rows." in result.summary
     assert result.response["interpretation"]["intent_name"] == "representation_ranking"
@@ -673,7 +673,7 @@ def test_analyze_identifies_most_represented_group_with_singular_result() -> Non
     )
     dataset = Dataset(name="tickets", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "Which channel has the most tickets?")
+    result = PromptAnalysisFrontend().analyze(dataset, "Which channel has the most tickets?")
 
     assert "The most represented channel is channel=Email with 3 rows." in result.summary
     assert result.response["interpretation"]["intent_name"] == "representation_ranking"
@@ -695,7 +695,7 @@ def test_analyze_returns_column_inventory() -> None:
     )
     dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "What are the columns in the sales data?")
+    result = PromptAnalysisFrontend().analyze(dataset, "What are the columns in the sales data?")
 
     assert "Available columns: posted_at, revenue, segment." in result.summary
     assert result.response["interpretation"]["intent_name"] == "column_inventory"
@@ -717,7 +717,7 @@ def test_analyze_returns_column_type_inventory() -> None:
     )
     dataset = Dataset(name="support", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "What are the data types of each field or column in the data?")
+    result = PromptAnalysisFrontend().analyze(dataset, "What are the data types of each field or column in the data?")
 
     assert result.response["interpretation"]["intent_name"] == "column_type_inventory"
     assert "Column types:" in result.summary
@@ -743,7 +743,7 @@ def test_analyze_returns_single_column_type_lookup(question: str, expected_targe
     )
     dataset = Dataset(name="support", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, question)
+    result = PromptAnalysisFrontend().analyze(dataset, question)
 
     assert result.response["interpretation"]["intent_name"] == "column_type_inventory"
     assert result.response["interpretation"]["target"] == expected_target
@@ -769,7 +769,7 @@ def test_analyze_keeps_multi_column_type_request_as_inventory_table() -> None:
     )
     dataset = Dataset(name="support", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "What are the data types of created_at and csat_score?")
+    result = PromptAnalysisFrontend().analyze(dataset, "What are the data types of created_at and csat_score?")
 
     assert result.response["interpretation"]["intent_name"] == "column_type_inventory"
     assert result.response["interpretation"]["target"] is None
@@ -790,7 +790,7 @@ def test_analyze_returns_numeric_column_inventory() -> None:
     )
     dataset = Dataset(name="support", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "Which columns are numeric?")
+    result = PromptAnalysisFrontend().analyze(dataset, "Which columns are numeric?")
 
     assert result.response["interpretation"]["intent_name"] == "numeric_column_inventory"
     assert "Numeric columns: resolution_hours, csat_score." in result.summary
@@ -808,7 +808,7 @@ def test_analyze_returns_categorical_column_inventory() -> None:
     )
     dataset = Dataset(name="support", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "Which fields are categorical?")
+    result = PromptAnalysisFrontend().analyze(dataset, "Which fields are categorical?")
 
     assert result.response["interpretation"]["intent_name"] == "categorical_column_inventory"
     assert "Categorical columns:" in result.summary
@@ -825,7 +825,7 @@ def test_analyze_returns_missing_value_inventory() -> None:
     )
     dataset = Dataset(name="support", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "Which columns have missing values?")
+    result = PromptAnalysisFrontend().analyze(dataset, "Which columns have missing values?")
 
     assert result.response["interpretation"]["intent_name"] == "missing_value_inventory"
     assert "Columns with missing values: csat_score (1 nulls, 25.0%)." in result.summary
@@ -842,7 +842,7 @@ def test_analyze_returns_no_identifier_inventory_when_none_detected() -> None:
     )
     dataset = Dataset(name="support", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "Which columns are likely identifiers?")
+    result = PromptAnalysisFrontend().analyze(dataset, "Which columns are likely identifiers?")
 
     assert result.response["interpretation"]["intent_name"] == "identifier_inventory"
     assert "No likely identifier columns were detected." in result.summary
@@ -859,7 +859,7 @@ def test_analyze_returns_identifier_inventory_when_present() -> None:
     )
     dataset = Dataset(name="support", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "Which columns are likely identifiers?")
+    result = PromptAnalysisFrontend().analyze(dataset, "Which columns are likely identifiers?")
 
     assert result.response["interpretation"]["intent_name"] == "identifier_inventory"
     assert "Likely identifier columns: ticket_id." in result.summary
@@ -877,7 +877,7 @@ def test_analyze_returns_high_cardinality_inventory() -> None:
     )
     dataset = Dataset(name="support", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "Which columns have many unique values?")
+    result = PromptAnalysisFrontend().analyze(dataset, "Which columns have many unique values?")
 
     assert result.response["interpretation"]["intent_name"] == "high_cardinality_inventory"
     assert "High-cardinality columns:" in result.summary
@@ -894,7 +894,7 @@ def test_analyze_returns_time_coverage_years() -> None:
     )
     dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "The data shows revenue for which years?")
+    result = PromptAnalysisFrontend().analyze(dataset, "The data shows revenue for which years?")
 
     assert "The data contains records for these years: 2024, 2025, 2026." in result.summary
     assert result.response["interpretation"]["intent_name"] == "time_coverage"
@@ -912,7 +912,7 @@ def test_analyze_returns_time_coverage_date_range() -> None:
     )
     dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "What date range does the sales data cover?")
+    result = PromptAnalysisFrontend().analyze(dataset, "What date range does the sales data cover?")
 
     assert "The data covers 2026-01-09 to 2026-04-11." in result.summary
     assert any(table.name == "time_coverage" for table in result.tables)
@@ -934,7 +934,7 @@ def test_analyze_returns_time_bucket_counts_by_year() -> None:
     )
     dataset = Dataset(name="support", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "I need a list of years, and how many tickets created in those years.")
+    result = PromptAnalysisFrontend().analyze(dataset, "I need a list of years, and how many tickets created in those years.")
 
     assert "Ticket counts by year: 2024 = 1; 2025 = 2; 2026 = 1." in result.summary
     assert result.response["interpretation"]["intent_name"] == "time_bucket_counts"
@@ -958,7 +958,7 @@ def test_analyze_returns_time_bucket_counts_by_quarter() -> None:
     )
     dataset = Dataset(name="support", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "How many tickets were created by quarter?")
+    result = PromptAnalysisFrontend().analyze(dataset, "How many tickets were created by quarter?")
 
     assert "Ticket counts by quarter:" in result.summary
     assert result.response["interpretation"]["intent_name"] == "time_bucket_counts"
@@ -976,7 +976,7 @@ def test_analyze_returns_time_bucket_breakdown_by_month() -> None:
     )
     dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "Show revenue by month")
+    result = PromptAnalysisFrontend().analyze(dataset, "Show revenue by month")
 
     assert "Revenue by month:" in result.summary
     assert result.response["interpretation"]["intent_name"] == "time_bucket_breakdown"
@@ -1001,7 +1001,7 @@ def test_analyze_returns_time_bucket_breakdown_by_quarter() -> None:
     )
     dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "Show revenue by quarter")
+    result = PromptAnalysisFrontend().analyze(dataset, "Show revenue by quarter")
 
     assert "Revenue by quarter:" in result.summary
     assert result.response["interpretation"]["options"]["time_bucket"] == "quarter"
@@ -1027,7 +1027,7 @@ def test_analyze_supports_time_period_comparison_by_quarter() -> None:
     )
     dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "Compare revenue this quarter to last quarter")
+    result = PromptAnalysisFrontend().analyze(dataset, "Compare revenue this quarter to last quarter")
 
     assert "Revenue moved from 220.00 in 2026-Q3 to 240.00 in 2026-Q4" in result.summary
     assert result.response["interpretation"]["intent_name"] == "time_period_comparison"
@@ -1054,7 +1054,7 @@ def test_analyze_supports_time_period_comparison_by_year() -> None:
     )
     dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "Compare revenue this year to last year")
+    result = PromptAnalysisFrontend().analyze(dataset, "Compare revenue this year to last year")
 
     assert "Revenue moved from 520.00 in 2025 to 840.00 in 2026" in result.summary
     assert result.response["interpretation"]["intent_name"] == "time_period_comparison"
@@ -1072,7 +1072,7 @@ def test_analyze_returns_yes_for_time_value_existence_prompt() -> None:
     )
     dataset = Dataset(name="support", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "The created_at column shows dates in 2025?")
+    result = PromptAnalysisFrontend().analyze(dataset, "The created_at column shows dates in 2025?")
 
     assert "Yes, created_at contains dates in 2025" in result.summary
     assert result.response["interpretation"]["intent_name"] == "existence_check"
@@ -1090,7 +1090,7 @@ def test_analyze_returns_no_for_filtered_row_existence_prompt() -> None:
     )
     dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "Is North in the region column?")
+    result = PromptAnalysisFrontend().analyze(dataset, "Is North in the region column?")
 
     assert "No, the dataset does not contain rows matching region=North." in result.summary
     assert result.response["interpretation"]["intent_name"] == "existence_check"
@@ -1108,7 +1108,7 @@ def test_analyze_returns_yes_for_missing_value_verification_prompt() -> None:
     )
     dataset = Dataset(name="support", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "Does csat_score have missing values?")
+    result = PromptAnalysisFrontend().analyze(dataset, "Does csat_score have missing values?")
 
     assert "Yes, csat_score has missing values" in result.summary
     assert result.response["interpretation"]["options"]["existence_mode"] == "null_check"
@@ -1124,7 +1124,7 @@ def test_analyze_returns_no_for_incomplete_column_check() -> None:
     )
     dataset = Dataset(name="support", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "Is csat_score complete?")
+    result = PromptAnalysisFrontend().analyze(dataset, "Is csat_score complete?")
 
     assert "No, csat_score is not complete" in result.summary
     assert result.response["interpretation"]["options"]["existence_mode"] == "null_check"
@@ -1140,7 +1140,7 @@ def test_analyze_returns_yes_for_threshold_verification_prompt() -> None:
     )
     dataset = Dataset(name="tickets", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "Are any resolution hours above 20?")
+    result = PromptAnalysisFrontend().analyze(dataset, "Are any resolution hours above 20?")
 
     assert "Yes, resolution_hours contains values above 20.00" in result.summary
     assert result.response["interpretation"]["options"]["existence_mode"] == "threshold_check"
@@ -1156,7 +1156,7 @@ def test_analyze_returns_yes_for_numeric_property_check() -> None:
     )
     dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "Is revenue numeric?")
+    result = PromptAnalysisFrontend().analyze(dataset, "Is revenue numeric?")
 
     assert "Yes, revenue is a numeric column." in result.summary
     assert result.response["interpretation"]["options"]["existence_mode"] == "column_property_check"
@@ -1172,7 +1172,7 @@ def test_analyze_returns_yes_for_datetime_property_check() -> None:
     )
     dataset = Dataset(name="support", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "Is created_at a datetime field?")
+    result = PromptAnalysisFrontend().analyze(dataset, "Is created_at a datetime field?")
 
     assert "Yes, created_at is a datetime column." in result.summary
     assert result.response["interpretation"]["options"]["existence_mode"] == "column_property_check"
@@ -1188,7 +1188,7 @@ def test_analyze_returns_yes_for_identifier_property_check() -> None:
     )
     dataset = Dataset(name="support", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "Is ticket_id likely an identifier?")
+    result = PromptAnalysisFrontend().analyze(dataset, "Is ticket_id likely an identifier?")
 
     assert "Yes, ticket_id is likely an identifier." in result.summary
     assert result.response["interpretation"]["options"]["existence_mode"] == "column_property_check"
@@ -1204,7 +1204,7 @@ def test_analyze_returns_yes_for_dimension_property_check() -> None:
     )
     dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "Is region a dimension?")
+    result = PromptAnalysisFrontend().analyze(dataset, "Is region a dimension?")
 
     assert "Yes, region is a dimension column." in result.summary
     assert result.response["interpretation"]["options"]["existence_mode"] == "column_property_check"
@@ -1221,7 +1221,7 @@ def test_analyze_returns_no_for_missing_dimension_property_check() -> None:
     )
     dataset = Dataset(name="support", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "Is region a dimension?")
+    result = PromptAnalysisFrontend().analyze(dataset, "Is region a dimension?")
 
     assert "No, the dataset does not contain a column named region." in result.summary
     assert result.response["interpretation"]["options"]["existence_mode"] == "column_property_check"
@@ -1238,7 +1238,7 @@ def test_analyze_returns_yes_for_measure_property_check() -> None:
     )
     dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "Is revenue a measure?")
+    result = PromptAnalysisFrontend().analyze(dataset, "Is revenue a measure?")
 
     assert "Yes, revenue is a measure column." in result.summary
     assert result.response["interpretation"]["options"]["existence_mode"] == "column_property_check"
@@ -1255,7 +1255,7 @@ def test_analyze_returns_yes_for_column_presence_check() -> None:
     )
     dataset = Dataset(name="support", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "Does the dataset have a created_at column?")
+    result = PromptAnalysisFrontend().analyze(dataset, "Does the dataset have a created_at column?")
 
     assert "Yes, the dataset contains the created_at column." in result.summary
     assert result.response["interpretation"]["options"]["existence_mode"] == "column_presence_check"
@@ -1272,7 +1272,7 @@ def test_analyze_returns_no_for_missing_column_presence_check() -> None:
     )
     dataset = Dataset(name="support", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "Does the dataset have a ticket_id column?")
+    result = PromptAnalysisFrontend().analyze(dataset, "Does the dataset have a ticket_id column?")
 
     assert "No, the dataset does not contain a column named ticket_id." in result.summary
     assert result.response["interpretation"]["options"]["existence_mode"] == "column_presence_check"
@@ -1289,7 +1289,7 @@ def test_analyze_returns_no_for_high_cardinality_property_check() -> None:
     )
     dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "Is region high cardinality?")
+    result = PromptAnalysisFrontend().analyze(dataset, "Is region high cardinality?")
 
     assert "No, region is not high cardinality" in result.summary
     assert result.response["interpretation"]["options"]["existence_mode"] == "column_property_check"
@@ -1306,7 +1306,7 @@ def test_analyze_supports_p_value_driven_inference_workflow() -> None:
     )
     dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "Is revenue by region statistically significant?")
+    result = PromptAnalysisFrontend().analyze(dataset, "Is revenue by region statistically significant?")
 
     assert "Welch t-test for revenue by region" in result.summary
     assert any(table.name == "significance_test" for table in result.tables)
@@ -1321,7 +1321,7 @@ def test_analyze_supports_natural_significance_prompt() -> None:
     )
     dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "Do regions differ in revenue?")
+    result = PromptAnalysisFrontend().analyze(dataset, "Do regions differ in revenue?")
 
     assert "Welch t-test for revenue by region" in result.summary
     assert result.response["interpretation"]["options"]["statistical_test"] == "significance_inference"
@@ -1337,7 +1337,7 @@ def test_analyze_supports_natural_confidence_interval_prompt() -> None:
     )
     dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "What range are we 95% confident revenue falls in?")
+    result = PromptAnalysisFrontend().analyze(dataset, "What range are we 95% confident revenue falls in?")
 
     assert "confidence interval for revenue" in result.summary
     assert result.response["interpretation"]["options"]["statistical_test"] == "confidence_interval"
@@ -1353,7 +1353,7 @@ def test_analyze_supports_natural_power_analysis_prompt() -> None:
     )
     dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "Do we have enough data to detect a difference in revenue by region?")
+    result = PromptAnalysisFrontend().analyze(dataset, "Do we have enough data to detect a difference in revenue by region?")
 
     assert "Observed power" in result.summary
     assert result.response["interpretation"]["options"]["statistical_test"] == "power_analysis"
@@ -1369,7 +1369,7 @@ def test_analyze_supports_natural_sample_size_prompt() -> None:
     )
     dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "How many rows per group do we need for revenue by region?")
+    result = PromptAnalysisFrontend().analyze(dataset, "How many rows per group do we need for revenue by region?")
 
     assert "Estimated sample size per group" in result.summary
     assert result.response["interpretation"]["options"]["statistical_test"] == "sample_size_estimate"
@@ -1386,7 +1386,7 @@ def test_analyze_supports_natural_regression_significance_prompt() -> None:
     )
     dataset = Dataset(name="tickets", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "Does resolution_hours significantly affect csat_score?")
+    result = PromptAnalysisFrontend().analyze(dataset, "Does resolution_hours significantly affect csat_score?")
 
     assert "Regression significance" in result.summary
     assert result.response["interpretation"]["target"] == "csat_score"
@@ -1404,7 +1404,7 @@ def test_analyze_supports_ranked_row_retrieval_prompt() -> None:
     )
     dataset = Dataset(name="support_tickets_500", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "What is the top 5 longest hours of resolution?")
+    result = PromptAnalysisFrontend().analyze(dataset, "What is the top 5 longest hours of resolution?")
 
     assert result.response["interpretation"]["intent_name"] == "row_ranking"
     assert result.response["interpretation"]["target"] == "resolution_hours"
@@ -1421,7 +1421,7 @@ def test_analyze_supports_group_ranking_summary_prompt() -> None:
     )
     dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "Show bottom 2 revenue by region")
+    result = PromptAnalysisFrontend().analyze(dataset, "Show bottom 2 revenue by region")
 
     assert result.response["interpretation"]["intent_name"] == "group_ranking"
     assert "Bottom 2 revenue groups" in result.summary
@@ -1437,7 +1437,7 @@ def test_analyze_supports_grouped_entity_count_prompt() -> None:
     )
     dataset = Dataset(name="tickets", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "Give me a list of total tickets per channel.")
+    result = PromptAnalysisFrontend().analyze(dataset, "Give me a list of total tickets per channel.")
 
     assert result.response["interpretation"]["intent_name"] == "grouped_tabular_query"
     assert result.response["interpretation"]["options"]["intent_name"] == "grouped_tabular_query"
@@ -1458,7 +1458,7 @@ def test_analyze_rejects_dimension_mean_prompt_instead_of_falling_back() -> None
     dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
 
     with pytest.raises(Exception):
-        Saida().analyze(dataset, "What is the average region?")
+        PromptAnalysisFrontend().analyze(dataset, "What is the average region?")
 
 
 def test_analyze_rejects_time_max_prompt_instead_of_falling_back() -> None:
@@ -1472,7 +1472,7 @@ def test_analyze_rejects_time_max_prompt_instead_of_falling_back() -> None:
     dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
 
     with pytest.raises(Exception):
-        Saida().analyze(dataset, "What is the highest posted_at?")
+        PromptAnalysisFrontend().analyze(dataset, "What is the highest posted_at?")
 
 
 def test_analyze_time_coverage_rejects_datasets_without_time_columns() -> None:
@@ -1480,7 +1480,7 @@ def test_analyze_time_coverage_rejects_datasets_without_time_columns() -> None:
     dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
 
     with pytest.raises(Exception):
-        Saida().analyze(dataset, "Which years are present in the sales data?")
+        PromptAnalysisFrontend().analyze(dataset, "Which years are present in the sales data?")
 
 
 def test_analyze_supports_sql_adapter_input(tmp_path: Path) -> None:
@@ -1493,7 +1493,7 @@ def test_analyze_supports_sql_adapter_input(tmp_path: Path) -> None:
     connection.close()
 
     dataset = SQLAdapter(database_path, "select posted_at, revenue, region from sales").load()
-    result = Saida().analyze(dataset, "Why did revenue drop in March?")
+    result = PromptAnalysisFrontend().analyze(dataset, "Why did revenue drop in March?")
 
     assert result.summary
     assert any(metric.name == "revenue_sum" for metric in result.metrics)
@@ -1509,7 +1509,7 @@ def test_analyze_supports_quarter_prompt_now() -> None:
     )
     dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "Compare revenue this quarter to last quarter")
+    result = PromptAnalysisFrontend().analyze(dataset, "Compare revenue this quarter to last quarter")
 
     assert result.response["interpretation"]["intent_name"] == "time_period_comparison"
 
@@ -1550,7 +1550,7 @@ def test_analyze_returns_filtered_row_table_for_reopened_prompt() -> None:
     )
     dataset = Dataset(name="tickets", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "Give me the list of all rows in dataset that have their tickets marked as reopened.")
+    result = PromptAnalysisFrontend().analyze(dataset, "Give me the list of all rows in dataset that have their tickets marked as reopened.")
 
     table = next(table for table in result.tables if table.name == "tabular_query")
     assert result.response["interpretation"]["intent_name"] == "tabular_query"
@@ -1571,7 +1571,7 @@ def test_analyze_returns_selected_columns_for_tabular_prompt() -> None:
     )
     dataset = Dataset(name="tickets", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "Show ticket_id and priority rows sorted by created_at")
+    result = PromptAnalysisFrontend().analyze(dataset, "Show ticket_id and priority rows sorted by created_at")
 
     table = next(table for table in result.tables if table.name == "tabular_query")
     assert list(table.dataframe.columns) == ["ticket_id", "priority", "created_at"]
@@ -1588,7 +1588,7 @@ def test_analyze_returns_grouped_tabular_query_for_table_prompt() -> None:
     )
     dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "Show revenue by region as table")
+    result = PromptAnalysisFrontend().analyze(dataset, "Show revenue by region as table")
 
     table = next(table for table in result.tables if table.name == "grouped_tabular_query")
     assert result.response["interpretation"]["intent_name"] == "grouped_tabular_query"
@@ -1606,7 +1606,7 @@ def test_analyze_returns_paginated_tabular_query() -> None:
     )
     dataset = Dataset(name="tickets", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "Return first 3 rows page 2 page size 2 sorted by created_at")
+    result = PromptAnalysisFrontend().analyze(dataset, "Return first 3 rows page 2 page size 2 sorted by created_at")
 
     table = next(table for table in result.tables if table.name == "tabular_query")
     assert list(table.dataframe["ticket_id"]) == ["T3"]
@@ -1690,7 +1690,7 @@ def test_analyze_supports_extended_recurring_time_filters(
 ) -> None:
     dataset = _build_recurring_time_filter_dataset()
 
-    result = Saida().analyze(dataset, question)
+    result = PromptAnalysisFrontend().analyze(dataset, question)
 
     table = next(table for table in result.tables if table.name == "tabular_query")
     assert result.response["status"] == "ok"
@@ -1703,7 +1703,7 @@ def test_analyze_supports_extended_recurring_time_filters(
 def test_analyze_supports_recent_window_time_filter() -> None:
     dataset = _build_recent_window_dataset()
 
-    result = Saida().analyze(dataset, "List all rows from the last 7 days")
+    result = PromptAnalysisFrontend().analyze(dataset, "List all rows from the last 7 days")
 
     table = next(table for table in result.tables if table.name == "tabular_query")
     assert result.response["status"] == "ok"
@@ -1724,7 +1724,7 @@ def test_analyze_supports_recent_window_time_filter() -> None:
 def test_analyze_supports_row_count_for_quarter_filtered_prompt(question: str) -> None:
     dataset = _build_recurring_time_filter_dataset()
 
-    result = Saida().analyze(dataset, question)
+    result = PromptAnalysisFrontend().analyze(dataset, question)
 
     assert result.response["status"] == "ok"
     assert result.response["interpretation"]["intent_name"] == "row_count"
@@ -1743,7 +1743,7 @@ def test_analyze_keeps_distinct_values_for_dimension_listing_prompt() -> None:
     )
     dataset = Dataset(name="tickets", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, "Give me a list of all priority values")
+    result = PromptAnalysisFrontend().analyze(dataset, "Give me a list of all priority values")
 
     assert result.response["interpretation"]["intent_name"] == "distinct_values"
     assert any(table.name == "distinct_values" for table in result.tables)
@@ -1769,8 +1769,9 @@ _SMOKE_ANALYZE_CASES = [
 def test_smoke_many_end_to_end_analysis_cases(case_id: int, dataframe: pd.DataFrame, question: str) -> None:
     dataset = Dataset(name=f"sales_{case_id}", source_type="pandas", data=dataframe)
 
-    result = Saida().analyze(dataset, question)
+    result = PromptAnalysisFrontend().analyze(dataset, question)
 
     assert result.plan.task_type == "diagnostic"
     assert any(table.name == "period_comparison" for table in result.tables)
     assert result.artifacts["profile"]["dataset_name"] == f"sales_{case_id}"
+

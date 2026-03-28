@@ -8,8 +8,6 @@ from saida.adapters import ComputeRequest, DuckDBAdapter, MetadataComputeAdapter
 from saida.config import SaidaConfig
 from saida.core import (
     BackendRouter,
-    InputCanonicalizer,
-    PlanBuilder,
     PlanValidator,
     get_analytics_registry,
     get_prompt_family_catalog,
@@ -21,7 +19,6 @@ from saida.core import (
 from saida.exceptions import ReasoningError, ValidationError
 from saida.llm import BaseLlmProvider, ResponseContext, build_llm_provider
 from saida.outputs import JsonOutputAdapter, OutputInterface, SummaryFormatter, SummaryOutputAdapter
-from saida.plan_generation import LlmAssistedPlanGenerator, OpenAIPlanGenerator, RuleBasedPlanGenerator
 from saida.core.contracts import (
     AnalysisResult,
     AnalysisPlan,
@@ -51,7 +48,8 @@ class Saida:
     - AnalysisResult
 
     Prompt generation and LLM usage remain supported, but they are optional
-    frontend helpers layered on top of the core execution contract.
+    frontend helpers layered on top of the core execution contract via
+    ``PromptAnalysisFrontend``.
     """
 
     HIGH_CARDINALITY_DISTINCT_RATIO = 0.8
@@ -59,8 +57,6 @@ class Saida:
     def __init__(self, config: SaidaConfig | None = None, llm_provider: BaseLlmProvider | None = None) -> None:
         self.config = config or SaidaConfig()
         self.discovery = SchemaDiscoveryService()
-        self.canonicalizer = InputCanonicalizer(self.config.nlp)
-        self.plan_builder = PlanBuilder()
         self.validator = PlanValidator()
         self.duckdb = DuckDBAdapter()
         self.metadata = MetadataComputeAdapter()
@@ -79,16 +75,6 @@ class Saida:
         }
         self.result_canonicalizer = ResultCanonicalizer()
         self.llm_provider = llm_provider or build_llm_provider(self.config.llm)
-        self.rule_based_plan_generator = RuleBasedPlanGenerator(self.canonicalizer, self.plan_builder)
-        self.llm_plan_generator = (
-            OpenAIPlanGenerator(self.canonicalizer, self.plan_builder, self.llm_provider)
-            if self.llm_provider is not None and getattr(self.llm_provider, "provider_name", None) == "openai"
-            else (
-                LlmAssistedPlanGenerator(self.canonicalizer, self.plan_builder, self.llm_provider)
-                if self.llm_provider is not None
-                else None
-            )
-        )
 
     def profile(self, dataset: Dataset) -> DatasetProfile:
         """Profile a dataset deterministically."""
@@ -97,8 +83,6 @@ class Saida:
     def capabilities(self) -> dict[str, bool]:
         """Return the currently available public SAIDA capabilities."""
         return {
-            "analyze": True,
-            "plan": True,
             "execute_plan": True,
             "profile": True,
             "load_context": True,
@@ -106,9 +90,7 @@ class Saida:
             "train": False,
             "predict": False,
             "forecast": False,
-            "prompt_capability_contract": True,
             "capability_registry": True,
-            "llm_prompting": bool(self.llm_provider and self.config.llm.use_for_prompting),
             "llm_reasoning": bool(self.llm_provider and self.config.llm.use_for_reasoning),
         }
 
@@ -124,29 +106,6 @@ class Saida:
         if selected_adapter is None:
             raise ValidationError(f"No output adapter is registered for format '{output_format}'.")
         return selected_adapter.render(result)
-
-    def _generate_plan_result(
-        self,
-        question: str,
-        dataset: Dataset,
-        profile: DatasetProfile,
-    ):
-        generator = (
-            self.llm_plan_generator
-            if self.llm_plan_generator is not None and self.config.llm.use_for_prompting
-            else self.rule_based_plan_generator
-        )
-        return generator.generate(question, dataset, profile, dataset.context)
-
-    def plan(self, dataset: Dataset, question: str) -> AnalysisPlan:
-        """Optional frontend helper that compiles a question into a candidate plan."""
-        self.validator.validate_dataset(dataset)
-        profile = self.profile(dataset)
-        generation = self._generate_plan_result(question, dataset, profile)
-        plan = self._bind_plan_to_dataset(generation.plan, dataset, generation.request, profile)
-        if plan.steps:
-            self.validator.validate_plan(plan, dataset=dataset, profile=profile, router=self.router)
-        return plan
 
     def execute_plan(
         self,
@@ -190,74 +149,6 @@ class Saida:
             capability_contract=None,
             warning_groups=(profile.warnings,),
         )
-
-    def analyze(self, dataset: Dataset, question: str) -> AnalysisResult:
-        """Optional convenience helper for prompt-to-plan-to-result execution."""
-        self.validator.validate_dataset(dataset)
-        trace = [self._trace("adapter", "dataset loaded", {"dataset": dataset.name})]
-        if dataset.context is not None:
-            trace.append(self._trace("context", "context attached", {"metric_count": len(dataset.context.metric_definitions)}))
-
-        profile = self.profile(dataset)
-        trace.append(self._trace("profiling", "profile generated", {"row_count": profile.row_count}))
-
-        generation = self._generate_plan_result(question, dataset, profile)
-        request = generation.request
-        if generation.trace_event is not None:
-            trace.append(generation.trace_event)
-        trace.append(self._trace("nlp", "request normalized", {"task_type": request.task_type_hint, "target": request.target}))
-
-        capability_contract = generation.capability_contract
-        trace.append(
-            self._trace(
-                "contract",
-                "prompt capability contract built",
-                {
-                    "status": capability_contract.status,
-                    "selected_capabilities": list(capability_contract.selected_capabilities),
-                },
-            )
-        )
-
-        plan = self._bind_plan_to_dataset(generation.plan, dataset, request, profile)
-        if generation.terminal_summary is not None:
-            summary = generation.terminal_summary
-            trace.append(self._trace("results", "planning clarification returned", {"summary_length": len(summary)}))
-            return self.result_canonicalizer.build_analysis_result(
-                summary,
-                None,
-                None,
-                "deterministic",
-                [],
-                [],
-                self._merge_warnings(
-                    generation.request_warnings,
-                    capability_contract.warnings,
-                    generation.contract_warning_messages,
-                ),
-                plan,
-                request,
-                profile,
-                trace,
-                capability_contract,
-            )
-
-        return self._execute_prepared_plan(
-            dataset=dataset,
-            question=question,
-            request=request,
-            profile=profile,
-            plan=plan,
-            trace=trace,
-            capability_contract=capability_contract,
-            warning_groups=(
-                profile.warnings,
-                generation.request_warnings,
-                capability_contract.warnings,
-                generation.contract_warning_messages,
-            ),
-        )
-
     def _execute_prepared_plan(
         self,
         dataset: Dataset,

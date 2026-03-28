@@ -177,7 +177,8 @@ PAGINATION_FIELDS = (
 
 INPUT_SURFACE = {
     "entry_points": [
-        "Saida.analyze(dataset, question)",
+        "PromptAnalysisFrontend.analyze(dataset, question)",
+        "Saida.execute_plan(dataset, plan)",
         "Saida.profile(dataset)",
         "Saida.load_context(markdown)",
         "Saida.train(dataset, target, problem_type='regression', feature_columns=None)",

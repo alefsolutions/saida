@@ -15,7 +15,7 @@ Quick links:
 ### Changed
 
 - Re-centered SAIDA around `AnalysisPlan` as the executable contract and `AnalysisResult` as the standardized output.
-- Added `Saida.plan(...)` and `Saida.execute_plan(...)` as first-class plan APIs.
+- Added `PromptAnalysisFrontend.plan(...)` and `Saida.execute_plan(...)` as first-class plan APIs.
 - Expanded `AnalysisPlan` to `saida.plan.v2` with:
   - `plan_id`
   - `dataset_refs`

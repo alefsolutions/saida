@@ -229,9 +229,9 @@ print(result.response["result"]["value"])
 ### 3. Use Optional Prompt-to-Plan Generation
 
 ```python
-from saida import Saida
+from saida import PromptAnalysisFrontend
 
-engine = Saida()
+engine = PromptAnalysisFrontend()
 result = engine.analyze(dataset, "How many tickets do we have by team?")
 
 print(result.summary)

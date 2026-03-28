@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from saida import Saida
+from saida import PromptAnalysisFrontend, Saida
 from saida.core import PlanValidator
 from saida.core.contracts import AnalysisPlan, PlanInput, PlanStep
 from saida.exceptions import PlanningError
@@ -10,7 +10,7 @@ from .factories import build_support_dataset, json_safe
 
 
 def test_engine_plan_builds_bound_vnext_plan() -> None:
-    engine = Saida()
+    engine = PromptAnalysisFrontend()
     dataset = build_support_dataset()
 
     plan = engine.plan(dataset, "How many rows do we have?")
@@ -30,11 +30,12 @@ def test_engine_plan_builds_bound_vnext_plan() -> None:
 
 
 def test_engine_execute_plan_round_trip_matches_analyze_for_row_count() -> None:
+    prompt_frontend = PromptAnalysisFrontend()
     engine = Saida()
     dataset = build_support_dataset()
 
-    plan = engine.plan(dataset, "How many rows do we have?")
-    analyzed = engine.analyze(dataset, "How many rows do we have?")
+    plan = prompt_frontend.plan(dataset, "How many rows do we have?")
+    analyzed = prompt_frontend.analyze(dataset, "How many rows do we have?")
     executed = engine.execute_plan(dataset, plan)
 
     assert json_safe(executed.response["result"]) == json_safe(analyzed.response["result"])
@@ -70,7 +71,7 @@ def test_engine_execute_plan_supports_user_authored_row_count_plan() -> None:
     assert result.response["interpretation"]["filters"] == {"reopened_flag": "no"}
 
 
-def test_execute_plan_does_not_require_prompt_generation_path_for_authored_plan(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_execute_plan_does_not_require_prompt_generation_path_for_authored_plan() -> None:
     engine = Saida()
     dataset = build_support_dataset()
     plan = AnalysisPlan(
@@ -89,16 +90,11 @@ def test_execute_plan_does_not_require_prompt_generation_path_for_authored_plan(
         expected_result_shape="scalar",
     )
 
-    def _unexpected_generate_plan_result(question: str, dataset_arg: object, profile_arg: object) -> object:
-        _ = question
-        _ = dataset_arg
-        _ = profile_arg
-        raise AssertionError("Prompt-generation path should not run during execute_plan().")
-
-    monkeypatch.setattr(engine, "_generate_plan_result", _unexpected_generate_plan_result)
-
     result = engine.execute_plan(dataset, plan)
 
+    assert not hasattr(engine, "plan")
+    assert not hasattr(engine, "analyze")
+    assert not hasattr(engine, "_generate_plan_result")
     assert result.response["status"] == "ok"
     assert result.response["result"]["name"] == "row_count"
     assert result.response["result"]["value"] == 7
@@ -110,8 +106,19 @@ def test_capabilities_expose_execute_plan_as_core_framework_surface() -> None:
     assert capabilities["execute_plan"] is True
     assert capabilities["profile"] is True
     assert capabilities["render_output"] is True
+    assert "plan" not in capabilities
+    assert "analyze" not in capabilities
+    assert "prompt_capability_contract" not in capabilities
+
+
+def test_prompt_frontend_exposes_prompt_surface_capabilities() -> None:
+    capabilities = PromptAnalysisFrontend().capabilities()
+
+    assert capabilities["execute_plan"] is True
+    assert capabilities["profile"] is True
     assert capabilities["plan"] is True
     assert capabilities["analyze"] is True
+    assert capabilities["prompt_capability_contract"] is True
 
 
 def test_plan_validator_rejects_duplicate_step_ids() -> None:

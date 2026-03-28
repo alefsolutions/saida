@@ -5,7 +5,7 @@ from typing import Any, Callable
 
 import pytest
 
-from saida import Saida
+from saida import PromptAnalysisFrontend
 from saida.core.contracts import AnalysisPlan, AnalysisRequest, Dataset
 from saida.core.prompt_family_catalog import build_default_prompt_family_catalog
 from .factories import build_recurring_time_dataset, build_sales_dataset, build_support_dataset, json_safe
@@ -787,7 +787,7 @@ def _assert_option_subset(options: dict[str, Any], expected_option_subset: dict[
 
 @pytest.mark.parametrize("case", _REPRODUCIBILITY_CASES, ids=[case.family_id for case in _REPRODUCIBILITY_CASES])
 def test_prompt_family_paraphrases_reproduce_same_request_plan_and_result(case: ReproducibilityCase) -> None:
-    engine = Saida()
+    engine = PromptAnalysisFrontend()
     dataset = case.dataset_factory()
     profile = engine.profile(dataset)
 

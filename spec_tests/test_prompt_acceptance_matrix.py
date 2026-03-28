@@ -5,7 +5,7 @@ from typing import Any, Callable
 
 import pytest
 
-from saida import Saida
+from saida import PromptAnalysisFrontend
 from saida.core.contracts import Dataset
 from .factories import build_support_dataset, json_safe
 from .test_plan_reproducibility import ReproducibilityCase, _REPRODUCIBILITY_CASES, _UNSET
@@ -174,7 +174,7 @@ _PAYLOAD_REPRODUCIBILITY_CASES = _build_payload_reproducibility_cases()
 
 @pytest.mark.parametrize("case", _PROMPT_ACCEPTANCE_CASES, ids=[case.case_id for case in _PROMPT_ACCEPTANCE_CASES])
 def test_prompt_acceptance_matrix_request_and_plan(case: PromptAcceptanceCase) -> None:
-    engine = Saida()
+    engine = PromptAnalysisFrontend()
     dataset = case.dataset_factory()
     profile = engine.profile(dataset)
 
@@ -209,7 +209,7 @@ def test_prompt_acceptance_matrix_request_and_plan(case: PromptAcceptanceCase) -
 
 @pytest.mark.parametrize("case", _PROMPT_ACCEPTANCE_CASES, ids=[case.case_id for case in _PROMPT_ACCEPTANCE_CASES])
 def test_prompt_acceptance_matrix_engine_response(case: PromptAcceptanceCase) -> None:
-    engine = Saida()
+    engine = PromptAnalysisFrontend()
     dataset = case.dataset_factory()
 
     result = engine.analyze(dataset, case.question)
@@ -237,7 +237,7 @@ def test_prompt_acceptance_matrix_engine_response(case: PromptAcceptanceCase) ->
     ids=[case.case_id for case in _PAYLOAD_REPRODUCIBILITY_CASES],
 )
 def test_prompt_payload_reproducibility_across_format_variants(case: PromptAcceptanceCase) -> None:
-    engine = Saida()
+    engine = PromptAnalysisFrontend()
     dataset = case.dataset_factory()
 
     baseline_signature: dict[str, Any] | None = None

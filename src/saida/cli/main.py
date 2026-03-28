@@ -6,7 +6,7 @@ import argparse
 import json
 from pathlib import Path
 
-from saida import Saida
+from saida import PromptAnalysisFrontend, Saida
 from saida.config import LlmConfig, SaidaConfig
 from saida.core import AnalysisResult, DatasetProfile
 from saida.sources import CSVSource
@@ -63,7 +63,7 @@ def main() -> int:
 
     if args.command == "analyze":
         dataset = _load_csv_dataset(args.csv, args.context)
-        engine = Saida(config=_build_cli_config(args.llm_provider, args.llm_model, args.llm_base_url))
+        engine = PromptAnalysisFrontend(config=_build_cli_config(args.llm_provider, args.llm_model, args.llm_base_url))
         result = engine.analyze(dataset, args.question)
         if args.json:
             print(json.dumps(_analysis_payload(result), indent=2, allow_nan=False))

@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from saida import Saida
+from saida import PromptAnalysisFrontend
 from saida.outputs import JsonOutputAdapter, OutputInterface, SummaryOutputAdapter
 from .factories import build_support_dataset
 
 
 def test_json_output_adapter_implements_output_interface() -> None:
-    engine = Saida()
+    engine = PromptAnalysisFrontend()
     dataset = build_support_dataset()
     result = engine.analyze(dataset, "How many rows do we have?")
     adapter = JsonOutputAdapter()
@@ -19,7 +19,7 @@ def test_json_output_adapter_implements_output_interface() -> None:
 
 
 def test_summary_output_adapter_implements_output_interface() -> None:
-    engine = Saida()
+    engine = PromptAnalysisFrontend()
     dataset = build_support_dataset()
     result = engine.analyze(dataset, "How many rows do we have?")
     adapter = SummaryOutputAdapter()
@@ -32,7 +32,7 @@ def test_summary_output_adapter_implements_output_interface() -> None:
 
 
 def test_engine_render_output_uses_registered_json_adapter() -> None:
-    engine = Saida()
+    engine = PromptAnalysisFrontend()
     dataset = build_support_dataset()
     result = engine.analyze(dataset, "How many rows do we have?")
 
@@ -42,7 +42,7 @@ def test_engine_render_output_uses_registered_json_adapter() -> None:
 
 
 def test_engine_render_output_uses_registered_summary_adapter() -> None:
-    engine = Saida()
+    engine = PromptAnalysisFrontend()
     dataset = build_support_dataset()
     result = engine.analyze(dataset, "How many rows do we have?")
 

@@ -4,10 +4,14 @@ from __future__ import annotations
 
 from typing import Any
 
-__all__ = ["Saida"]
+__all__ = ["PromptAnalysisFrontend", "Saida"]
 
 
 def __getattr__(name: str) -> Any:
+    if name == "PromptAnalysisFrontend":
+        from saida.plan_generation import PromptAnalysisFrontend
+
+        return PromptAnalysisFrontend
     if name == "Saida":
         from saida.engine import Saida
 

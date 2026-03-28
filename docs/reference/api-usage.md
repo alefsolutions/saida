@@ -98,6 +98,9 @@ for step in plan.steps:
 ### Analyze From A Prompt
 
 ```python
+from saida import PromptAnalysisFrontend
+
+engine = PromptAnalysisFrontend()
 result = engine.analyze(dataset, "How many tickets do we have by team?")
 
 print(result.summary)
@@ -127,13 +130,13 @@ What it does:
 
 The optional `request` argument is useful when you want explicit result-shaping context for a plan that could otherwise be interpreted more generically.
 
-### `Saida().plan(dataset, question)`
+### `PromptAnalysisFrontend().plan(dataset, question)`
 
 Optional frontend helper.
 
 Use this when you want SAIDA to generate a candidate `AnalysisPlan` from a prompt without executing it yet.
 
-### `Saida().analyze(dataset, question)`
+### `PromptAnalysisFrontend().analyze(dataset, question)`
 
 Optional end-to-end convenience method.
 

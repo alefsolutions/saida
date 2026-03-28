@@ -7,7 +7,7 @@ SRC_PATH = PROJECT_ROOT / "src"
 if str(SRC_PATH) not in sys.path:
     sys.path.insert(0, str(SRC_PATH))
 
-from saida import Saida
+from saida import PromptAnalysisFrontend
 from saida.sources import CSVSource
 
 
@@ -17,7 +17,7 @@ def main() -> None:
         context_path=PROJECT_ROOT / "examples" / "sales_context.md",
     ).load()
 
-    engine = Saida()
+    engine = PromptAnalysisFrontend()
     result = engine.analyze(dataset, "Why did revenue drop in March by region?")
 
     print(result.summary)
@@ -28,3 +28,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

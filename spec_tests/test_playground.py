@@ -71,7 +71,7 @@ def test_openai_playground_exits_cleanly_from_clarification_prompt(
     monkeypatch.setattr(openai_playground, "load_project_env", lambda project_root: None)
     monkeypatch.setattr(openai_playground.os, "getenv", lambda key, default=None: "test-key" if key == "OPENAI_API_KEY" else default)
     monkeypatch.setattr(openai_playground.CSVSource, "load", lambda self: dataset)
-    monkeypatch.setattr(openai_playground, "Saida", lambda config=None: fake_engine)
+    monkeypatch.setattr(openai_playground, "PromptAnalysisFrontend", lambda config=None: fake_engine)
 
     answers = iter(["Hi there", "exit"])
     monkeypatch.setattr("builtins.input", lambda prompt="": next(answers))
@@ -93,7 +93,7 @@ def test_openai_playground_reuses_original_request_for_clarification_follow_up(
     monkeypatch.setattr(openai_playground, "load_project_env", lambda project_root: None)
     monkeypatch.setattr(openai_playground.os, "getenv", lambda key, default=None: "test-key" if key == "OPENAI_API_KEY" else default)
     monkeypatch.setattr(openai_playground.CSVSource, "load", lambda self: dataset)
-    monkeypatch.setattr(openai_playground, "Saida", lambda config=None: fake_engine)
+    monkeypatch.setattr(openai_playground, "PromptAnalysisFrontend", lambda config=None: fake_engine)
 
     answers = iter(["How many columns?", "Count the dataset fields", "exit"])
     monkeypatch.setattr("builtins.input", lambda prompt="": next(answers))
@@ -117,7 +117,7 @@ def test_openai_playground_json_mode_prints_structured_contract(
     monkeypatch.setattr(openai_playground, "load_project_env", lambda project_root: None)
     monkeypatch.setattr(openai_playground.os, "getenv", lambda key, default=None: "test-key" if key == "OPENAI_API_KEY" else default)
     monkeypatch.setattr(openai_playground.CSVSource, "load", lambda self: dataset)
-    monkeypatch.setattr(openai_playground, "Saida", lambda config=None: fake_engine)
+    monkeypatch.setattr(openai_playground, "PromptAnalysisFrontend", lambda config=None: fake_engine)
     monkeypatch.setattr(openai_playground.sys, "argv", ["run_analysis_openai.py", "--json"])
 
     answers = iter(["Hi there", "exit"])
@@ -145,7 +145,7 @@ def test_openai_yellow_json_playground_prints_full_response_payload(
         lambda key, default=None: "test-key" if key == "OPENAI_API_KEY" else default,
     )
     monkeypatch.setattr(openai_playground_json_yellow.CSVSource, "load", lambda self: dataset)
-    monkeypatch.setattr(openai_playground_json_yellow, "Saida", lambda config=None: fake_engine)
+    monkeypatch.setattr(openai_playground_json_yellow, "PromptAnalysisFrontend", lambda config=None: fake_engine)
 
     answers = iter(["Hi there", "exit"])
     monkeypatch.setattr("builtins.input", lambda prompt="": next(answers))
@@ -174,7 +174,7 @@ def test_openai_yellow_json_playground_renders_clarification_summary_in_result_m
         lambda key, default=None: "test-key" if key == "OPENAI_API_KEY" else default,
     )
     monkeypatch.setattr(openai_playground_json_yellow.CSVSource, "load", lambda self: dataset)
-    monkeypatch.setattr(openai_playground_json_yellow, "Saida", lambda config=None: fake_engine)
+    monkeypatch.setattr(openai_playground_json_yellow, "PromptAnalysisFrontend", lambda config=None: fake_engine)
 
     answers = iter(["Hi there", "exit"])
     monkeypatch.setattr("builtins.input", lambda prompt="": next(answers))
@@ -202,7 +202,7 @@ def test_openai_yellow_json_playground_can_render_capability_contract(
         lambda key, default=None: "contract" if key == "SAIDA_PLAYGROUND_OUTPUT_MODE" else ("test-key" if key == "OPENAI_API_KEY" else default),
     )
     monkeypatch.setattr(openai_playground_json_yellow.CSVSource, "load", lambda self: dataset)
-    monkeypatch.setattr(openai_playground_json_yellow, "Saida", lambda config=None: fake_engine)
+    monkeypatch.setattr(openai_playground_json_yellow, "PromptAnalysisFrontend", lambda config=None: fake_engine)
 
     answers = iter(["Hi there", "exit"])
     monkeypatch.setattr("builtins.input", lambda prompt="": next(answers))
@@ -224,7 +224,7 @@ def test_sqlite_playground_prints_summary_for_loaded_sqlite_dataset(
     monkeypatch.setattr(sqlite_playground, "load_project_env", lambda project_root: None)
     monkeypatch.setattr(sqlite_playground.os, "getenv", lambda key, default=None: "test-key" if key == "OPENAI_API_KEY" else default)
     monkeypatch.setattr(sqlite_playground.SQLiteSource, "load", lambda self: dataset)
-    monkeypatch.setattr(sqlite_playground, "Saida", lambda config=None: fake_engine)
+    monkeypatch.setattr(sqlite_playground, "PromptAnalysisFrontend", lambda config=None: fake_engine)
 
     answers = iter(["How many rows are there?", "exit"])
     monkeypatch.setattr("builtins.input", lambda prompt="": next(answers))

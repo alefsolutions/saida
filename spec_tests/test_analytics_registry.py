@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from saida import Saida
+from saida import PromptAnalysisFrontend, Saida
 from saida.core import get_analytics_registry
 from saida.core.contracts import AnalysisRequest
 from saida.core.prompt_capability_contract import build_prompt_capability_contract
@@ -21,7 +21,7 @@ def test_default_analytics_registry_covers_live_row_count_method() -> None:
 
 
 def test_engine_plan_binds_step_family_from_analytics_registry() -> None:
-    engine = Saida()
+    engine = PromptAnalysisFrontend()
     dataset = build_support_dataset()
 
     plan = engine.plan(dataset, "How many rows do we have?")

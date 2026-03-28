@@ -12,7 +12,7 @@ if str(SRC_PATH) not in sys.path:
     sys.path.insert(0, str(SRC_PATH))
 
 from _env import load_project_env
-from saida import Saida
+from saida import PromptAnalysisFrontend
 from saida.config import LlmConfig, SaidaConfig
 from saida.sources import CSVSource
 
@@ -121,7 +121,7 @@ def main() -> None:
         )
     )
 
-    engine = Saida(config=config)
+    engine = PromptAnalysisFrontend(config=config)
     print("SAIDA OpenAI playground")
     print(f"Dataset: {dataset.name}")
     print("Type a question, or type 'exit' to quit.")
@@ -175,3 +175,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

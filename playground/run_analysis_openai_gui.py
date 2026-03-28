@@ -16,7 +16,7 @@ if str(SRC_PATH) not in sys.path:
     sys.path.insert(0, str(SRC_PATH))
 
 from _env import load_project_env
-from saida import Saida
+from saida import PromptAnalysisFrontend
 from saida.config import LlmConfig, SaidaConfig
 from saida.core import AnalysisResult, Dataset
 from saida.sources import CSVSource
@@ -88,7 +88,7 @@ class OpenAiPlaygroundApp:
             context_path=PROJECT_ROOT / "examples" / "sales_context.md",
         ).load()
 
-    def _build_engine(self) -> Saida:
+    def _build_engine(self) -> PromptAnalysisFrontend:
         config = SaidaConfig(
             llm=LlmConfig(
                 enabled=True,
@@ -98,7 +98,7 @@ class OpenAiPlaygroundApp:
                 use_for_reasoning=True,
             )
         )
-        return Saida(config=config)
+        return PromptAnalysisFrontend(config=config)
 
     def _pick_font_family(self) -> str:
         families = set(tkfont.families())

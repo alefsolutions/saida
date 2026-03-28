@@ -5,7 +5,7 @@ from collections.abc import Callable
 import pandas as pd
 import pytest
 
-from saida import Saida
+from saida import PromptAnalysisFrontend
 from saida.core import (
     AnalysisRequest,
     CapabilityNode,
@@ -287,7 +287,7 @@ def test_engine_grouped_tabular_prompt_matrix(
     expected_aggregation: str,
     expected_group_by: list[str],
 ) -> None:
-    result = Saida().analyze(build_tickets_dataset(), question)
+    result = PromptAnalysisFrontend().analyze(build_tickets_dataset(), question)
 
     interpretation = result.response["interpretation"]
 
@@ -334,7 +334,7 @@ def test_engine_grouped_entity_count_guard_matrix(
     present_table_name: str,
     absent_table_name: str,
 ) -> None:
-    result = Saida().analyze(build_tickets_dataset(), question)
+    result = PromptAnalysisFrontend().analyze(build_tickets_dataset(), question)
 
     interpretation = result.response["interpretation"]
 
@@ -362,7 +362,7 @@ def test_engine_llm_candidate_capability_matrix(
     expected_intent_name: str,
     dataset_builder: Callable[[], Dataset],
 ) -> None:
-    engine = Saida(llm_provider=CandidateCapabilityLlmProvider())
+    engine = PromptAnalysisFrontend(llm_provider=CandidateCapabilityLlmProvider())
     engine.config.llm.enabled = True
 
     result = engine.analyze(dataset_builder(), question)

@@ -3,7 +3,7 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from saida import Saida
+from saida import PromptAnalysisFrontend, Saida
 from saida.config import LlmConfig
 from saida.core import get_capability_contract
 from saida.core.contracts import Dataset
@@ -264,8 +264,6 @@ def test_engine_exposes_current_capabilities() -> None:
     capabilities = engine.capabilities()
 
     assert capabilities == {
-        "analyze": True,
-        "plan": True,
         "execute_plan": True,
         "profile": True,
         "load_context": True,
@@ -273,15 +271,13 @@ def test_engine_exposes_current_capabilities() -> None:
         "train": False,
         "predict": False,
         "forecast": False,
-        "prompt_capability_contract": True,
         "capability_registry": True,
-        "llm_prompting": False,
         "llm_reasoning": False,
     }
 
 
 def test_engine_rejects_empty_dataset() -> None:
-    engine = Saida()
+    engine = PromptAnalysisFrontend()
     dataset = Dataset(name="empty", source_type="pandas", data=pd.DataFrame({"revenue": []}))
 
     with pytest.raises(ValidationError, match="Cannot analyze an empty dataset"):
@@ -289,7 +285,7 @@ def test_engine_rejects_empty_dataset() -> None:
 
 
 def test_engine_rejects_duplicate_columns() -> None:
-    engine = Saida()
+    engine = PromptAnalysisFrontend()
     dataset = Dataset(name="dup", source_type="pandas", data=pd.DataFrame([[1, 2]], columns=["revenue", "revenue"]))
 
     with pytest.raises(ValidationError, match="duplicate column names"):
@@ -297,7 +293,7 @@ def test_engine_rejects_duplicate_columns() -> None:
 
 
 def test_engine_rejects_non_dataframe_dataset() -> None:
-    engine = Saida()
+    engine = PromptAnalysisFrontend()
     dataset = Dataset(name="bad", source_type="pandas", data=[{"revenue": 1}])  # type: ignore[arg-type]
 
     with pytest.raises(ValidationError, match="must be a pandas DataFrame"):
@@ -319,7 +315,7 @@ def test_engine_profile_returns_dataset_profile() -> None:
 
 
 def test_engine_analyze_includes_context_trace_stage() -> None:
-    engine = Saida()
+    engine = PromptAnalysisFrontend()
     context = engine.load_context(
         """
 # Dataset: Sales
@@ -347,7 +343,7 @@ revenue: total revenue
 
 
 def test_engine_analyze_without_context_has_no_context_trace_stage() -> None:
-    engine = Saida()
+    engine = PromptAnalysisFrontend()
     dataset = Dataset(
         name="sales",
         source_type="pandas",
@@ -366,7 +362,7 @@ def test_engine_analyze_without_context_has_no_context_trace_stage() -> None:
 
 
 def test_engine_with_llm_provider_exposes_llm_capabilities() -> None:
-    engine = Saida(llm_provider=FakeLlmProvider())
+    engine = PromptAnalysisFrontend(llm_provider=FakeLlmProvider())
     engine.config.llm.enabled = True
 
     capabilities = engine.capabilities()
@@ -376,7 +372,7 @@ def test_engine_with_llm_provider_exposes_llm_capabilities() -> None:
 
 
 def test_engine_returns_clarification_when_llm_requests_it() -> None:
-    engine = Saida(llm_provider=FakeLlmProvider())
+    engine = PromptAnalysisFrontend(llm_provider=FakeLlmProvider())
     engine.config.llm.enabled = True
     dataset = Dataset(
         name="sales",
@@ -398,7 +394,7 @@ def test_engine_returns_clarification_when_llm_requests_it() -> None:
 
 
 def test_engine_returns_refusal_when_llm_declines_request() -> None:
-    engine = Saida(llm_provider=FakeLlmProvider())
+    engine = PromptAnalysisFrontend(llm_provider=FakeLlmProvider())
     engine.config.llm.enabled = True
     dataset = Dataset(
         name="sales",
@@ -419,7 +415,7 @@ def test_engine_returns_refusal_when_llm_declines_request() -> None:
 
 
 def test_engine_overrides_llm_clarification_when_deterministic_intent_is_clear() -> None:
-    engine = Saida(llm_provider=ClarifyingLlmProvider())
+    engine = PromptAnalysisFrontend(llm_provider=ClarifyingLlmProvider())
     engine.config.llm.enabled = True
     dataset = Dataset(
         name="sales",
@@ -441,7 +437,7 @@ def test_engine_overrides_llm_clarification_when_deterministic_intent_is_clear()
 
 
 def test_engine_analysis_response_contract_records_intent_and_operations() -> None:
-    engine = Saida()
+    engine = PromptAnalysisFrontend()
     dataset = Dataset(
         name="sales",
         source_type="pandas",
@@ -476,7 +472,7 @@ def test_engine_analysis_response_contract_records_intent_and_operations() -> No
 
 
 def test_engine_coerces_llm_year_month_filter_on_time_column() -> None:
-    engine = Saida(llm_provider=YearMonthFilterLlmProvider())
+    engine = PromptAnalysisFrontend(llm_provider=YearMonthFilterLlmProvider())
     engine.config.llm.enabled = True
     dataset = Dataset(
         name="support",
@@ -544,7 +540,7 @@ def test_engine_uses_llm_canonical_question_for_condensed_scalar_prompt_routing(
     expected_value: int,
     expected_canonical_question: str,
 ) -> None:
-    engine = Saida(llm_provider=CanonicalQuestionLlmProvider())
+    engine = PromptAnalysisFrontend(llm_provider=CanonicalQuestionLlmProvider())
     engine.config.llm.enabled = True
     dataset = build_canonical_scalar_support_dataset()
 
@@ -582,7 +578,7 @@ def test_engine_uses_llm_semantic_intent_for_operation_object_routing(
     expected_value: int | None,
     expected_shape: str,
 ) -> None:
-    engine = Saida(llm_provider=SemanticIntentLlmProvider())
+    engine = PromptAnalysisFrontend(llm_provider=SemanticIntentLlmProvider())
     engine.config.llm.enabled = True
     dataset = build_canonical_scalar_support_dataset()
 
@@ -599,7 +595,7 @@ def test_engine_uses_llm_semantic_intent_for_operation_object_routing(
 
 
 def test_engine_ignores_invalid_llm_semantic_object_reference_and_recovers_from_rules() -> None:
-    engine = Saida(llm_provider=InvalidSemanticIntentLlmProvider())
+    engine = PromptAnalysisFrontend(llm_provider=InvalidSemanticIntentLlmProvider())
     engine.config.llm.enabled = True
     dataset = build_canonical_scalar_support_dataset()
 
@@ -614,7 +610,7 @@ def test_engine_ignores_invalid_llm_semantic_object_reference_and_recovers_from_
 
 def test_engine_passes_context_summary_into_llm_response_stage() -> None:
     provider = FakeLlmProvider()
-    engine = Saida(llm_provider=provider)
+    engine = PromptAnalysisFrontend(llm_provider=provider)
     engine.config.llm.enabled = True
     context = engine.load_context(
         """
@@ -650,7 +646,7 @@ def test_engine_passes_context_summary_into_llm_response_stage() -> None:
 
 def test_engine_passes_tabular_table_metadata_into_llm_response_stage() -> None:
     provider = FakeLlmProvider()
-    engine = Saida(llm_provider=provider)
+    engine = PromptAnalysisFrontend(llm_provider=provider)
     engine.config.llm.enabled = True
     dataset = Dataset(
         name="tickets",
@@ -687,7 +683,7 @@ def test_llm_factory_builds_openai_provider() -> None:
 
 
 def test_engine_overrides_llm_refusal_for_supported_tabular_query() -> None:
-    engine = Saida(llm_provider=RefusingLlmProvider())
+    engine = PromptAnalysisFrontend(llm_provider=RefusingLlmProvider())
     engine.config.llm.enabled = True
     dataset = Dataset(
         name="tickets",
@@ -816,7 +812,7 @@ _DIRECT_NLP_CASES = [
 
 @pytest.mark.parametrize(("case_id", "dataframe", "question"), _DIRECT_NLP_CASES)
 def test_engine_direct_nlp_path_across_many_cases(case_id: int, dataframe: pd.DataFrame, question: str) -> None:
-    engine = Saida()
+    engine = PromptAnalysisFrontend()
     dataset = Dataset(name=f"direct_{case_id}", source_type="pandas", data=dataframe)
 
     result = engine.analyze(dataset, question)
@@ -844,7 +840,7 @@ _LLM_CASES = [
 
 @pytest.mark.parametrize(("case_id", "dataframe", "question"), _LLM_CASES)
 def test_engine_llm_prompt_and_response_path_across_many_cases(case_id: int, dataframe: pd.DataFrame, question: str) -> None:
-    engine = Saida(llm_provider=FakeLlmProvider())
+    engine = PromptAnalysisFrontend(llm_provider=FakeLlmProvider())
     engine.config.llm.enabled = True
     dataset = Dataset(name=f"llm_{case_id}", source_type="pandas", data=dataframe)
 
