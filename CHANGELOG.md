@@ -49,8 +49,9 @@ Quick links:
 
 ### Documentation
 
-- Rewrote README to describe SAIDA as a canonical analytics framework rather than a prompt-first system.
-- Updated architecture, API, schema, capability, and file-structure docs to match the live framework direction.
+- Rewrote the main docs around the cleaned plan-first framework model.
+- Shortened README to focus on adoption, core usage, and next docs to read.
+- Updated architecture, API, schema, and file-structure docs to consistently position prompt and LLM features as optional frontend layers.
 
 ### Still Present But Optional
 

@@ -1,28 +1,8 @@
-![SAIDA Banner](assets/github-banner.png)
-
 # SAIDA Architecture
 
-This document describes the live `0.2.x` SAIDA architecture.
+SAIDA is a plan-first analytics framework.
 
-The core direction is:
-
-- `Dataset + AnalysisPlan -> Validate -> Execute -> AnalysisResult`
-
-Optional frontend direction:
-
-- `Natural language -> AnalysisPlanGenerator -> candidate AnalysisPlan -> Validate -> Execute -> AnalysisResult`
-
-That distinction matters.
-
-SAIDA is now centered on:
-
-- canonical plans
-- deterministic execution
-- standardized results
-
-Prompt handling and LLM usage are still supported, but they are optional frontend subsystems rather than the heart of the framework.
-
-The execution core can be stated very plainly:
+The core runtime is:
 
 - `Dataset`
 - `AnalysisPlan`
@@ -30,246 +10,158 @@ The execution core can be stated very plainly:
 - execution
 - `AnalysisResult`
 
-## Architectural Principles
+Everything else is built around that.
 
-### Determinism
+## Core Principle
 
-The core guarantee is:
+SAIDA is designed so the same dataset and the same `AnalysisPlan` produce the same `AnalysisResult`.
 
-- same dataset
-- same `AnalysisPlan`
-- same adapter behavior
-- same `AnalysisResult`
+That makes it useful for:
 
-### Contracts First
+- BI dashboards
+- backend analytics APIs
+- internal reporting tools
+- regression testing for analytics jobs
 
-The canonical contracts are:
+## High-Level Flow
 
-- `Dataset`
-- `DatasetProfile`
-- `AnalysisPlan`
-- `AnalysisResult`
+Core flow:
 
-Optional frontend contracts exist too, such as:
+- `Source -> Dataset -> AnalysisPlan -> Validate -> Execute -> AnalysisResult -> OutputAdapter`
 
-- `AnalysisRequest`
-- `PromptCapabilityContract`
-- plan generator proposals
+Optional frontend flow:
 
-But those support the frontend path only. They are not the framework source of truth and they are not part of the primary `saida.core` API surface.
+- `Prompt -> Plan generator -> candidate AnalysisPlan -> Validate -> Execute -> AnalysisResult`
 
-### Clear Layer Separation
+The optional frontend can use rules or an LLM, but the framework itself executes only validated plans.
 
-SAIDA now has explicit layers for:
+## Main Layers
 
-- sourcing
-- plan generation
-- validation
-- analytics family registry
-- compute execution
-- result standardization
-- output rendering
+### 1. Sources
 
-### Replaceable Adapters
+Purpose:
 
-DuckDB, metadata-backed execution, statsmodels-backed execution, and JSON output are the built-in defaults.
+- load external data into a canonical `Dataset`
+- parse optional source context
+- build deterministic `DatasetProfile`
 
-They are important implementations, but they are not the architecture.
-
-## Live High-Level Layers
-
-### 1. Source Layer
-
-Responsibility:
-
-- standardize how data enters SAIDA
-
-Live abstraction:
+Main abstractions and built-ins:
 
 - `SourceInterface`
-
-Live built-ins:
-
 - `CSVSource`
 - `ExcelSource`
 - `JSONSource`
 - `PandasSource`
-- SQL sources such as `SQLiteSource`, `PostgreSQLSource`, and `MySQLSource`
+- `SQLiteSource`
+- `PostgreSQLSource`
+- `MySQLSource`
 - `SourceContextParser`
 - `SchemaDiscoveryService`
 
-Output of this layer:
+### 2. Plan Generation
 
-- canonical `Dataset`
-- deterministic `DatasetProfile`
+Purpose:
 
-### 2. Plan Generation Layer
-
-Responsibility:
-
-- produce a candidate `AnalysisPlan`
-
-Live abstraction:
-
-- `AnalysisPlanGeneratorInterface`
-
-Live generators:
-
-- `RuleBasedPlanGenerator`
-- `LlmAssistedPlanGenerator`
-- `OpenAIPlanGenerator`
+- generate a candidate `AnalysisPlan`
 
 Important note:
 
 - this layer is optional
 - authored plans can skip it entirely
 
-### 3. Validation Layer
+Main abstractions:
 
-Responsibility:
+- `AnalysisPlanGeneratorInterface`
+- `PromptAnalysisFrontend`
+- rule-based generators
+- LLM-assisted generators
 
-- reject invalid or incompatible plans before execution
+### 3. Validation
 
-Live component:
+Purpose:
+
+- reject bad plans before execution
+
+The validator checks:
+
+- step structure
+- method support
+- required parameters
+- field references
+- dataset compatibility
+- backend compatibility
+- expected output and expected result shape
+
+Main component:
 
 - `PlanValidator`
 
-The validator now checks:
+### 4. Analytics Registry
 
-- step structure
-- duplicate ids
-- step dependencies
-- analytics method validity
-- required method inputs
-- allowed method parameters and parameter shapes
-- dataset reference compatibility
-- field existence
-- backend compatibility
-- expected output compatibility
-- expected result compatibility
+Purpose:
 
-The validator is now driven by:
+- define the supported analytics families and methods
 
-- `AnalysisPlan`
-- `Dataset` / `DatasetProfile`
-- the canonical analytics registry
-- backend routing support
-
-### 4. Analytics Family Layer
-
-Responsibility:
-
-- define what SAIDA supports analytically
-
-Live registries:
-
-- canonical analytics registry
-- prompt family catalog for optional prompt generation only
-
-The analytics registry is the single canonical metadata definition for core analytics support:
+The analytics registry is the single source of truth for:
 
 - family ids
 - method ids
-- analytics concepts and relations
 - required inputs
 - allowed configs
 - output shapes
 - default tool families
 
-The prompt family catalog remains useful for optional prompt-to-plan generation.
+### 5. Compute
 
-### 5. Compute Layer
-
-Responsibility:
+Purpose:
 
 - execute validated plan steps
 
-Live abstraction:
+Main abstractions and built-ins:
 
 - `ComputeInterface`
-
-Live built-ins:
-
 - `DuckDBAdapter`
 - `MetadataComputeAdapter`
 - `StatsModelsAdapter`
 - `MlAdapter`
-
-Execution routing happens through:
-
 - `BackendRouter`
 
-Each `PlanStep` selects a `tool_family`, and the router chooses the appropriate adapter.
+### 6. Results
 
-### 6. Result Layer
+Purpose:
 
-Responsibility:
+- standardize execution output into `AnalysisResult`
 
-- collect raw compute outputs
-- standardize them into `AnalysisResult`
-- produce the portable JSON response envelope
-
-Live components:
+Main components:
 
 - `ResultCanonicalizer`
 - `SummaryFormatter`
 
-The standardized JSON contract is:
+The portable JSON contract is:
 
 - `saida.response.v2`
 
-### 7. Output Layer
+### 7. Outputs
 
-Responsibility:
+Purpose:
 
 - render `AnalysisResult` into delivery formats
 
-Live abstraction:
+Main abstractions and built-ins:
 
 - `OutputInterface`
-
-Live built-ins:
-
 - `JsonOutputAdapter`
 - `SummaryOutputAdapter`
 
-This keeps `AnalysisResult` as the source of truth while allowing different delivery targets.
-
-## Main Runtime Flows
-
-### Core Plan-First Flow
-
-1. Load data through a source adapter.
-2. Validate the dataset.
-3. Profile the dataset.
-4. Supply an `AnalysisPlan`.
-5. Validate the plan with dataset/profile/backend context.
-6. Execute plan steps through compute adapters.
-7. Canonicalize the final result into `AnalysisResult`.
-   Primary-result selection is driven by `AnalysisPlan.expected_result_name`, `AnalysisPlan.expected_result_shape`, ordered step metadata, and the artifacts actually produced during execution.
-8. Render through an output adapter if needed.
-
-### Optional Prompt-First Flow
-
-1. Load and profile the dataset.
-2. Use an optional plan generator to build a candidate plan.
-3. Build optional frontend artifacts such as `AnalysisRequest`, `AnalysisInterpretation`, and `PromptCapabilityContract`.
-4. Bind the plan to the dataset.
-5. Validate the plan.
-6. Execute it deterministically.
-7. Return the standardized result.
-
-The prompt-first path is still useful, but it now sits on top of the plan-first core.
-
-## Core Live Contracts
+## Core Contracts
 
 ### `Dataset`
 
-Represents loaded source data plus optional business context.
+Represents loaded data plus optional semantic context.
 
 ### `DatasetProfile`
 
-Represents deterministic schema and surface understanding:
+Represents deterministic dataset understanding:
 
 - columns
 - measures
@@ -277,99 +169,57 @@ Represents deterministic schema and surface understanding:
 - time columns
 - identifiers
 - warnings
-- ML-readiness hints
 
 ### `AnalysisPlan`
 
-The executable workflow contract.
+Represents the work SAIDA should execute.
 
-Key fields include:
+Important fields include:
 
 - `plan_id`
-- `version`
 - `task_type`
 - `rationale`
+- `steps`
 - `dataset_refs`
 - `inputs`
-- `steps`
 - `expected_result_name`
 - `expected_result_shape`
-- `warnings`
-- `metadata`
-
-Each `PlanStep` includes:
-
-- `step_id`
-- `tool_family`
-- `family`
-- `action`
-- `method_id`
-- `parameters`
-- `depends_on`
-- `output_refs`
-- `expected_output`
-- `description`
-- `metadata`
 
 ### `AnalysisResult`
 
-The standardized analytical output contract.
+Represents the standardized analytical output.
 
-It includes:
+It carries:
 
-- summaries
-- metrics
-- tables
+- primary result
+- supporting tables
 - warnings
-- plan
-- trace
-- artifacts
-- response payload
+- execution metadata
+- summaries
+- canonical response payload
 
-## Where Prompt Handling Fits Now
+## What Is Optional
 
-Prompt handling remains part of SAIDA, but in a narrower role.
+Prompt and LLM functionality are optional.
 
-It is now best understood as:
+They can be used for:
 
-- optional plan generation
-- optional clarification support
-- optional response wording support
+- prompt-to-plan generation
+- optional summary enhancement
 
-It is not:
+They are not:
 
 - the compute layer
-- the execution contract
-- the main architectural identity of SAIDA
+- the validation layer
+- the source of analytical truth
 
-## Main Code Areas
+## Code Areas
 
-The current architecture is implemented mainly across:
+Main packages:
 
 - `src/saida/core/`
-- `src/saida/adapters/`
 - `src/saida/sources/`
+- `src/saida/adapters/`
 - `src/saida/outputs/`
 - `src/saida/plan_generation/`
 - `src/saida/llm/`
-
-## Current Strengths
-
-The strongest parts of the current architecture are:
-
-- the richer `AnalysisPlan` contract
-- stronger validation before execution
-- formal source, compute, and output interfaces
-- deterministic compute routing
-- standardized `AnalysisResult`
-- growing plan-centric test coverage
-
-## Remaining Cleanup Area
-
-The main remaining cleanup work is removing prompt-first deadweight that still exists for backward compatibility inside:
-
-- prompt normalization and prompt-family routing
-- legacy prompt-generation helpers
-- optional frontend compatibility helpers
-
-That cleanup is separate from the core architecture, which is already moving in the right direction.

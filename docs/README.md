@@ -1,26 +1,23 @@
 # SAIDA Docs
 
-This folder contains the main SAIDA documentation set.
+Start here if you want the bigger picture behind the framework.
 
-Framework center of gravity:
+Core idea:
 
-- `Dataset`
-- `AnalysisPlan`
-- validation
-- execution
-- `AnalysisResult`
+- input: `AnalysisPlan`
+- output: `AnalysisResult`
 
-Prompt and LLM documentation supports optional frontend utilities layered on top of that core.
+Prompt and LLM features are documented too, but they are optional frontend layers.
 
-## Overview
+## Recommended Reading Order
 
-- [Architecture](./overview/architecture.md)
-- [File Structure](./overview/file-structure.md)
+1. [Architecture](./overview/architecture.md)
+2. [API Usage](./reference/api-usage.md)
+3. [Schema Spec](./reference/schema-spec.md)
+4. [File Structure](./overview/file-structure.md)
 
 ## Reference
 
-- [API Usage](./reference/api-usage.md)
-- [Schema Spec](./reference/schema-spec.md)
 - [Prompt Family Catalog](./reference/prompt-family-catalog.md)
 
 ## Guides
@@ -32,11 +29,3 @@ Prompt and LLM documentation supports optional frontend utilities layered on top
 - [Prompt Capability Architecture Note](./internal/prompt-capability-architecture-note.md)
 - [Things To Add / Wishlist](./internal/things-to-add-or-wishlist.md)
 - [Capability Graph Analysis Plan](./internal/saida-capability-graph-codex-analysis-plan.md)
-
-## Root Docs
-
-The repo root keeps only the most important top-level docs:
-
-- `README.md`
-- `CHANGELOG.md`
-- `CODING_GUIDELINES.md`

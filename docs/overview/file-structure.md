@@ -1,5 +1,3 @@
-![SAIDA Banner](assets/github-banner.png)
-
 # SAIDA File Structure
 
 This document describes the live repository structure and the role of each major package.
@@ -24,17 +22,17 @@ examples/
 
 ### `src/saida/core/`
 
-Owns the canonical framework contracts and orchestration helpers.
+Owns the plan-first framework core.
 
 Main responsibilities:
 
-- `Dataset`, `DatasetProfile`, `AnalysisPlan`, `AnalysisResult`
+- contracts
 - analytics registry
 - validation
 - routing
 - result canonicalization
 
-This is the closest thing to SAIDA's core engine surface.
+This is the center of the framework runtime.
 
 ### `src/saida/sources/`
 
@@ -122,7 +120,7 @@ Current testing emphasis includes:
 - plan reproducibility tests
 - optional prompt generation tests
 
-The test suite is increasingly centered on:
+The test suite is centered on:
 
 - `AnalysisPlan + Dataset -> AnalysisResult`
 
@@ -149,13 +147,13 @@ If you want to understand the codebase quickly, start here:
 5. `src/saida/plan_generation/interfaces.py`
 6. `src/saida/engine.py`
 
-## Important Direction Note
+## Direction Note
 
-The repository still contains prompt-oriented modules because prompt-driven analysis remains supported.
+Prompt-oriented modules remain because prompt-driven usage is still supported.
 
-But the structural center of the project is now shifting toward:
+But the framework itself is centered on:
 
-- source interfaces
+- sources
 - canonical plans
 - validation
 - compute adapters
