@@ -64,8 +64,9 @@ Quick links:
 ### Compatibility And Release Hardening
 
 - Preserved `saida.response.v2` as the public response schema while surfacing DAG execution details under `execution` and `meta`.
-- Preserved clean execution for minimally declared authored plans by binding missing dataset inputs, output refs, expected outputs, and `final_output_ref`.
-- Added contract-binding metadata to execution results so callers can see when execution filled undeclared plan fields.
+- Moved prompt-plan dataset/input declaration fully into the planning/frontend layer so generated plans arrive execution-ready.
+- Removed runtime plan binding metadata from execution results now that DAG plans are declared before execution.
+- Removed stale request-snapshot fallback handling from execution-time interpretation recovery.
 - Kept execution deterministic and single-threaded for the current release scope.
 
 ### Still Present But Optional

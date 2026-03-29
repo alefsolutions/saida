@@ -32,7 +32,7 @@ def test_execute_plan_rejects_minimally_declared_authored_plan_under_strict_dag_
         engine.execute_plan(dataset, plan)
 
 
-def test_explicit_dag_plan_execution_reports_no_runtime_binding_actions() -> None:
+def test_explicit_dag_plan_execution_reports_clean_dag_execution_metadata() -> None:
     engine = Saida()
     dataset = build_support_dataset()
     plan = AnalysisPlan(
@@ -69,10 +69,9 @@ def test_explicit_dag_plan_execution_reports_no_runtime_binding_actions() -> Non
 
     result = engine.execute_plan(dataset, plan)
 
-    contract_binding = result.response["meta"].get("contract_binding", {})
-
     assert result.response["execution"]["execution_model"] == "dag-single-threaded"
-    assert contract_binding == {}
+    assert "contract_binding" not in result.response["execution"]
+    assert "contract_binding" not in result.response["meta"]
 
 
 def test_changelog_documents_dag_release_hardening() -> None:
@@ -82,4 +81,4 @@ def test_changelog_documents_dag_release_hardening() -> None:
     assert "### DAG Execution" in content
     assert "### Compatibility And Release Hardening" in content
     assert "Preserved `saida.response.v2` as the public response schema" in content
-    assert "Added contract-binding metadata to execution results" in content
+    assert "Removed runtime plan binding metadata from execution results" in content

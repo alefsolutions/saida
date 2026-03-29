@@ -11,6 +11,7 @@ from saida.core.contracts import (
     AnalysisPlan,
     AnalysisRequest,
     DatasetProfile,
+    PlanInput,
     PlanStep,
     SourceContext,
     StepInputRef,
@@ -782,7 +783,7 @@ class PlanBuilder:
         warnings: list[str] = []
         family_plan = self._build_plan_for_prompt_family(request, profile, context, task_type, warnings)
         if family_plan is not None:
-            return family_plan
+            return self._declare_generated_plan_contract(family_plan, request, profile)
 
         if task_type in {"descriptive", "diagnostic", "statistical"}:
             raise PlanningError("The request did not resolve to a safe supported prompt family.")
@@ -801,13 +802,54 @@ class PlanBuilder:
                     description="Generate a forecast for the requested target.",
                 )
             ]
-            return self._finalize_plan(task_type, request, context, steps, warnings)
+            return self._declare_generated_plan_contract(
+                self._finalize_plan(task_type, request, context, steps, warnings),
+                request,
+                profile,
+            )
 
         if task_type == "predictive":
             warnings.append("Predictive model training is not implemented yet.")
 
         rationale = self._build_rationale(task_type, request, context)
-        return AnalysisPlan(task_type=task_type, rationale=rationale, steps=[], warnings=warnings)
+        return self._declare_generated_plan_contract(
+            AnalysisPlan(task_type=task_type, rationale=rationale, steps=[], warnings=warnings),
+            request,
+            profile,
+        )
+
+    def _declare_generated_plan_contract(
+        self,
+        plan: AnalysisPlan,
+        request: AnalysisRequest,
+        profile: DatasetProfile,
+    ) -> AnalysisPlan:
+        if not plan.dataset_refs:
+            plan.dataset_refs = [profile.dataset_name]
+        elif profile.dataset_name not in set(plan.dataset_refs):
+            plan.dataset_refs = [*plan.dataset_refs, profile.dataset_name]
+        if not plan.inputs:
+            plan.inputs = [PlanInput(input_id="primary_dataset", kind="dataset", ref=profile.dataset_name)]
+        if plan.expected_result_name is None:
+            plan.expected_result_name = plan.final_output_ref or self._infer_plan_final_output_ref(plan.steps)
+        if plan.expected_result_shape is None and plan.final_output_ref is not None:
+            output_spec = self._output_spec_for_ref(plan.steps, plan.final_output_ref)
+            if output_spec is not None:
+                plan.expected_result_shape = output_spec.logical_shape or output_spec.kind
+        plan.metadata = dict(plan.metadata)
+        plan.metadata.setdefault("dataset_name", profile.dataset_name)
+        if request.prompt_family is not None:
+            plan.metadata.setdefault("prompt_family", request.prompt_family)
+        if request.intent_name is not None:
+            plan.metadata.setdefault("intent_name", request.intent_name)
+        return plan
+
+    def _output_spec_for_ref(self, steps: list[PlanStep], output_ref: str) -> StepOutputSpec | None:
+        for step in steps:
+            for output in step.outputs:
+                if output.output_id == output_ref:
+                    return output
+        return None
 
     def _build_plan_for_prompt_family(
         self,

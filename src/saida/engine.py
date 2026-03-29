@@ -29,10 +29,8 @@ from saida.core.contracts import (
     ModelSpec,
     Metric,
     NodeExecutionResult,
-    PlanInput,
     PredictionResult,
     SourceContext,
-    StepInputRef,
     TableArtifact,
     TrainResult,
 )
@@ -259,31 +257,13 @@ class Saida:
             produced_outputs=produced_outputs,
         )
 
-    def _bind_plan_to_dataset(
+    def _prepare_prompt_generated_plan(
         self,
         plan: AnalysisPlan,
         dataset: Dataset,
         profile: DatasetProfile,
         interpretation: AnalysisInterpretation | None = None,
     ) -> AnalysisPlan:
-        analytics_registry = get_analytics_registry()
-        binding_actions: list[str] = []
-        if not plan.dataset_refs:
-            plan.dataset_refs = [dataset.name]
-        elif dataset.name not in set(plan.dataset_refs):
-            plan.dataset_refs = [*plan.dataset_refs, dataset.name]
-
-        if not plan.inputs:
-            plan.inputs = [
-                PlanInput(
-                    input_id="primary_dataset",
-                    kind="dataset",
-                    ref=dataset.name,
-                    metadata={"source_type": dataset.source_type},
-                )
-            ]
-            binding_actions.append("plan_inputs")
-
         plan.metadata = deepcopy(plan.metadata)
         plan.metadata["dataset_name"] = dataset.name
         plan.metadata["dataset_source_type"] = dataset.source_type
@@ -293,8 +273,6 @@ class Saida:
             plan.metadata["prompt_family"] = interpretation.prompt_family
             plan.metadata["intent_name"] = interpretation.intent_name
             plan.metadata["interpretation_snapshot"] = self._interpretation_snapshot(interpretation)
-        elif isinstance(plan.metadata.get("request_snapshot"), dict) and "interpretation_snapshot" not in plan.metadata:
-            plan.metadata["interpretation_snapshot"] = deepcopy(plan.metadata["request_snapshot"])
         plan.metadata.setdefault(
             "profile_summary",
             {
@@ -305,36 +283,6 @@ class Saida:
         )
 
         for index, step in enumerate(plan.steps, start=1):
-            method_id = step.method_id or step.action
-            method_spec = analytics_registry.get_method(method_id)
-            if step.family is None:
-                step.family = (
-                    method_spec.family_id
-                    if method_spec is not None
-                    else self._string_or_none(plan.metadata.get("prompt_family"))
-                    or self._string_or_none(plan.metadata.get("intent_name"))
-                    or plan.task_type
-                )
-            if step.method_id is None:
-                step.method_id = method_id
-            if not step.inputs and plan.inputs and method_spec is not None and "dataset" in method_spec.required_inputs:
-                step.inputs = [
-                    StepInputRef(
-                        input_id="primary_dataset",
-                        source_type="plan_input",
-                        ref=plan.inputs[0].input_id,
-                        expected_kind=plan.inputs[0].kind,
-                    )
-                ]
-                binding_actions.append(f"{step.step_id}:step_inputs")
-            if not step.output_refs:
-                step.output_refs = [step.step_id]
-                binding_actions.append(f"{step.step_id}:output_refs")
-            if step.expected_output is None:
-                inferred_output = self._infer_step_expected_output(step)
-                if inferred_output is not None:
-                    step.expected_output = inferred_output
-                    binding_actions.append(f"{step.step_id}:expected_output")
             step.metadata = deepcopy(step.metadata)
             step.metadata.setdefault("execution_order", index)
 
@@ -349,15 +297,6 @@ class Saida:
             plan.expected_result_name = self._infer_expected_result_name(bound_interpretation, plan)
         if plan.expected_result_shape is None:
             plan.expected_result_shape = self._infer_expected_result_shape(bound_interpretation, plan)
-        if plan.final_output_ref is None and plan.steps:
-            first_output_ref = plan.steps[0].output_refs[0] if plan.steps[0].output_refs else None
-            plan.final_output_ref = first_output_ref
-            binding_actions.append("final_output_ref")
-        contract_binding = dict(plan.metadata.get("contract_binding") or {})
-        contract_binding["applied_bindings"] = binding_actions
-        contract_binding["binding_applied"] = bool(binding_actions)
-        contract_binding["fully_declared_dag"] = not binding_actions
-        plan.metadata["contract_binding"] = contract_binding
         return plan
 
     def _schedule_steps(self, plan: AnalysisPlan) -> list[object]:
@@ -498,29 +437,25 @@ class Saida:
         if isinstance(interpretation_snapshot, dict):
             interpretation = AnalysisInterpretation.from_snapshot(interpretation_snapshot)
         else:
-            legacy_request_snapshot = plan.metadata.get("request_snapshot")
-            if isinstance(legacy_request_snapshot, dict):
-                interpretation = AnalysisInterpretation.from_snapshot(legacy_request_snapshot)
-            else:
-                question = str(plan.metadata.get("origin_question") or f"Execute {plan.plan_id or plan.task_type} plan")
-                interpretation = AnalysisInterpretation(
-                    question=question,
-                    task_type_hint=plan.task_type,
-                    options={},
-                )
-                interpretation.prompt_family = self._string_or_none(plan.metadata.get("prompt_family"))
-                interpretation.intent_name = self._string_or_none(plan.metadata.get("intent_name"))
-                if plan.steps:
-                    inferred = self._interpretation_fields_from_step(plan.steps[0], plan)
-                    interpretation.prompt_family = inferred.get("prompt_family") or interpretation.prompt_family
-                    interpretation.intent_name = inferred.get("intent_name") or interpretation.intent_name
-                    interpretation.target = inferred.get("target")
-                    interpretation.aggregation = inferred.get("aggregation")
-                    interpretation.filters = inferred.get("filters")
-                    interpretation.group_by = inferred.get("group_by")
-                    interpretation.time_reference = inferred.get("time_reference")
-                    interpretation.horizon = inferred.get("horizon")
-                    interpretation.options.update(inferred.get("options", {}))
+            question = str(plan.metadata.get("origin_question") or f"Execute {plan.plan_id or plan.task_type} plan")
+            interpretation = AnalysisInterpretation(
+                question=question,
+                task_type_hint=plan.task_type,
+                options={},
+            )
+            interpretation.prompt_family = self._string_or_none(plan.metadata.get("prompt_family"))
+            interpretation.intent_name = self._string_or_none(plan.metadata.get("intent_name"))
+            if plan.steps:
+                inferred = self._interpretation_fields_from_step(plan.steps[0], plan)
+                interpretation.prompt_family = inferred.get("prompt_family") or interpretation.prompt_family
+                interpretation.intent_name = inferred.get("intent_name") or interpretation.intent_name
+                interpretation.target = inferred.get("target")
+                interpretation.aggregation = inferred.get("aggregation")
+                interpretation.filters = inferred.get("filters")
+                interpretation.group_by = inferred.get("group_by")
+                interpretation.time_reference = inferred.get("time_reference")
+                interpretation.horizon = inferred.get("horizon")
+                interpretation.options.update(inferred.get("options", {}))
 
         interpretation.options = deepcopy(interpretation.options)
         if dataset_name is not None:
@@ -750,14 +685,6 @@ class Saida:
         if shape in {"recordset", "timeseries", "statistical_test"}:
             return "table"
         return shape
-
-    def _infer_step_expected_output(self, step: object) -> dict[str, object] | None:
-        method_spec = get_analytics_registry().get_method(step.method_id or step.action)
-        if method_spec is not None and method_spec.output_shapes:
-            logical_shape = method_spec.output_shapes[0]
-            physical_shape = "scalar" if logical_shape in {"scalar", "count", "aggregate"} else "recordset"
-            return {"output_id": step.step_id, "logical_shape": logical_shape, "physical_shape": physical_shape}
-        return None
 
     def _string_or_none(self, value: object) -> str | None:
         return value if isinstance(value, str) else None

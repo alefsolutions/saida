@@ -212,7 +212,6 @@ class ResultCanonicalizer:
         terminal_lineage = self._terminal_lineage(plan, terminal_ref)
         graph_summary = self._graph_execution_summary(plan, artifact_index, secondary_outputs, terminal_ref)
         execution_model = plan.metadata.get("execution_model") if isinstance(plan.metadata, dict) else None
-        contract_binding = dict(plan.metadata.get("contract_binding") or {}) if isinstance(plan.metadata, dict) else {}
 
         return self._json_safe(
             {
@@ -259,7 +258,6 @@ class ResultCanonicalizer:
                 "graph_summary": graph_summary,
                 "artifact_index": serialized_artifact_index,
                 "execution_model": execution_model,
-                "contract_binding": contract_binding,
             },
             "result": primary_result,
             "tables": table_entries,
@@ -298,7 +296,6 @@ class ResultCanonicalizer:
                 "terminal_lineage": terminal_lineage,
                 "graph_summary": graph_summary,
                 "execution_model": execution_model,
-                "contract_binding": contract_binding,
                 "table_names": [table.name for table in tables],
             },
             }

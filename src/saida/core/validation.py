@@ -176,16 +176,28 @@ class PlanValidator:
         self._validate_dependency_graph_has_no_cycles(plan)
         self._validate_final_output_ref(plan, available_output_refs=global_output_refs)
 
+        available_columns_by_ref: dict[str, set[str]] = {}
+        if profile is not None:
+            profile_columns = {column.name for column in profile.columns}
+            for plan_input in plan.inputs:
+                if plan_input.kind in {"dataset", "frame"}:
+                    available_columns_by_ref[plan_input.input_id] = set(profile_columns)
+
         for step, method_spec, method_id in resolved_methods:
+            upstream_columns = self._resolve_available_input_columns(step, available_columns_by_ref)
             self._validate_required_inputs(step.step_id, step.parameters, method_spec, dataset)
             self._validate_supported_parameters(step.step_id, step.parameters, method_spec)
             self._validate_parameter_shapes(step.step_id, step.parameters)
             self._validate_expected_output(step.step_id, step.expected_output, method_spec)
             self._validate_graph_input_arity(step, method_id)
             if profile is not None:
-                self._validate_parameter_fields(step.step_id, step.parameters, method_spec, profile)
+                self._validate_parameter_fields(step.step_id, step.parameters, method_spec, profile, upstream_columns)
             if router is not None:
                 self._validate_backend_support(step.step_id, step.tool_family, method_id, router)
+            inferred_output_columns = self._infer_output_columns(step, method_id, upstream_columns)
+            for output_ref in (*step.output_refs, *(output.output_id for output in step.outputs)):
+                if inferred_output_columns is not None:
+                    available_columns_by_ref[output_ref] = set(inferred_output_columns)
 
         self._validate_semantic_graph_contracts(plan, resolved_methods)
         self._validate_plan_result_expectation(plan, analytics_registry)
@@ -739,15 +751,17 @@ class PlanValidator:
         parameters: dict[str, object],
         method_spec: AnalyticsMethodSpec,
         profile: DatasetProfile,
+        available_columns: set[str] | None = None,
     ) -> None:
         profile_columns = {column.name for column in profile.columns}
         time_columns = set(profile.time_columns)
+        candidate_columns = set(available_columns or profile_columns)
 
         target = parameters.get("target")
         if (
             isinstance(target, str)
             and method_spec.method_id not in {"column_property_check", "derive_column"}
-            and target not in profile_columns
+            and target not in candidate_columns
         ):
             raise PlanningError(f"Plan step {step_id!r} references unknown target column {target!r}.")
 
@@ -755,23 +769,27 @@ class PlanValidator:
         if isinstance(group_by, list):
             allowed_derived_groups = {"month", "quarter", "year"} if method_spec.method_id == "aggregate_frame" else set()
             invalid_groups = [
-                column for column in group_by if column not in profile_columns and column not in allowed_derived_groups
+                column for column in group_by if column not in candidate_columns and column not in allowed_derived_groups
             ]
             if invalid_groups:
                 raise PlanningError(f"Plan step {step_id!r} references unknown group_by columns: {invalid_groups}.")
 
         time_column = parameters.get("time_column")
         if isinstance(time_column, str):
-            if time_column not in profile_columns:
+            if time_column not in candidate_columns:
                 raise PlanningError(f"Plan step {step_id!r} references unknown time_column {time_column!r}.")
             if method_spec.family_id in {"time_series_time_bucketing", "period_comparison"} and time_column not in time_columns:
                 raise PlanningError(f"Plan step {step_id!r} requires a profiled time column, received {time_column!r}.")
 
         selected_columns = parameters.get("selected_columns")
         if isinstance(selected_columns, list):
-            invalid_selected = [column for column in selected_columns if column not in profile_columns]
+            invalid_selected = [column for column in selected_columns if column not in candidate_columns]
             if invalid_selected:
                 raise PlanningError(f"Plan step {step_id!r} references unknown selected columns: {invalid_selected}.")
+
+        sort_by = parameters.get("sort_by")
+        if isinstance(sort_by, str) and sort_by not in candidate_columns and sort_by not in {"row_count", "aggregate_value", "target_total", "rank"}:
+            raise PlanningError(f"Plan step {step_id!r} references unknown sort_by column {sort_by!r}.")
 
         feature_columns = parameters.get("feature_columns")
         if isinstance(feature_columns, list):
@@ -791,6 +809,72 @@ class PlanValidator:
             if invalid_filters:
                 raise PlanningError(f"Plan step {step_id!r} references unknown filter fields: {invalid_filters}.")
 
+    def _resolve_available_input_columns(
+        self,
+        step: object,
+        available_columns_by_ref: dict[str, set[str]],
+    ) -> set[str] | None:
+        resolved: set[str] = set()
+        found = False
+        for step_input in step.inputs:
+            candidate_columns = available_columns_by_ref.get(step_input.ref)
+            if candidate_columns is None:
+                continue
+            resolved.update(candidate_columns)
+            found = True
+        return resolved if found else None
+
+    def _infer_output_columns(
+        self,
+        step: object,
+        method_id: str,
+        upstream_columns: set[str] | None,
+    ) -> set[str] | None:
+        if upstream_columns is None and method_id not in {"group_frame", "aggregate_frame"}:
+            return None
+        parameters = step.parameters
+        if method_id in {"filter_frame", "sort_frame", "limit_frame"}:
+            return set(upstream_columns or set())
+        if method_id in {"select_columns", "distinct_frame"}:
+            selected_columns = parameters.get("selected_columns")
+            if isinstance(selected_columns, list):
+                return {str(column) for column in selected_columns}
+            return set(upstream_columns or set())
+        if method_id == "derive_column":
+            target = parameters.get("target")
+            derived_columns = set(upstream_columns or set())
+            if isinstance(target, str):
+                derived_columns.add(target)
+            return derived_columns
+        if method_id == "time_bucket_frame":
+            bucket = parameters.get("bucket")
+            bucketed_columns = set(upstream_columns or set())
+            if isinstance(bucket, str):
+                bucketed_columns.add(bucket)
+            return bucketed_columns
+        if method_id == "group_frame":
+            return set(upstream_columns or set())
+        if method_id == "aggregate_frame":
+            aggregate_columns = {str(column) for column in parameters.get("group_by") or [] if isinstance(column, str)}
+            value_label = parameters.get("value_label")
+            if isinstance(value_label, str):
+                aggregate_columns.add(value_label)
+            else:
+                aggregation = parameters.get("aggregation")
+                aggregate_columns.add("row_count" if aggregation == "count" else "aggregate_value")
+            return aggregate_columns
+        if method_id == "rank_frame":
+            ranked_columns = set(upstream_columns or set())
+            rank_column = parameters.get("rank_column", "rank")
+            if isinstance(rank_column, str):
+                ranked_columns.add(rank_column)
+            return ranked_columns
+        if method_id == "join_frame":
+            return set(upstream_columns or set())
+        if method_id == "union_frame":
+            return set(upstream_columns or set())
+        return None
+
     def _validate_backend_support(
         self,
         step_id: str,
@@ -808,6 +892,7 @@ class PlanValidator:
     def _validate_plan_result_expectation(self, plan: AnalysisPlan, analytics_registry: object) -> None:
         if plan.expected_result_shape is None:
             return
+        normalized_expected_shape = self._normalize_output_shape(plan.expected_result_shape)
         step_shapes: set[str] = set()
         for step in plan.steps:
             method_spec = analytics_registry.get_method(step.method_id or step.action)
@@ -819,8 +904,8 @@ class PlanValidator:
             "scalar": {"scalar"},
             "verification": {"verification"},
             "table": {"table", "recordset", "timeseries", "statistical_test"},
-        }.get(plan.expected_result_shape, {plan.expected_result_shape})
-        if plan.expected_result_shape == "scalar" and self._plan_can_project_scalar_from_table(plan):
+        }.get(normalized_expected_shape, {normalized_expected_shape})
+        if normalized_expected_shape == "scalar" and self._plan_can_project_scalar_from_table(plan):
             return
         if not compatible_shapes.intersection(step_shapes):
             raise PlanningError(

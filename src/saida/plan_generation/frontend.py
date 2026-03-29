@@ -77,7 +77,7 @@ class PromptAnalysisFrontend:
         profile = self.engine.profile(dataset)
         generation = self._generate_plan_result(question, dataset, profile)
         interpretation = AnalysisInterpretation.from_request(generation.request)
-        plan = self.engine._bind_plan_to_dataset(generation.plan, dataset, profile, interpretation=interpretation)
+        plan = self.engine._prepare_prompt_generated_plan(generation.plan, dataset, profile, interpretation=interpretation)
         if plan.steps:
             self.engine.validator.validate_plan(plan, dataset=dataset, profile=profile, router=self.engine.router)
         return plan
@@ -123,7 +123,7 @@ class PromptAnalysisFrontend:
             )
         )
 
-        plan = self.engine._bind_plan_to_dataset(generation.plan, dataset, profile, interpretation=interpretation)
+        plan = self.engine._prepare_prompt_generated_plan(generation.plan, dataset, profile, interpretation=interpretation)
         if generation.terminal_summary is not None:
             summary = generation.terminal_summary
             trace.append(self.engine._trace("results", "planning clarification returned", {"summary_length": len(summary)}))
