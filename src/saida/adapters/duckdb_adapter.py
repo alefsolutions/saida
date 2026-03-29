@@ -56,9 +56,7 @@ class DuckDBAdapter(ComputeInterface):
         return self.SUPPORTED_METHODS
 
     def execute(self, request: ComputeRequest) -> ComputeResponse:
-        if request.dataset is None:
-            raise ComputeError("DuckDB compute methods require a dataset.")
-        dataframe = request.dataset.data
+        dataframe = self._resolve_dataframe(request)
         parameters = request.parameters
         method_id = request.method_id
 
@@ -310,6 +308,14 @@ class DuckDBAdapter(ComputeInterface):
                 ]
             )
         raise ComputeError(f"DuckDB adapter does not support method {method_id!r}.")
+
+    def _resolve_dataframe(self, request: ComputeRequest) -> pd.DataFrame:
+        if request.dataset is not None:
+            return request.dataset.data
+        for artifact in request.resolved_inputs.values():
+            if artifact.kind in {"dataset", "frame"} and isinstance(artifact.value, pd.DataFrame):
+                return artifact.value
+        raise ComputeError("DuckDB compute methods require a dataset or frame artifact input.")
 
     def dataset_summary(
         self,
