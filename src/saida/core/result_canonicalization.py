@@ -18,6 +18,8 @@ from saida.core.contracts import (
     ForecastResult,
     Metric,
     ModelTrainingResult,
+    NodeExecutionResult,
+    ExecutionArtifact,
     TableArtifact,
     TrainResult,
 )
@@ -40,7 +42,11 @@ class ResultCanonicalizer:
         profile: DatasetProfile,
         trace: list[ExecutionTraceEvent],
         prompt_contract: object | None = None,
+        node_results: list[NodeExecutionResult] | None = None,
+        artifact_index: dict[str, ExecutionArtifact] | None = None,
     ) -> AnalysisResult:
+        resolved_node_results = list(node_results or [])
+        resolved_artifact_index = dict(artifact_index or {})
         artifacts = self._build_analysis_artifacts(
             metrics,
             tables,
@@ -53,6 +59,8 @@ class ResultCanonicalizer:
             llm_summary,
             summary_source,
             prompt_contract,
+            resolved_node_results,
+            resolved_artifact_index,
         )
         response = self._build_analysis_response(
             summary,
@@ -67,6 +75,8 @@ class ResultCanonicalizer:
             llm_summary,
             summary_source,
             prompt_contract,
+            resolved_node_results,
+            resolved_artifact_index,
         )
         return AnalysisResult(
             summary=summary,
@@ -78,6 +88,8 @@ class ResultCanonicalizer:
             warnings=warnings,
             plan=plan,
             trace=trace,
+            node_results=resolved_node_results,
+            artifact_index=resolved_artifact_index,
             artifacts=artifacts,
             response=response,
         )
@@ -111,6 +123,8 @@ class ResultCanonicalizer:
         llm_summary: str | None,
         summary_source: str,
         prompt_contract: object | None,
+        node_results: list[NodeExecutionResult],
+        artifact_index: dict[str, ExecutionArtifact],
     ) -> dict[str, object]:
         metric_lookup = {metric.name: metric.value for metric in metrics}
         table_index = {
@@ -143,6 +157,8 @@ class ResultCanonicalizer:
             "warning_count": len(warnings),
             "trace_stages": trace_stages,
             "plan_step_ids": [step.step_id for step in plan.steps],
+            "node_results": [result.to_dict() for result in node_results],
+            "artifact_ids": list(artifact_index),
             "deterministic_summary": deterministic_summary,
             "llm_summary": llm_summary,
             "summary_source": summary_source,
@@ -163,6 +179,8 @@ class ResultCanonicalizer:
         llm_summary: str | None,
         summary_source: str,
         prompt_contract: object | None,
+        node_results: list[NodeExecutionResult],
+        artifact_index: dict[str, ExecutionArtifact],
     ) -> dict[str, object]:
         operations = [
             {
@@ -220,6 +238,8 @@ class ResultCanonicalizer:
                 "expected_result_name": plan.expected_result_name,
                 "expected_result_shape": plan.expected_result_shape,
                 "steps": operations,
+                "node_results": [result.to_dict() for result in node_results],
+                "final_output_ref": plan.final_output_ref,
             },
             "result": primary_result,
             "tables": table_entries,
@@ -251,6 +271,7 @@ class ResultCanonicalizer:
                 "warning_count": len(warnings),
                 "metrics": [asdict(metric) for metric in metrics],
                 "metric_lookup": metric_lookup,
+                "artifact_ids": list(artifact_index),
                 "table_names": [table.name for table in tables],
             },
             }

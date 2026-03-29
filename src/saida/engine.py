@@ -7,6 +7,7 @@ from copy import deepcopy
 from saida.adapters import ComputeRequest, DuckDBAdapter, MetadataComputeAdapter, MlAdapter, StatsModelsAdapter
 from saida.config import SaidaConfig
 from saida.core import (
+    ArtifactStore,
     BackendRouter,
     PlanValidator,
     get_analytics_registry,
@@ -15,19 +16,23 @@ from saida.core import (
 from saida.exceptions import LlmIntegrationError, ValidationError
 from saida.llm import BaseLlmProvider, SummaryContext, build_llm_provider
 from saida.outputs import JsonOutputAdapter, OutputInterface, SummaryFormatter, SummaryOutputAdapter
+from saida.core.artifacts import RuntimeArtifact, artifact_from_value
 from saida.core.contracts import (
     AnalysisInterpretation,
     AnalysisResult,
     AnalysisPlan,
     Dataset,
     DatasetProfile,
+    ExecutionArtifact,
     ExecutionTraceEvent,
     ForecastAnalysisResult,
     ModelSpec,
     Metric,
+    NodeExecutionResult,
     PlanInput,
     PredictionResult,
     SourceContext,
+    StepInputRef,
     TableArtifact,
     TrainResult,
 )
@@ -161,10 +166,14 @@ class Saida:
 
         metrics: list[Metric] = []
         tables: list[TableArtifact] = []
+        node_results: list[NodeExecutionResult] = []
         warnings = self._merge_warnings(*warning_groups, plan.warnings)
 
-        for step in plan.steps:
-            self._execute_step(dataset, profile, step, metrics, tables)
+        artifact_store = ArtifactStore()
+        artifact_store.register_plan_inputs(dataset, plan.inputs)
+        for step in self._schedule_steps(plan):
+            node_result = self._execute_step(dataset, profile, step, artifact_store, metrics, tables)
+            node_results.append(node_result)
             trace.append(self._trace("compute", f"executed {step.action}", step.parameters))
 
         deterministic_summary = self.summary_formatter.summarize(
@@ -202,6 +211,8 @@ class Saida:
             profile,
             trace,
             prompt_contract,
+            node_results=node_results,
+            artifact_index=self._execution_artifact_index(artifact_store),
         )
 
     def _execute_step(
@@ -209,20 +220,31 @@ class Saida:
         dataset: Dataset,
         profile: DatasetProfile,
         step: object,
+        artifact_store: ArtifactStore,
         metrics: list[Metric],
         tables: list[TableArtifact],
-    ) -> None:
+    ) -> NodeExecutionResult:
         adapter = self.router.route(step.tool_family)
+        resolved_inputs = self._resolve_step_inputs(step, artifact_store)
         response = adapter.execute(
             ComputeRequest(
                 method_id=step.method_id or step.action,
                 dataset=dataset,
                 profile=profile,
                 parameters=step.parameters,
+                resolved_inputs=resolved_inputs,
+                artifact_store=artifact_store,
             )
         )
         metrics.extend(response.metrics)
         tables.extend(response.tables)
+        produced_outputs = self._register_step_artifacts(step, response, artifact_store)
+        return NodeExecutionResult(
+            step_id=step.step_id,
+            status="completed",
+            consumed_inputs=list(resolved_inputs),
+            produced_outputs=produced_outputs,
+        )
 
     def _bind_plan_to_dataset(
         self,
@@ -279,6 +301,15 @@ class Saida:
                 )
             if step.method_id is None:
                 step.method_id = method_id
+            if not step.inputs and plan.inputs and method_spec is not None and "dataset" in method_spec.required_inputs:
+                step.inputs = [
+                    StepInputRef(
+                        input_id="primary_dataset",
+                        source_type="plan_input",
+                        ref=plan.inputs[0].input_id,
+                        expected_kind=plan.inputs[0].kind,
+                    )
+                ]
             if not step.output_refs:
                 step.output_refs = [step.step_id]
             if step.expected_output is None:
@@ -299,7 +330,137 @@ class Saida:
             plan.expected_result_name = self._infer_expected_result_name(bound_interpretation, plan)
         if plan.expected_result_shape is None:
             plan.expected_result_shape = self._infer_expected_result_shape(bound_interpretation, plan)
+        if plan.final_output_ref is None and plan.steps:
+            first_output_ref = plan.steps[0].output_refs[0] if plan.steps[0].output_refs else None
+            plan.final_output_ref = first_output_ref
         return plan
+
+    def _schedule_steps(self, plan: AnalysisPlan) -> list[object]:
+        step_lookup = {step.step_id: step for step in plan.steps}
+        dependencies = self._build_execution_dependencies(plan)
+        order_lookup = {step.step_id: index for index, step in enumerate(plan.steps)}
+        ready = sorted(
+            [step_id for step_id, step_dependencies in dependencies.items() if not step_dependencies],
+            key=lambda step_id: order_lookup[step_id],
+        )
+        scheduled: list[object] = []
+        scheduled_ids: set[str] = set()
+
+        while ready:
+            step_id = ready.pop(0)
+            if step_id in scheduled_ids:
+                continue
+            scheduled.append(step_lookup[step_id])
+            scheduled_ids.add(step_id)
+            for candidate_id, candidate_dependencies in dependencies.items():
+                if candidate_id in scheduled_ids:
+                    continue
+                if step_id in candidate_dependencies:
+                    candidate_dependencies.remove(step_id)
+                if not candidate_dependencies and candidate_id not in ready:
+                    ready.append(candidate_id)
+            ready.sort(key=lambda candidate_id: order_lookup[candidate_id])
+
+        return scheduled if len(scheduled) == len(plan.steps) else list(plan.steps)
+
+    def _build_execution_dependencies(self, plan: AnalysisPlan) -> dict[str, set[str]]:
+        produced_by_ref: dict[str, str] = {}
+        for step in plan.steps:
+            for output_ref in (*step.output_refs, *(output_spec.output_id for output_spec in step.outputs)):
+                produced_by_ref[output_ref] = step.step_id
+
+        dependencies: dict[str, set[str]] = {}
+        for step in plan.steps:
+            step_dependencies = set(step.depends_on)
+            for step_input in step.inputs:
+                if step_input.source_type in {"step_output", "artifact"} and step_input.ref in produced_by_ref:
+                    step_dependencies.add(produced_by_ref[step_input.ref])
+            dependencies[step.step_id] = step_dependencies
+        return dependencies
+
+    def _resolve_step_inputs(self, step: object, artifact_store: ArtifactStore) -> dict[str, RuntimeArtifact]:
+        if step.inputs:
+            return {step_input.input_id: artifact_store.get(step_input.ref) for step_input in step.inputs}
+        if artifact_store.has("primary_dataset"):
+            return {"primary_dataset": artifact_store.get("primary_dataset")}
+        return {}
+
+    def _register_step_artifacts(
+        self,
+        step: object,
+        response: object,
+        artifact_store: ArtifactStore,
+    ) -> list[str]:
+        produced_outputs: list[str] = []
+        if getattr(response, "produced_artifacts", None):
+            for artifact in response.produced_artifacts:
+                artifact_store.register(artifact)
+                produced_outputs.append(artifact.artifact_id)
+            return produced_outputs
+
+        declared_outputs = list(step.outputs)
+        unclaimed_output_refs = [
+            output_ref
+            for output_ref in step.output_refs
+            if output_ref not in {output_spec.output_id for output_spec in declared_outputs}
+        ]
+        available_output_ids = [output_spec.output_id for output_spec in declared_outputs] + unclaimed_output_refs
+        primary_output_ref = step.output_refs[0] if step.output_refs else None
+
+        logical_shape = step.expected_output.get("logical_shape") if isinstance(step.expected_output, dict) else None
+        physical_shape = step.expected_output.get("physical_shape") if isinstance(step.expected_output, dict) else None
+        output_id_index = 0
+
+        for table in response.tables:
+            output_id = available_output_ids[output_id_index] if output_id_index < len(available_output_ids) else table.name
+            output_id_index += 1
+            artifact = artifact_from_value(
+                output_id,
+                table.dataframe,
+                role="final" if output_id == primary_output_ref else "intermediate",
+                producer_step_id=step.step_id,
+                logical_shape=logical_shape,
+                physical_shape=physical_shape,
+                metadata={"table_name": table.name, **dict(table.metadata)},
+            )
+            artifact_store.register(artifact)
+            produced_outputs.append(output_id)
+
+        for metric in response.metrics:
+            output_id = available_output_ids[output_id_index] if output_id_index < len(available_output_ids) else metric.name
+            output_id_index += 1
+            artifact = artifact_from_value(
+                output_id,
+                metric.value,
+                role="final" if output_id == primary_output_ref else "intermediate",
+                producer_step_id=step.step_id,
+                logical_shape=logical_shape or self._logical_shape_for_metric(metric.name),
+                metadata={"metric_name": metric.name, "description": metric.description, "unit": metric.unit},
+            )
+            artifact_store.register(artifact)
+            produced_outputs.append(output_id)
+        return produced_outputs
+
+    def _execution_artifact_index(self, artifact_store: ArtifactStore) -> dict[str, ExecutionArtifact]:
+        artifact_index: dict[str, ExecutionArtifact] = {}
+        for artifact_id, artifact in artifact_store.artifacts.items():
+            artifact_index[artifact_id] = ExecutionArtifact(
+                artifact_id=artifact.artifact_id,
+                kind=artifact.kind,
+                value=artifact.serialize_value(),
+                logical_shape=artifact.logical_shape,
+                physical_shape=artifact.physical_shape,
+                producer_step_id=artifact.producer_step_id,
+                metadata=dict(artifact.metadata),
+            )
+        return artifact_index
+
+    def _logical_shape_for_metric(self, metric_name: str) -> str:
+        if metric_name == "row_count" or metric_name.endswith("_count"):
+            return "count"
+        if any(metric_name.endswith(suffix) for suffix in ("_sum", "_mean", "_max", "_min")):
+            return "aggregate"
+        return "scalar"
 
     def _interpretation_from_plan(
         self,
