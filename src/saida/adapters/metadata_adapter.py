@@ -5,14 +5,19 @@ from __future__ import annotations
 import pandas as pd
 
 from saida.adapters.interfaces import ComputeInterface, ComputeRequest, ComputeResponse
+from saida.core.artifacts import artifact_from_value
 from saida.core.contracts import ColumnProfile, DatasetProfile, TableArtifact
 from saida.exceptions import ComputeError
+from saida.sources import SchemaDiscoveryService
 
 
 class MetadataComputeAdapter(ComputeInterface):
     """Execute schema and metadata methods against a dataset profile."""
 
     HIGH_CARDINALITY_DISTINCT_RATIO = 0.8
+
+    def __init__(self) -> None:
+        self.discovery = SchemaDiscoveryService()
 
     @property
     def tool_family(self) -> str:
@@ -43,14 +48,87 @@ class MetadataComputeAdapter(ComputeInterface):
         )
 
     def execute(self, request: ComputeRequest) -> ComputeResponse:
+        profile = self._resolve_profile(request)
+        if request.method_id == "column_property_check":
+            return self._verification_response(self._column_property_check_table(request.parameters, profile), request)
+        if request.method_id == "column_presence_check":
+            return self._verification_response(self._column_presence_check_table(request.parameters, profile), request)
+        return self._metadata_response(self._metadata_table(request.method_id, profile, request.parameters), request)
+
+    def _resolve_profile(self, request: ComputeRequest) -> DatasetProfile:
+        for artifact in request.resolved_inputs.values():
+            if artifact.kind in {"dataset", "frame"} and isinstance(artifact.value, pd.DataFrame):
+                from saida.core.contracts import Dataset
+
+                dataset_name = str(artifact.metadata.get("dataset_name") or artifact.artifact_id)
+                synthetic_dataset = Dataset(name=dataset_name, source_type="pandas", data=artifact.value.copy())
+                return self.discovery.profile(synthetic_dataset)
         profile = request.profile
         if profile is None:
-            raise ComputeError("Metadata compute methods require a dataset profile.")
-        if request.method_id == "column_property_check":
-            return ComputeResponse(tables=[self._column_property_check_table(request.parameters, profile)])
-        if request.method_id == "column_presence_check":
-            return ComputeResponse(tables=[self._column_presence_check_table(request.parameters, profile)])
-        return ComputeResponse(tables=[self._metadata_table(request.method_id, profile, request.parameters)])
+            raise ComputeError("Metadata compute methods require either a dataset profile or frame artifact input.")
+        return profile
+
+    def _metadata_response(self, table: TableArtifact, request: ComputeRequest) -> ComputeResponse:
+        artifact_id = request.primary_output_ref() or table.name
+        scalar_field = self._scalar_field_for_table(table)
+        if scalar_field is not None and not table.dataframe.empty:
+            artifact = artifact_from_value(
+                artifact_id,
+                table.dataframe.iloc[0][scalar_field],
+                role="final",
+                logical_shape="scalar",
+                physical_shape="scalar",
+                metadata={"table_name": table.name, "field_name": scalar_field, **dict(table.metadata)},
+            )
+        else:
+            artifact = artifact_from_value(
+                artifact_id,
+                table.dataframe,
+                role="final",
+                logical_shape="table",
+                physical_shape="recordset",
+                metadata={"table_name": table.name, **dict(table.metadata)},
+            )
+        return ComputeResponse(tables=[table], produced_artifacts=[artifact])
+
+    def _verification_response(self, table: TableArtifact, request: ComputeRequest) -> ComputeResponse:
+        row = table.dataframe.iloc[0].to_dict() if not table.dataframe.empty else {}
+        verification_payload: dict[str, object]
+        if table.name == "column_property_check":
+            verification_payload = {
+                "matches_expectation": bool(row.get("matches", False)),
+                "column_exists": bool(row.get("column_exists", False)),
+                "column_name": row.get("column_name"),
+                "expected_property": row.get("expected_property"),
+            }
+        else:
+            verification_payload = {
+                "exists": bool(row.get("exists", False)),
+                "requested_column": row.get("requested_column"),
+            }
+        artifact_id = request.primary_output_ref() or table.name
+        artifact = artifact_from_value(
+            artifact_id,
+            verification_payload,
+            role="final",
+            metadata={"table_name": table.name, **dict(table.metadata)},
+        )
+        return ComputeResponse(tables=[table], produced_artifacts=[artifact])
+
+    def _scalar_field_for_table(self, table: TableArtifact) -> str | None:
+        if len(table.dataframe.index) != 1:
+            return None
+        expected_scalar_fields = {
+            "column_count": "column_count",
+            "numeric_column_count": "numeric_column_count",
+            "categorical_column_count": "categorical_column_count",
+            "measure_count": "measure_count",
+            "dimension_count": "dimension_count",
+            "time_column_count": "time_column_count",
+            "identifier_count": "identifier_count",
+            "high_cardinality_count": "high_cardinality_count",
+        }
+        return expected_scalar_fields.get(table.name)
 
     def _metadata_table(
         self,

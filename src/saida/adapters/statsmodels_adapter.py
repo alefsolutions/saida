@@ -9,6 +9,7 @@ import pandas as pd
 from scipy import stats
 
 from saida.adapters.interfaces import ComputeInterface, ComputeRequest, ComputeResponse
+from saida.core.artifacts import artifact_from_value
 try:  # pragma: no cover - exercised indirectly in environments with statsmodels
     import statsmodels.api as sm
 except Exception:  # pragma: no cover - graceful fallback path
@@ -29,6 +30,17 @@ class StatsModelsAdapter(ComputeInterface):
     DEFAULT_ALPHA = 0.05
     DEFAULT_CONFIDENCE_LEVEL = 0.95
     DEFAULT_POWER = 0.80
+    STATISTICAL_TEST_METHODS = {
+        "t_test",
+        "chi_square",
+        "anova",
+        "mann_whitney",
+        "confidence_interval",
+        "regression_significance",
+        "significance_inference",
+        "power_analysis",
+        "sample_size_estimate",
+    }
     SUPPORTED_METHODS = (
         "missingness_summary",
         "numeric_summary",
@@ -61,85 +73,122 @@ class StatsModelsAdapter(ComputeInterface):
         method_id = request.method_id
 
         if method_id == "missingness_summary":
-            return ComputeResponse(tables=[self.missingness_summary(dataframe)])
+            return self._table_response(self.missingness_summary(dataframe), request, logical_shape="table")
         if method_id == "numeric_summary":
-            return ComputeResponse(tables=[self.numeric_summary(dataframe)])
+            return self._table_response(self.numeric_summary(dataframe), request, logical_shape="table")
         if method_id == "distribution_summary":
             distribution_table = self.distribution_summary(dataframe, parameters["target"])
-            return ComputeResponse(tables=[distribution_table] if distribution_table is not None else [])
+            return self._optional_table_response(distribution_table, request, logical_shape="table")
         if method_id == "target_correlation":
             correlation_table = self.correlation_matrix(dataframe, parameters.get("target"))
-            return ComputeResponse(tables=[correlation_table] if correlation_table is not None else [])
+            return self._optional_table_response(correlation_table, request, logical_shape="table")
         if method_id == "anomaly_summary":
             anomaly_table = self.anomaly_summary(dataframe, parameters["target"], parameters.get("time_column"))
-            return ComputeResponse(tables=[anomaly_table] if anomaly_table is not None else [])
+            return self._optional_table_response(anomaly_table, request, logical_shape="table")
         if method_id == "time_series_diagnostics":
             diagnostics_table = self.time_series_diagnostics(dataframe, parameters["target"], parameters["time_column"])
-            return ComputeResponse(tables=[diagnostics_table] if diagnostics_table is not None else [])
+            return self._optional_table_response(diagnostics_table, request, logical_shape="table")
         if method_id == "group_mean_comparison":
             comparison_table = self.group_mean_comparison(dataframe, parameters["target"], parameters["group_column"])
-            return ComputeResponse(tables=[comparison_table] if comparison_table is not None else [])
+            return self._optional_table_response(comparison_table, request, logical_shape="table")
         if method_id == "t_test":
-            return ComputeResponse(
-                tables=[self.t_test(dataframe, parameters["target"], parameters["group_by"][0], parameters.get("alpha", 0.05))]
+            return self._table_response(
+                self.t_test(dataframe, parameters["target"], parameters["group_by"][0], parameters.get("alpha", 0.05)),
+                request,
+                logical_shape="statistical_test",
             )
         if method_id == "chi_square":
             comparison_columns = parameters.get("comparison_columns", [])
-            return ComputeResponse(
-                tables=[self.chi_square_test(dataframe, comparison_columns[0], comparison_columns[1], parameters.get("alpha", 0.05))]
+            return self._table_response(
+                self.chi_square_test(dataframe, comparison_columns[0], comparison_columns[1], parameters.get("alpha", 0.05)),
+                request,
+                logical_shape="statistical_test",
             )
         if method_id == "anova":
-            return ComputeResponse(
-                tables=[self.anova_test(dataframe, parameters["target"], parameters["group_by"][0], parameters.get("alpha", 0.05))]
+            return self._table_response(
+                self.anova_test(dataframe, parameters["target"], parameters["group_by"][0], parameters.get("alpha", 0.05)),
+                request,
+                logical_shape="statistical_test",
             )
         if method_id == "mann_whitney":
-            return ComputeResponse(
-                tables=[self.mann_whitney_test(dataframe, parameters["target"], parameters["group_by"][0], parameters.get("alpha", 0.05))]
+            return self._table_response(
+                self.mann_whitney_test(dataframe, parameters["target"], parameters["group_by"][0], parameters.get("alpha", 0.05)),
+                request,
+                logical_shape="statistical_test",
             )
         if method_id == "confidence_interval":
-            return ComputeResponse(
-                tables=[self.confidence_interval(dataframe, parameters["target"], parameters.get("confidence_level", 0.95))]
+            return self._table_response(
+                self.confidence_interval(dataframe, parameters["target"], parameters.get("confidence_level", 0.95)),
+                request,
+                logical_shape="statistical_test",
             )
         if method_id == "regression_significance":
-            return ComputeResponse(
-                tables=[
-                    self.regression_significance(
-                        dataframe,
-                        parameters["target"],
-                        parameters.get("feature_columns", []),
-                        parameters.get("alpha", 0.05),
-                    )
-                ]
+            return self._table_response(
+                self.regression_significance(
+                    dataframe,
+                    parameters["target"],
+                    parameters.get("feature_columns", []),
+                    parameters.get("alpha", 0.05),
+                ),
+                request,
+                logical_shape="statistical_test",
             )
         if method_id == "significance_inference":
-            return ComputeResponse(
-                tables=[self.group_significance_test(dataframe, parameters["target"], parameters["group_by"][0], parameters.get("alpha", 0.05))]
+            return self._table_response(
+                self.group_significance_test(dataframe, parameters["target"], parameters["group_by"][0], parameters.get("alpha", 0.05)),
+                request,
+                logical_shape="statistical_test",
             )
         if method_id == "power_analysis":
-            return ComputeResponse(
-                tables=[self.power_analysis(dataframe, parameters["target"], parameters["group_by"][0], parameters.get("alpha", 0.05))]
+            return self._table_response(
+                self.power_analysis(dataframe, parameters["target"], parameters["group_by"][0], parameters.get("alpha", 0.05)),
+                request,
+                logical_shape="statistical_test",
             )
         if method_id == "sample_size_estimate":
-            return ComputeResponse(
-                tables=[
-                    self.sample_size_estimate(
-                        dataframe,
-                        parameters["target"],
-                        parameters["group_by"][0],
-                        parameters.get("alpha", 0.05),
-                        parameters.get("desired_power", 0.80),
-                    )
-                ]
+            return self._table_response(
+                self.sample_size_estimate(
+                    dataframe,
+                    parameters["target"],
+                    parameters["group_by"][0],
+                    parameters.get("alpha", 0.05),
+                    parameters.get("desired_power", 0.80),
+                ),
+                request,
+                logical_shape="statistical_test",
             )
         raise ComputeError(f"Stats adapter does not support method {method_id!r}.")
 
     def _resolve_dataframe(self, request: ComputeRequest) -> pd.DataFrame:
-        if request.dataset is not None:
-            return request.dataset.data
         for artifact in request.resolved_inputs.values():
             if artifact.kind in {"dataset", "frame"} and isinstance(artifact.value, pd.DataFrame):
                 return artifact.value
+        if request.dataset is not None:
+            return request.dataset.data
         raise ComputeError("Stats compute methods require a dataset or frame artifact input.")
+
+    def _optional_table_response(
+        self,
+        table: TableArtifact | None,
+        request: ComputeRequest,
+        *,
+        logical_shape: str,
+    ) -> ComputeResponse:
+        if table is None:
+            return ComputeResponse()
+        return self._table_response(table, request, logical_shape=logical_shape)
+
+    def _table_response(self, table: TableArtifact, request: ComputeRequest, *, logical_shape: str) -> ComputeResponse:
+        artifact_id = request.primary_output_ref() or table.name
+        artifact = artifact_from_value(
+            artifact_id,
+            table.dataframe,
+            role="final",
+            logical_shape=logical_shape,
+            physical_shape="recordset",
+            metadata={"table_name": table.name, **dict(table.metadata)},
+        )
+        return ComputeResponse(tables=[table], produced_artifacts=[artifact])
 
     def missingness_summary(self, dataframe: pd.DataFrame) -> TableArtifact:
         """Return a null summary for each column."""
