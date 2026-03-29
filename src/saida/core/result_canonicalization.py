@@ -199,8 +199,12 @@ class ResultCanonicalizer:
             for step in plan.steps
         ]
         metric_lookup = {metric.name: metric.value for metric in metrics}
-        primary_result = self._select_primary_result(plan, request, metrics, tables)
+        primary_result = self._select_primary_result(plan, request, metrics, tables, artifact_index)
         table_entries = [self._table_entry(table) for table in tables]
+        serialized_artifact_index = {
+            artifact_id: self._execution_artifact_payload(artifact)
+            for artifact_id, artifact in artifact_index.items()
+        }
 
         return self._json_safe(
             {
@@ -240,6 +244,7 @@ class ResultCanonicalizer:
                 "steps": operations,
                 "node_results": [result.to_dict() for result in node_results],
                 "final_output_ref": plan.final_output_ref,
+                "artifact_index": serialized_artifact_index,
             },
             "result": primary_result,
             "tables": table_entries,
@@ -272,6 +277,7 @@ class ResultCanonicalizer:
                 "metrics": [asdict(metric) for metric in metrics],
                 "metric_lookup": metric_lookup,
                 "artifact_ids": list(artifact_index),
+                "artifact_index": serialized_artifact_index,
                 "table_names": [table.name for table in tables],
             },
             }
@@ -290,7 +296,11 @@ class ResultCanonicalizer:
         request: AnalysisInterpretation,
         metrics: list[Metric],
         tables: list[TableArtifact],
+        artifact_index: dict[str, ExecutionArtifact],
     ) -> dict[str, object]:
+        if plan.final_output_ref and plan.final_output_ref in artifact_index:
+            return self._execution_artifact_payload(artifact_index[plan.final_output_ref])
+
         candidate_keys = self._plan_result_candidate_keys(plan)
 
         for candidate_key in candidate_keys:
@@ -645,6 +655,22 @@ class ResultCanonicalizer:
             "row_count": None,
             "labels": [],
             "value": self._json_safe(metric.value),
+        }
+
+    def _execution_artifact_payload(self, artifact: ExecutionArtifact) -> dict[str, object]:
+        return {
+            "name": artifact.artifact_id,
+            "description": None,
+            "physical_shape": artifact.physical_shape or "object",
+            "logical_shape": artifact.logical_shape or artifact.kind,
+            "dtype": artifact.kind,
+            "schema": [],
+            "dimensions": [],
+            "row_count": None,
+            "labels": [],
+            "producer_step_id": artifact.producer_step_id,
+            "metadata": self._json_safe(dict(artifact.metadata)),
+            "value": self._json_safe(artifact.value),
         }
 
     def _table_entry(self, table: TableArtifact) -> dict[str, object]:
