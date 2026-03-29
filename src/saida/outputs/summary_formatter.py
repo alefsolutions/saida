@@ -266,8 +266,15 @@ class SummaryFormatter:
     def _describe_representation_ranking(self, tables: list[TableArtifact], request: AnalysisInterpretation) -> str | None:
         if request.intent_name != "representation_ranking" or not request.target:
             return None
-        count_table = self._table(tables, "group_row_counts")
-        if count_table is None or count_table.dataframe.empty:
+        count_table = next(
+            (
+                table
+                for table in reversed(tables)
+                if table.name in {"group_row_counts", "count_rows_by_group"} and not table.dataframe.empty
+            ),
+            None,
+        )
+        if count_table is None:
             return None
         row = count_table.dataframe.iloc[0]
         row_label = self._row_label(row, exclude={"row_count"})
@@ -402,9 +409,13 @@ class SummaryFormatter:
         if request.intent_name != "distinct_value_count" or not request.target:
             return None
         count_table = self._table(tables, "distinct_value_count")
-        if count_table is None or count_table.dataframe.empty:
-            return None
-        count = int(count_table.dataframe.iloc[0]["distinct_count"] or 0)
+        if count_table is not None and not count_table.dataframe.empty:
+            count = int(count_table.dataframe.iloc[0]["distinct_count"] or 0)
+        else:
+            distinct_table = self._table(tables, "distinct_values")
+            if distinct_table is None:
+                return None
+            count = len(distinct_table.dataframe.index)
         label = request.target.replace("_", " ")
         return f"The column {label} has {count} distinct value{'s' if count != 1 else ''}."
 

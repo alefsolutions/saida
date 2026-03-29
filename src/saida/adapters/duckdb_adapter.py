@@ -74,7 +74,7 @@ class DuckDBAdapter(ComputeInterface):
             metrics, tables = self.dataset_summary(dataframe, parameters.get("target"), parameters.get("filters"))
             return ComputeResponse(metrics=metrics, tables=tables)
         if method_id == "filter_frame":
-            return ComputeResponse(tables=[self.filter_frame(dataframe, parameters.get("filters"))])
+            return ComputeResponse(tables=[self.filter_frame(dataframe, parameters.get("filters"), parameters.get("table_name"))])
         if method_id == "select_columns":
             return ComputeResponse(
                 tables=[
@@ -82,6 +82,7 @@ class DuckDBAdapter(ComputeInterface):
                         dataframe,
                         parameters["selected_columns"],
                         parameters.get("filters"),
+                        parameters.get("table_name"),
                     )
                 ]
             )
@@ -93,6 +94,7 @@ class DuckDBAdapter(ComputeInterface):
                         parameters["sort_by"],
                         parameters.get("sort_direction", "asc"),
                         parameters.get("filters"),
+                        parameters.get("table_name"),
                     )
                 ]
             )
@@ -105,6 +107,7 @@ class DuckDBAdapter(ComputeInterface):
                         parameters.get("sort_by"),
                         parameters.get("sort_direction", "asc"),
                         parameters.get("filters"),
+                        parameters.get("table_name"),
                     )
                 ]
             )
@@ -115,6 +118,7 @@ class DuckDBAdapter(ComputeInterface):
                         dataframe,
                         parameters["selected_columns"],
                         parameters.get("filters"),
+                        parameters.get("table_name"),
                     )
                 ]
             )
@@ -126,6 +130,7 @@ class DuckDBAdapter(ComputeInterface):
                         parameters["target"],
                         parameters["expression"],
                         parameters.get("filters"),
+                        parameters.get("table_name"),
                     )
                 ]
             )
@@ -136,6 +141,7 @@ class DuckDBAdapter(ComputeInterface):
                         dataframe,
                         parameters["group_by"],
                         parameters.get("filters"),
+                        parameters.get("table_name"),
                     )
                 ]
             )
@@ -149,6 +155,8 @@ class DuckDBAdapter(ComputeInterface):
                         parameters.get("group_by"),
                         parameters.get("filters"),
                         request,
+                        parameters.get("table_name"),
+                        parameters.get("value_label"),
                     )
                 ]
             )
@@ -162,6 +170,7 @@ class DuckDBAdapter(ComputeInterface):
                         parameters.get("limit"),
                         parameters.get("filters"),
                         parameters.get("rank_column", "rank"),
+                        parameters.get("table_name"),
                     )
                 ]
             )
@@ -173,6 +182,7 @@ class DuckDBAdapter(ComputeInterface):
                         parameters["time_column"],
                         parameters["bucket"],
                         parameters.get("filters"),
+                        parameters.get("table_name"),
                     )
                 ]
             )
@@ -525,11 +535,12 @@ class DuckDBAdapter(ComputeInterface):
         self,
         dataframe: pd.DataFrame,
         filters: dict[str, object] | None = None,
+        table_name: str | None = None,
     ) -> TableArtifact:
         """Return a filtered frame artifact for downstream DAG chaining."""
         prepared = self._filter_dataframe(dataframe, filters, allow_empty=True)
         return TableArtifact(
-            name="filter_frame",
+            name=table_name or "filter_frame",
             description="Filtered frame for downstream transforms.",
             dataframe=prepared.reset_index(drop=True),
             metadata={"filters": dict(filters or {})},
@@ -540,13 +551,14 @@ class DuckDBAdapter(ComputeInterface):
         dataframe: pd.DataFrame,
         selected_columns: list[str],
         filters: dict[str, object] | None = None,
+        table_name: str | None = None,
     ) -> TableArtifact:
         """Project a frame to explicit columns."""
         prepared = self._filter_dataframe(dataframe, filters, allow_empty=True)
         self._require_columns(prepared, list(selected_columns))
         selected = prepared.loc[:, selected_columns].copy().reset_index(drop=True)
         return TableArtifact(
-            name="select_columns",
+            name=table_name or "select_columns",
             description="Projected frame with explicit columns.",
             dataframe=selected,
             metadata={"selected_columns": list(selected_columns)},
@@ -558,13 +570,14 @@ class DuckDBAdapter(ComputeInterface):
         sort_by: str,
         sort_direction: str = "asc",
         filters: dict[str, object] | None = None,
+        table_name: str | None = None,
     ) -> TableArtifact:
         """Sort a frame by one column with stable ordering."""
         prepared = self._filter_dataframe(dataframe, filters, allow_empty=True)
         self._require_columns(prepared, [sort_by])
         sorted_frame = self._sort_dataframe(prepared, sort_by, sort_direction).reset_index(drop=True)
         return TableArtifact(
-            name="sort_frame",
+            name=table_name or "sort_frame",
             description="Sorted frame artifact.",
             dataframe=sorted_frame,
             metadata={"sort_by": sort_by, "sort_direction": sort_direction},
@@ -577,6 +590,7 @@ class DuckDBAdapter(ComputeInterface):
         sort_by: str | None = None,
         sort_direction: str = "asc",
         filters: dict[str, object] | None = None,
+        table_name: str | None = None,
     ) -> TableArtifact:
         """Limit a frame to the first N rows after optional sorting."""
         if limit <= 0:
@@ -587,7 +601,7 @@ class DuckDBAdapter(ComputeInterface):
             prepared = self._sort_dataframe(prepared, sort_by, sort_direction)
         limited = prepared.head(limit).reset_index(drop=True)
         return TableArtifact(
-            name="limit_frame",
+            name=table_name or "limit_frame",
             description="Limited frame artifact.",
             dataframe=limited,
             metadata={"limit": int(limit), "sort_by": sort_by, "sort_direction": sort_direction},
@@ -598,13 +612,14 @@ class DuckDBAdapter(ComputeInterface):
         dataframe: pd.DataFrame,
         selected_columns: list[str],
         filters: dict[str, object] | None = None,
+        table_name: str | None = None,
     ) -> TableArtifact:
         """Return distinct row combinations for explicit columns."""
         prepared = self._filter_dataframe(dataframe, filters, allow_empty=True)
         self._require_columns(prepared, list(selected_columns))
         distinct = prepared.loc[:, selected_columns].drop_duplicates().reset_index(drop=True)
         return TableArtifact(
-            name="distinct_frame",
+            name=table_name or "distinct_frame",
             description="Distinct row combinations for selected columns.",
             dataframe=distinct,
             metadata={"selected_columns": list(selected_columns)},
@@ -616,12 +631,13 @@ class DuckDBAdapter(ComputeInterface):
         target: str,
         expression: dict[str, object],
         filters: dict[str, object] | None = None,
+        table_name: str | None = None,
     ) -> TableArtifact:
         """Create a derived column from an explicit expression contract."""
         prepared = self._filter_dataframe(dataframe, filters, allow_empty=True).copy()
         prepared[target] = self._evaluate_derived_expression(prepared, expression)
         return TableArtifact(
-            name="derive_column",
+            name=table_name or "derive_column",
             description=f"Frame with derived column {target}.",
             dataframe=prepared.reset_index(drop=True),
             metadata={"target": target, "expression": dict(expression)},
@@ -632,12 +648,13 @@ class DuckDBAdapter(ComputeInterface):
         dataframe: pd.DataFrame,
         group_by: list[str],
         filters: dict[str, object] | None = None,
+        table_name: str | None = None,
     ) -> TableArtifact:
         """Tag a frame for grouped downstream transforms while preserving rows."""
         prepared = self._filter_dataframe(dataframe, filters, allow_empty=True)
         self._require_columns(prepared, list(group_by))
         return TableArtifact(
-            name="group_frame",
+            name=table_name or "group_frame",
             description="Grouped frame artifact for downstream aggregation.",
             dataframe=prepared.reset_index(drop=True),
             metadata={"group_by": list(group_by)},
@@ -651,6 +668,8 @@ class DuckDBAdapter(ComputeInterface):
         group_by: list[str] | None = None,
         filters: dict[str, object] | None = None,
         request: ComputeRequest | None = None,
+        table_name: str | None = None,
+        value_label: str | None = None,
     ) -> TableArtifact:
         """Aggregate a frame into a grouped or reduced table artifact."""
         prepared = self._filter_dataframe(dataframe, filters, allow_empty=True)
@@ -660,9 +679,9 @@ class DuckDBAdapter(ComputeInterface):
 
         if aggregation == "count":
             if resolved_group_by:
-                aggregated = prepared.groupby(resolved_group_by, dropna=False).size().reset_index(name="aggregate_value")
+                aggregated = prepared.groupby(resolved_group_by, dropna=False).size().reset_index(name=value_label or "aggregate_value")
             else:
-                aggregated = pd.DataFrame([{"aggregate_value": int(len(prepared))}])
+                aggregated = pd.DataFrame([{(value_label or "aggregate_value"): int(len(prepared))}])
         else:
             if target is None:
                 raise ComputeError("aggregate_frame requires a target column unless aggregation is 'count'.")
@@ -672,24 +691,24 @@ class DuckDBAdapter(ComputeInterface):
             if resolved_group_by:
                 grouped = working.groupby(resolved_group_by, dropna=False)["target_value"]
                 if aggregation == "sum":
-                    aggregated = grouped.sum().reset_index(name="aggregate_value")
+                    aggregated = grouped.sum().reset_index(name=value_label or "aggregate_value")
                 elif aggregation == "mean":
-                    aggregated = grouped.mean().reset_index(name="aggregate_value")
+                    aggregated = grouped.mean().reset_index(name=value_label or "aggregate_value")
                 elif aggregation == "max":
-                    aggregated = grouped.max().reset_index(name="aggregate_value")
+                    aggregated = grouped.max().reset_index(name=value_label or "aggregate_value")
                 elif aggregation == "min":
-                    aggregated = grouped.min().reset_index(name="aggregate_value")
+                    aggregated = grouped.min().reset_index(name=value_label or "aggregate_value")
                 else:
                     raise ComputeError(f"Unsupported aggregation: {aggregation}")
             else:
                 aggregate_value = self._aggregate_series(working["target_value"], aggregation)
-                aggregated = pd.DataFrame([{"aggregate_value": aggregate_value}])
+                aggregated = pd.DataFrame([{(value_label or "aggregate_value"): aggregate_value}])
 
         return TableArtifact(
-            name="aggregate_frame",
+            name=table_name or "aggregate_frame",
             description="Aggregated frame artifact.",
             dataframe=aggregated.reset_index(drop=True),
-            metadata={"group_by": resolved_group_by, "aggregation": aggregation, "target": target},
+            metadata={"group_by": resolved_group_by, "aggregation": aggregation, "target": target, "value_label": value_label or "aggregate_value"},
         )
 
     def rank_frame(
@@ -700,6 +719,7 @@ class DuckDBAdapter(ComputeInterface):
         limit: int | None = None,
         filters: dict[str, object] | None = None,
         rank_column: str = "rank",
+        table_name: str | None = None,
     ) -> TableArtifact:
         """Rank rows in a frame by one sort key."""
         prepared = self._filter_dataframe(dataframe, filters, allow_empty=True)
@@ -713,7 +733,7 @@ class DuckDBAdapter(ComputeInterface):
         ordered_columns = [rank_column, *[column_name for column_name in ranked.columns if column_name != rank_column]]
         ranked = ranked.loc[:, ordered_columns]
         return TableArtifact(
-            name="rank_frame",
+            name=table_name or "rank_frame",
             description="Ranked frame artifact.",
             dataframe=ranked,
             metadata={"sort_by": sort_by, "sort_direction": sort_direction, "limit": limit, "rank_column": rank_column},
@@ -725,6 +745,7 @@ class DuckDBAdapter(ComputeInterface):
         time_column: str,
         bucket: str,
         filters: dict[str, object] | None = None,
+        table_name: str | None = None,
     ) -> TableArtifact:
         """Add time bucket labels to a frame for downstream transforms."""
         prepared = self._filter_dataframe(dataframe, filters, allow_empty=True)
@@ -732,7 +753,7 @@ class DuckDBAdapter(ComputeInterface):
         bucketed = self._prepare_time_bucket_frame(prepared, time_column, bucket).copy()
         bucketed = bucketed.drop(columns=["_period_bucket"], errors="ignore").reset_index(drop=True)
         return TableArtifact(
-            name="time_bucket_frame",
+            name=table_name or "time_bucket_frame",
             description="Frame with derived time bucket labels.",
             dataframe=bucketed,
             metadata={
@@ -996,31 +1017,25 @@ class DuckDBAdapter(ComputeInterface):
         filters: dict[str, str] | None = None,
     ) -> TableArtifact:
         """Aggregate a numeric target across derived time buckets, optionally by group."""
-        prepared = self._apply_filters(dataframe, filters).copy()
-        group_by = group_by or []
-        self._require_columns(prepared, [target, time_column, *group_by])
-        prepared = self._prepare_time_bucket_frame(prepared, time_column, bucket)
-        prepared["target_value"] = pd.to_numeric(prepared[target], errors="coerce")
-        prepared = prepared.dropna(subset=["target_value"])
-        if prepared.empty:
-            raise ComputeError(f"Target column '{target}' has no numeric values for time bucket analysis.")
-
-        aggregation_function = self._aggregation_function(aggregation)
         bucket_column = self._bucket_label_column(bucket)
-        grouped = (
-            prepared.groupby(["_period_bucket", bucket_column, *group_by], as_index=False)["target_value"]
-            .agg(aggregation_function)
-            .rename(columns={"target_value": "target_total"})
-            .sort_values(["_period_bucket", *group_by])
-            .drop(columns=["_period_bucket"])
-            .reset_index(drop=True)
+        bucketed = self.time_bucket_frame(
+            dataframe,
+            time_column,
+            bucket,
+            filters,
+            table_name="time_bucket_breakdown",
         )
-
-        return TableArtifact(
-            name="time_bucket_breakdown",
-            description=f"{bucket.title()} {aggregation} breakdown for {target}.",
-            dataframe=grouped,
-        )
+        grouped = self.aggregate_frame(
+            bucketed.dataframe,
+            target,
+            aggregation,
+            [bucket_column, *(group_by or [])],
+            None,
+            None,
+            table_name="time_bucket_breakdown",
+            value_label="target_total",
+        ).dataframe
+        return TableArtifact(name="time_bucket_breakdown", description=f"{bucket.title()} {aggregation} breakdown for {target}.", dataframe=grouped)
 
     def row_existence(
         self,
@@ -1421,28 +1436,23 @@ class DuckDBAdapter(ComputeInterface):
         filters: dict[str, str] | None = None,
     ) -> TableArtifact:
         """Aggregate a target by one or more grouping columns."""
-        prepared = self._apply_filters(dataframe, filters)
-        self._require_columns(prepared, [target, *group_by])
-        expression = self._aggregation_expression(aggregation)
-        group_column_sql = ", ".join(group_by)
-        query = f"""
-            select
-                {group_column_sql},
-                {expression} as target_total
-            from prepared
-            group by {group_column_sql}
-            order by target_total desc
-        """
-        try:
-            connection = duckdb.connect()
-            connection.register(
-                "prepared",
-                self._prepare_for_duckdb(prepared.assign(target_value=prepared[target])),
-            )
-            grouped = connection.execute(query).fetchdf()
-            connection.close()
-        except Exception as exc:  # pragma: no cover
-            raise ComputeError(f"Failed to compute grouped breakdown for target '{target}'.") from exc
+        grouped_source = self.group_frame(
+            dataframe,
+            group_by,
+            filters,
+            table_name="group_breakdown",
+        )
+        grouped = self.aggregate_frame(
+            grouped_source.dataframe,
+            target,
+            aggregation,
+            group_by,
+            None,
+            None,
+            table_name="group_breakdown",
+            value_label="target_total",
+        ).dataframe
+        grouped = grouped.sort_values("target_total", ascending=False, kind="stable").reset_index(drop=True)
         return TableArtifact(name="group_breakdown", description=f"Grouped {aggregation} breakdown for {target}.", dataframe=grouped)
 
     def ranked_breakdown(
@@ -1457,10 +1467,14 @@ class DuckDBAdapter(ComputeInterface):
     ) -> TableArtifact:
         """Return the top grouped contributors by target total."""
         grouped = self.group_breakdown(dataframe, target, group_by, aggregation, filters).dataframe.copy()
-        grouped = grouped.sort_values("target_total", ascending=ascending).head(limit).copy()
-        grouped["rank"] = range(1, len(grouped) + 1)
-        ordered_columns = ["rank", *group_by, "target_total"]
-        ranked = grouped.loc[:, [column for column in ordered_columns if column in grouped.columns]]
+        ranked = self.rank_frame(
+            grouped,
+            "target_total",
+            "asc" if ascending else "desc",
+            limit,
+            None,
+            table_name="ranked_breakdown",
+        ).dataframe
         direction_label = "Bottom" if ascending else "Top"
         return TableArtifact(
             name="ranked_breakdown",

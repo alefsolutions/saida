@@ -618,7 +618,7 @@ def test_analyze_returns_distinct_value_count_for_dimension_count_prompt(questio
     assert result.response["result"]["logical_shape"] == "scalar"
     assert normalized_result_value(result.response["result"]) == 3
     assert "The column team has 3 distinct values." in result.summary
-    assert any(table.name == "distinct_value_count" for table in result.tables)
+    assert any(table.name == "distinct_values" for table in result.tables)
 
 
 def test_analyze_returns_high_cardinality_count_without_row_existence_fallback() -> None:
@@ -660,7 +660,7 @@ def test_analyze_identifies_least_represented_group() -> None:
 
     assert "The least represented segment is segment=Online with 1 rows." in result.summary
     assert result.response["interpretation"]["intent_name"] == "representation_ranking"
-    assert any(table.name == "group_row_counts" for table in result.tables)
+    assert any(table.name == "count_rows_by_group" for table in result.tables)
 
 
 def test_analyze_identifies_most_represented_group_with_singular_result() -> None:
@@ -681,7 +681,7 @@ def test_analyze_identifies_most_represented_group_with_singular_result() -> Non
     assert result.response["result"]["logical_shape"] == "table"
     assert normalized_result_value(result.response["result"])["channel"] == "Email"
     assert normalized_result_value(result.response["result"])["row_count"] == 3
-    assert any(table.name == "group_row_counts" for table in result.tables)
+    assert any(table.name == "count_rows_by_group" for table in result.tables)
 
 
 def test_analyze_returns_column_inventory() -> None:

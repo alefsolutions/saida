@@ -470,7 +470,10 @@ class PlanValidator:
 
         group_by = parameters.get("group_by")
         if isinstance(group_by, list):
-            invalid_groups = [column for column in group_by if column not in profile_columns]
+            allowed_derived_groups = {"month", "quarter", "year"} if method_spec.method_id == "aggregate_frame" else set()
+            invalid_groups = [
+                column for column in group_by if column not in profile_columns and column not in allowed_derived_groups
+            ]
             if invalid_groups:
                 raise PlanningError(f"Plan step {step_id!r} references unknown group_by columns: {invalid_groups}.")
 

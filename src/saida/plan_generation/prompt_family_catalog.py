@@ -365,7 +365,7 @@ def build_default_prompt_family_catalog() -> PromptFamilyCatalog:
             intent_names=("distinct_value_count",),
             required_parameters=("target",),
             primary_result_shapes=("count",),
-            allowed_plan_actions=("distinct_value_count",),
+            allowed_plan_actions=("distinct_frame", "row_count"),
             forbidden_primary_results=("distinct_values", "numeric_summary"),
             examples=("How many unique channels are there?",),
             plan_steps=(
@@ -397,7 +397,7 @@ def build_default_prompt_family_catalog() -> PromptFamilyCatalog:
             required_parameters=("group_by",),
             option_requirements={"intent_name": "grouped_tabular_query"},
             primary_result_shapes=("table",),
-            allowed_plan_actions=("grouped_tabular_query",),
+            allowed_plan_actions=("group_frame", "aggregate_frame", "sort_frame", "limit_frame"),
             forbidden_primary_results=("numeric_summary",),
             examples=("Give me the total tickets per channel.",),
             plan_steps=(
@@ -431,7 +431,7 @@ def build_default_prompt_family_catalog() -> PromptFamilyCatalog:
             intent_names=("grouped_tabular_query",),
             required_parameters=("target", "group_by"),
             primary_result_shapes=("table",),
-            allowed_plan_actions=("grouped_tabular_query",),
+            allowed_plan_actions=("group_frame", "aggregate_frame", "sort_frame", "limit_frame"),
             examples=("Show total revenue by region.",),
         ),
         PromptFamilySpec(
@@ -471,7 +471,7 @@ def build_default_prompt_family_catalog() -> PromptFamilyCatalog:
             intent_names=("representation_ranking",),
             required_parameters=("target",),
             primary_result_shapes=("table",),
-            allowed_plan_actions=("count_rows_by_group",),
+            allowed_plan_actions=("group_frame", "aggregate_frame", "sort_frame", "limit_frame"),
             forbidden_primary_results=("numeric_summary",),
             examples=("Which channel has the most tickets?",),
             plan_steps=(
@@ -511,7 +511,7 @@ def build_default_prompt_family_catalog() -> PromptFamilyCatalog:
             intent_names=("group_ranking",),
             required_parameters=("target", "group_by"),
             primary_result_shapes=("table",),
-            allowed_plan_actions=("ranked_breakdown",),
+            allowed_plan_actions=("group_frame", "aggregate_frame", "rank_frame"),
             examples=("Which region has the highest revenue?",),
         ),
         PromptFamilySpec(
@@ -773,7 +773,7 @@ def build_default_prompt_family_catalog() -> PromptFamilyCatalog:
             intent_names=("time_bucket_breakdown",),
             required_parameters=("target",),
             primary_result_shapes=("table",),
-            allowed_plan_actions=("time_bucket_breakdown",),
+            allowed_plan_actions=("time_bucket_frame", "aggregate_frame"),
         ),
         PromptFamilySpec(
             family_id="time_period_comparison",

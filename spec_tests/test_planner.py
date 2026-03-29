@@ -311,7 +311,8 @@ def test_planner_builds_representation_ranking_plan() -> None:
 
     plan = planner.build_plan(request, build_profile())
 
-    assert [step.action for step in plan.steps] == ["count_rows_by_group"]
+    assert [step.action for step in plan.steps] == ["group_frame", "aggregate_frame", "sort_frame", "limit_frame"]
+    assert plan.final_output_ref == "count_rows_by_group"
 
 
 def test_planner_builds_column_inventory_plan() -> None:
@@ -475,8 +476,9 @@ def test_planner_builds_time_bucket_breakdown_plan() -> None:
 
     plan = planner.build_plan(request, build_profile())
 
-    assert [step.action for step in plan.steps] == ["time_bucket_breakdown"]
+    assert [step.action for step in plan.steps] == ["time_bucket_frame", "aggregate_frame"]
     assert plan.steps[0].parameters["bucket"] == "month"
+    assert plan.steps[1].parameters["group_by"] == ["month"]
 
 
 def test_planner_builds_time_bucket_breakdown_plan_with_grouping() -> None:
@@ -492,8 +494,8 @@ def test_planner_builds_time_bucket_breakdown_plan_with_grouping() -> None:
 
     plan = planner.build_plan(request, build_profile())
 
-    assert [step.action for step in plan.steps] == ["time_bucket_breakdown"]
-    assert plan.steps[0].parameters["group_by"] == ["region"]
+    assert [step.action for step in plan.steps] == ["time_bucket_frame", "aggregate_frame"]
+    assert plan.steps[1].parameters["group_by"] == ["quarter", "region"]
 
 
 def test_planner_builds_time_period_comparison_plan() -> None:
@@ -992,8 +994,8 @@ def test_planner_builds_group_ranking_plan() -> None:
 
     plan = planner.build_plan(request, build_profile())
 
-    assert [step.action for step in plan.steps] == ["ranked_breakdown"]
-    assert plan.steps[0].parameters["ascending"] is True
+    assert [step.action for step in plan.steps] == ["group_frame", "aggregate_frame", "rank_frame"]
+    assert plan.steps[-1].parameters["sort_direction"] == "asc"
 
 
 def test_planner_rejects_row_ranking_for_dimension_target() -> None:
@@ -1107,8 +1109,8 @@ def test_planner_builds_grouped_tabular_query_plan() -> None:
 
     plan = planner.build_plan(request, build_profile())
 
-    assert [step.action for step in plan.steps] == ["grouped_tabular_query"]
-    assert plan.steps[0].parameters["aggregation"] == "sum"
+    assert [step.action for step in plan.steps] == ["group_frame", "aggregate_frame", "sort_frame"]
+    assert plan.steps[1].parameters["aggregation"] == "sum"
 
 
 def test_planner_rejects_tabular_query_with_invalid_selected_columns() -> None:

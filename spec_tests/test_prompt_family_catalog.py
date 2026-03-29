@@ -298,9 +298,9 @@ def test_planner_builds_grouped_entity_count_plan_from_prompt_family_only() -> N
     plan = planner.build_plan(request, profile)
 
     assert request.intent_name is None
-    assert [step.action for step in plan.steps] == ["grouped_tabular_query"]
+    assert [step.action for step in plan.steps] == ["group_frame", "aggregate_frame", "sort_frame"]
     assert plan.steps[0].parameters["group_by"] == ["channel"]
-    assert plan.steps[0].parameters["aggregation"] == "count"
+    assert plan.steps[1].parameters["aggregation"] == "count"
 
 
 def test_planner_builds_column_type_lookup_plan_from_prompt_family_only() -> None:

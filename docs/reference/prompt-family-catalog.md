@@ -17,12 +17,12 @@ This file is a human-readable snapshot of the live prompt family catalog in `src
 | `confidence_interval` | `governed` | `manual` | `manual` | - | target | table | confidence_interval | - |
 | `dimension_count` | `governed` | `template` | `template` | dimension_count | - | count | dimension_count | - |
 | `dimension_inventory` | `governed` | `manual` | `manual` | dimension_inventory | - | table | dimension_inventory | - |
-| `distinct_value_count` | `governed` | `template` | `template` | distinct_value_count | target | count | distinct_value_count | distinct_values, numeric_summary |
+| `distinct_value_count` | `governed` | `template` | `template` | distinct_value_count | target | count | distinct_frame, row_count | distinct_values, numeric_summary |
 | `distinct_value_listing` | `governed` | `template` | `template` | distinct_values | target | table | distinct_values | numeric_summary |
 | `exploratory_metric_overview` | `partial` | `manual` | `manual` | - | target | table, timeseries | dataset_summary, time_trend, period_comparison, grouped_period_comparison, group_breakdown, ranked_breakdown, top_movers, top_dimension_breakdown, top_dimension_ranking, top_dimension_movers, contribution_breakdown, missingness_summary, numeric_summary, distribution_summary, target_correlation, anomaly_summary, time_series_diagnostics, group_mean_comparison | - |
-| `group_ranking` | `governed` | `manual` | `manual` | group_ranking | target, group_by | table | ranked_breakdown | - |
-| `grouped_entity_count` | `governed` | `template` | `template` | grouped_tabular_query | group_by | table | grouped_tabular_query | numeric_summary |
-| `grouped_metric_table` | `governed` | `manual` | `manual` | grouped_tabular_query | target, group_by | table | grouped_tabular_query | - |
+| `group_ranking` | `governed` | `manual` | `manual` | group_ranking | target, group_by | table | group_frame, aggregate_frame, rank_frame | - |
+| `grouped_entity_count` | `governed` | `template` | `template` | grouped_tabular_query | group_by | table | group_frame, aggregate_frame, sort_frame, limit_frame | numeric_summary |
+| `grouped_metric_table` | `governed` | `manual` | `manual` | grouped_tabular_query | target, group_by | table | group_frame, aggregate_frame, sort_frame, limit_frame | - |
 | `high_cardinality_count` | `governed` | `template` | `template` | high_cardinality_count | - | count | high_cardinality_count | - |
 | `high_cardinality_inventory` | `governed` | `manual` | `manual` | high_cardinality_inventory | - | table | high_cardinality_inventory | - |
 | `identifier_count` | `governed` | `template` | `template` | identifier_count | - | count | identifier_count | - |
@@ -37,7 +37,7 @@ This file is a human-readable snapshot of the live prompt family catalog in `src
 | `numeric_column_inventory` | `governed` | `manual` | `manual` | numeric_column_inventory | - | table | numeric_column_inventory | - |
 | `power_analysis` | `governed` | `manual` | `manual` | - | target | table | power_analysis | - |
 | `regression_significance` | `governed` | `manual` | `manual` | - | target | table | regression_significance | - |
-| `representation_ranking` | `governed` | `template` | `template` | representation_ranking | target | table | count_rows_by_group | numeric_summary |
+| `representation_ranking` | `governed` | `template` | `template` | representation_ranking | target | table | group_frame, aggregate_frame, sort_frame, limit_frame | numeric_summary |
 | `row_count` | `governed` | `template` | `template` | row_count | - | count | row_count | - |
 | `row_existence_check` | `governed` | `manual` | `manual` | existence_check | - | verification | row_existence | - |
 | `row_ranking` | `governed` | `manual` | `manual` | row_ranking | target | table | ranked_rows | - |
@@ -46,7 +46,7 @@ This file is a human-readable snapshot of the live prompt family catalog in `src
 | `t_test` | `governed` | `manual` | `manual` | - | target | table | t_test | - |
 | `tabular_record_retrieval` | `governed` | `template` | `template` | tabular_query | - | recordset | tabular_query | - |
 | `threshold_verification` | `governed` | `manual` | `manual` | existence_check | target, threshold_value, threshold_operator | verification | threshold_check | - |
-| `time_bucket_breakdown` | `governed` | `manual` | `manual` | time_bucket_breakdown | target | table | time_bucket_breakdown | - |
+| `time_bucket_breakdown` | `governed` | `manual` | `manual` | time_bucket_breakdown | target | table | time_bucket_frame, aggregate_frame | - |
 | `time_bucket_counts` | `partial` | `manual` | `manual` | time_bucket_counts | - | table | count_rows_by_group, time_bucket_counts | - |
 | `time_column_count` | `governed` | `template` | `template` | time_column_count | - | count | time_column_count | - |
 | `time_column_inventory` | `governed` | `manual` | `manual` | time_column_inventory | - | table | time_column_inventory | - |

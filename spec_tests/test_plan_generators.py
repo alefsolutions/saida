@@ -152,4 +152,4 @@ def test_llm_assisted_plan_generator_keeps_time_bucket_breakdown_for_grouped_mon
     assert generation.request.intent_name == "time_bucket_breakdown"
     assert generation.request.prompt_family == "time_bucket_breakdown"
     assert generation.request.options["time_bucket"] == "month"
-    assert generation.plan.steps[0].action == "time_bucket_breakdown"
+    assert [step.action for step in generation.plan.steps] == ["time_bucket_frame", "aggregate_frame"]
