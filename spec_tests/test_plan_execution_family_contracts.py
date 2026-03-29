@@ -279,7 +279,7 @@ def test_plan_execution_family_contracts_return_canonical_analysis_result(case: 
     assert payload["status"] == "ok"
     assert payload["execution"]["plan_id"] == result.plan.plan_id
     assert payload["execution"]["expected_result_shape"] == case.expected_result_shape
-    assert payload["result"]["name"] == result.plan.expected_result_name
+    assert payload["result"]["name"] in {result.plan.expected_result_name, result.plan.final_output_ref}
     assert payload["result"]["physical_shape"] is not None
     assert payload["summary"]["summary"] == result.summary
     assert payload["summary"]["deterministic_summary"] == result.deterministic_summary

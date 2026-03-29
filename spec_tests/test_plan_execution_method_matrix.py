@@ -10,6 +10,7 @@ from saida import Saida
 from saida.core.contracts import AnalysisPlan, AnalysisResult, PlanInput, PlanStep
 from saida.core.analytics_registry import get_analytics_registry
 from .factories import build_sales_dataset, build_statistical_dataset, build_support_dataset, json_safe
+from .result_helpers import normalized_result_value
 
 
 @dataclass(frozen=True, slots=True)
@@ -185,7 +186,7 @@ def test_plan_method_matrix_execute_plan_returns_analysis_result(case: PlanMetho
 @pytest.mark.parametrize("case", _ALL_METHOD_CASES, ids=[case.case_id for case in _ALL_METHOD_CASES])
 def test_plan_method_matrix_execute_plan_honors_expected_result_shape(case: PlanMethodCase) -> None:
     result = _execute_case(case)
-    value = result.response["result"]["value"]
+    value = normalized_result_value(result.response["result"])
 
     assert result.response["execution"]["expected_result_shape"] == case.expected_result_shape
     assert result.plan.expected_result_shape == case.expected_result_shape

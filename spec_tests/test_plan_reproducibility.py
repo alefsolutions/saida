@@ -9,6 +9,7 @@ from saida import PromptAnalysisFrontend
 from saida.core.contracts import AnalysisPlan, AnalysisRequest, Dataset
 from saida.plan_generation import build_default_prompt_family_catalog
 from .factories import build_recurring_time_dataset, build_sales_dataset, build_support_dataset, json_safe
+from .result_helpers import normalized_result_value
 
 
 _UNSET = object()
@@ -100,8 +101,8 @@ _REPRODUCIBILITY_CASES = [
         expected_intent_name=None,
         expected_target="revenue",
         expected_step_actions=_EXPLORATORY_METRIC_OVERVIEW_ACTIONS,
-        expected_primary_result_name="time_trend",
-        expected_primary_logical_shape="timeseries",
+        expected_primary_result_name="summary_metrics",
+        expected_primary_logical_shape="table",
     ),
     ReproducibilityCase(
         family_id="metric_aggregate",
@@ -111,8 +112,8 @@ _REPRODUCIBILITY_CASES = [
         expected_target="revenue",
         expected_aggregation="mean",
         expected_step_actions=_METRIC_AGGREGATE_ACTIONS,
-        expected_primary_result_name="revenue_mean",
-        expected_primary_logical_shape="aggregate",
+        expected_primary_result_name="aggregate_value",
+        expected_primary_logical_shape="scalar",
         expected_primary_value=105.0,
     ),
     ReproducibilityCase(
@@ -170,9 +171,18 @@ _REPRODUCIBILITY_CASES = [
         expected_intent_name="column_type_inventory",
         expected_target="created_at",
         expected_step_actions=("column_type_inventory",),
-        expected_primary_result_name="created_at_dtype",
-        expected_primary_logical_shape="scalar",
-        expected_primary_value="datetime",
+        expected_primary_result_name="column_type_inventory",
+        expected_primary_logical_shape="table",
+        expected_primary_value={
+            "column_name": "created_at",
+            "dtype": "datetime",
+            "nullable": False,
+            "null_count": 0,
+            "null_ratio": 0.0,
+            "unique_count": 7,
+            "distinct_ratio": 1.0,
+            "semantic_role": "time",
+        },
     ),
     ReproducibilityCase(
         family_id="numeric_column_inventory",
@@ -265,8 +275,8 @@ _REPRODUCIBILITY_CASES = [
         expected_intent_name="distinct_value_count",
         expected_target="team",
         expected_step_actions=("distinct_value_count",),
-        expected_primary_result_name="team_distinct_count",
-        expected_primary_logical_shape="count",
+        expected_primary_result_name="distinct_value_count",
+        expected_primary_logical_shape="scalar",
         expected_primary_value=2,
     ),
     ReproducibilityCase(
@@ -277,7 +287,7 @@ _REPRODUCIBILITY_CASES = [
         expected_aggregation="count",
         expected_step_actions=("row_count",),
         expected_primary_result_name="row_count",
-        expected_primary_logical_shape="count",
+        expected_primary_logical_shape="scalar",
         expected_primary_value=6,
     ),
     ReproducibilityCase(
@@ -293,7 +303,7 @@ _REPRODUCIBILITY_CASES = [
         expected_filters={"created_at": {"op": "quarter_eq", "value": 1, "label": "q1"}},
         expected_step_actions=("row_count",),
         expected_primary_result_name="row_count",
-        expected_primary_logical_shape="count",
+        expected_primary_logical_shape="scalar",
         expected_primary_value=16,
     ),
     ReproducibilityCase(
@@ -307,7 +317,7 @@ _REPRODUCIBILITY_CASES = [
         expected_intent_name="column_count",
         expected_step_actions=("column_count",),
         expected_primary_result_name="column_count",
-        expected_primary_logical_shape="count",
+        expected_primary_logical_shape="scalar",
         expected_primary_value=7,
     ),
     ReproducibilityCase(
@@ -321,7 +331,7 @@ _REPRODUCIBILITY_CASES = [
         expected_intent_name="numeric_column_count",
         expected_step_actions=("numeric_column_count",),
         expected_primary_result_name="numeric_column_count",
-        expected_primary_logical_shape="count",
+        expected_primary_logical_shape="scalar",
         expected_primary_value=2,
     ),
     ReproducibilityCase(
@@ -335,7 +345,7 @@ _REPRODUCIBILITY_CASES = [
         expected_intent_name="categorical_column_count",
         expected_step_actions=("categorical_column_count",),
         expected_primary_result_name="categorical_column_count",
-        expected_primary_logical_shape="count",
+        expected_primary_logical_shape="scalar",
         expected_primary_value=4,
     ),
     ReproducibilityCase(
@@ -349,7 +359,7 @@ _REPRODUCIBILITY_CASES = [
         expected_intent_name="measure_count",
         expected_step_actions=("measure_count",),
         expected_primary_result_name="measure_count",
-        expected_primary_logical_shape="count",
+        expected_primary_logical_shape="scalar",
         expected_primary_value=2,
     ),
     ReproducibilityCase(
@@ -363,7 +373,7 @@ _REPRODUCIBILITY_CASES = [
         expected_intent_name="dimension_count",
         expected_step_actions=("dimension_count",),
         expected_primary_result_name="dimension_count",
-        expected_primary_logical_shape="count",
+        expected_primary_logical_shape="scalar",
         expected_primary_value=4,
     ),
     ReproducibilityCase(
@@ -377,7 +387,7 @@ _REPRODUCIBILITY_CASES = [
         expected_intent_name="time_column_count",
         expected_step_actions=("time_column_count",),
         expected_primary_result_name="time_column_count",
-        expected_primary_logical_shape="count",
+        expected_primary_logical_shape="scalar",
         expected_primary_value=1,
     ),
     ReproducibilityCase(
@@ -391,7 +401,7 @@ _REPRODUCIBILITY_CASES = [
         expected_intent_name="identifier_count",
         expected_step_actions=("identifier_count",),
         expected_primary_result_name="identifier_count",
-        expected_primary_logical_shape="count",
+        expected_primary_logical_shape="scalar",
         expected_primary_value=1,
     ),
     ReproducibilityCase(
@@ -405,7 +415,7 @@ _REPRODUCIBILITY_CASES = [
         expected_intent_name="high_cardinality_count",
         expected_step_actions=("high_cardinality_count",),
         expected_primary_result_name="high_cardinality_count",
-        expected_primary_logical_shape="count",
+        expected_primary_logical_shape="scalar",
         expected_primary_value=4,
     ),
 ]
@@ -422,7 +432,7 @@ _REPRODUCIBILITY_CASES.extend(
             expected_group_by=("team",),
             expected_option_subset={"ranking_direction": "desc", "ranking_limit": 1},
             expected_step_actions=("count_rows_by_group",),
-            expected_primary_result_name="group_row_counts",
+            expected_primary_result_name="count_rows_by_group",
             expected_primary_logical_shape="table",
             expected_primary_value={"team": "Support", "row_count": 4},
         ),
@@ -543,7 +553,7 @@ _REPRODUCIBILITY_CASES.extend(
             expected_option_subset={"time_coverage_mode": "date_range"},
             expected_step_actions=("time_coverage",),
             expected_primary_result_name="time_coverage",
-            expected_primary_logical_shape="timeseries",
+            expected_primary_logical_shape="table",
         ),
         ReproducibilityCase(
             family_id="time_bucket_counts",
@@ -553,7 +563,7 @@ _REPRODUCIBILITY_CASES.extend(
             expected_option_subset={"time_bucket": "quarter"},
             expected_step_actions=("time_bucket_counts",),
             expected_primary_result_name="time_bucket_counts",
-            expected_primary_logical_shape="timeseries",
+            expected_primary_logical_shape="table",
         ),
         ReproducibilityCase(
             family_id="time_bucket_breakdown",
@@ -564,7 +574,7 @@ _REPRODUCIBILITY_CASES.extend(
             expected_option_subset={"time_bucket": "month"},
             expected_step_actions=("time_bucket_breakdown",),
             expected_primary_result_name="time_bucket_breakdown",
-            expected_primary_logical_shape="timeseries",
+            expected_primary_logical_shape="table",
         ),
         ReproducibilityCase(
             family_id="time_period_comparison",
@@ -647,7 +657,7 @@ _REPRODUCIBILITY_CASES.extend(
             expected_group_by=("region",),
             expected_option_subset={"statistical_test": "significance_inference"},
             expected_step_actions=("significance_inference",),
-            expected_primary_result_name="significance_test",
+            expected_primary_result_name="significance_inference",
             expected_primary_logical_shape="statistical_test",
         ),
         ReproducibilityCase(
@@ -723,7 +733,7 @@ _REPRODUCIBILITY_CASES.extend(
             expected_group_by=("region",),
             expected_option_subset={"statistical_test": "anova"},
             expected_step_actions=("anova",),
-            expected_primary_result_name="anova_test",
+            expected_primary_result_name="anova",
             expected_primary_logical_shape="statistical_test",
         ),
         ReproducibilityCase(
@@ -740,7 +750,7 @@ _REPRODUCIBILITY_CASES.extend(
             expected_group_by=("region",),
             expected_option_subset={"statistical_test": "mann_whitney"},
             expected_step_actions=("mann_whitney",),
-            expected_primary_result_name="mann_whitney_test",
+            expected_primary_result_name="mann_whitney",
             expected_primary_logical_shape="statistical_test",
         ),
         ReproducibilityCase(
@@ -773,7 +783,7 @@ _REPRODUCIBILITY_CASES.extend(
             expected_group_by=("priority",),
             expected_option_subset={"statistical_test": "chi_square", "comparison_columns": ["team", "priority"]},
             expected_step_actions=("chi_square",),
-            expected_primary_result_name="chi_square_test",
+            expected_primary_result_name="chi_square",
             expected_primary_logical_shape="statistical_test",
         ),
     ]
@@ -835,7 +845,7 @@ def test_prompt_family_paraphrases_reproduce_same_request_plan_and_result(case: 
     if case.expected_primary_logical_shape is not None:
         assert baseline_result_signature["result"]["logical_shape"] == case.expected_primary_logical_shape
     if case.expected_primary_value is not _UNSET:
-        assert baseline_result_signature["result"]["value"] == case.expected_primary_value
+        assert normalized_result_value(baseline_result_signature["result"]) == case.expected_primary_value
 
 
 def test_plan_reproducibility_suite_covers_every_prompt_family() -> None:

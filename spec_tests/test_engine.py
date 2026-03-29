@@ -9,6 +9,7 @@ from saida.plan_generation import get_llm_contract
 from saida.core.contracts import Dataset
 from saida.llm import BaseLlmProvider, IntentProposal, OpenAiLlmProvider, OllamaLlmProvider, SummaryContext, SummaryProposal, build_llm_provider
 from saida.exceptions import ValidationError
+from .result_helpers import normalized_result_value, result_row_count
 
 
 class FakeLlmProvider(BaseLlmProvider):
@@ -499,8 +500,8 @@ def test_engine_coerces_llm_year_month_filter_on_time_column() -> None:
         }
     }
     assert result.response["result"]["name"] == "tabular_query"
-    assert result.response["result"]["row_count"] == 2
-    assert result.response["result"]["pagination"]["total_rows"] == 2
+    assert result_row_count(result.response["result"]) == 2
+    assert result.response["result"]["metadata"]["pagination"]["total_rows"] == 2
     assert result.artifacts["request"]["options"]["nlp_backend"] == "llm+validation"
 
 
@@ -526,7 +527,7 @@ def test_engine_coerces_llm_year_month_filter_on_time_column() -> None:
         (
             "Count total unique team values in dataset",
             "distinct_value_count",
-            "team_distinct_count",
+            "distinct_value_count",
             3,
             "How many unique team values are there?",
         ),
@@ -549,7 +550,7 @@ def test_engine_uses_llm_canonical_question_for_condensed_scalar_prompt_routing(
     assert result.response["status"] == "ok"
     assert result.response["interpretation"]["prompt_family"] == expected_prompt_family
     assert result.response["result"]["name"] == expected_result_name
-    assert result.response["result"]["value"] == expected_value
+    assert normalized_result_value(result.response["result"]) == expected_value
     if expected_prompt_family == "row_count":
         assert result.response["interpretation"]["intent_name"] == "row_count"
         assert result.response["interpretation"]["filters"] == {
@@ -565,10 +566,10 @@ def test_engine_uses_llm_canonical_question_for_condensed_scalar_prompt_routing(
 @pytest.mark.parametrize(
     ("question", "expected_prompt_family", "expected_result_name", "expected_value", "expected_shape"),
     [
-        ("Count total rows in dataset for Q1", "row_count", "row_count", 3, "count"),
+        ("Count total rows in dataset for Q1", "row_count", "row_count", 3, "scalar"),
         ("Show every row in dataset for Q1", "tabular_record_retrieval", "tabular_query", None, "recordset"),
-        ("Count total columns in dataset", "column_count", "column_count", 8, "count"),
-        ("Count total unique team values in dataset", "distinct_value_count", "team_distinct_count", 3, "count"),
+        ("Count total columns in dataset", "column_count", "column_count", 8, "scalar"),
+        ("Count total unique team values in dataset", "distinct_value_count", "distinct_value_count", 3, "scalar"),
     ],
 )
 def test_engine_uses_llm_semantic_intent_for_operation_object_routing(
@@ -589,7 +590,7 @@ def test_engine_uses_llm_semantic_intent_for_operation_object_routing(
     assert result.response["result"]["name"] == expected_result_name
     assert result.response["result"]["logical_shape"] == expected_shape
     if expected_value is not None:
-        assert result.response["result"]["value"] == expected_value
+        assert normalized_result_value(result.response["result"]) == expected_value
     assert result.response["interpretation"]["semantic_intent"]["operation"] in {"count", "list"}
     assert result.artifacts["request"]["options"]["semantic_intent"]["source"] == "llm+rules"
 
@@ -603,8 +604,8 @@ def test_engine_ignores_invalid_llm_semantic_object_reference_and_recovers_from_
 
     assert result.response["status"] == "ok"
     assert result.response["interpretation"]["prompt_family"] == "distinct_value_count"
-    assert result.response["result"]["name"] == "team_distinct_count"
-    assert result.response["result"]["value"] == 3
+    assert result.response["result"]["name"] == "distinct_value_count"
+    assert normalized_result_value(result.response["result"]) == 3
     assert result.response["interpretation"]["semantic_intent"]["object_ref"] == "team"
 
 

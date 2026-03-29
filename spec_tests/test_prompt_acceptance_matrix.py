@@ -8,6 +8,7 @@ import pytest
 from saida import PromptAnalysisFrontend
 from saida.core.contracts import Dataset
 from .factories import build_support_dataset, json_safe
+from .result_helpers import normalized_result_value
 from .test_plan_reproducibility import ReproducibilityCase, _REPRODUCIBILITY_CASES, _UNSET
 
 
@@ -228,7 +229,7 @@ def test_prompt_acceptance_matrix_engine_response(case: PromptAcceptanceCase) ->
     if case.expected_primary_logical_shape is not None:
         assert payload["result"]["logical_shape"] == case.expected_primary_logical_shape
     if case.expected_primary_value is not _UNSET:
-        assert payload["result"]["value"] == case.expected_primary_value
+        assert normalized_result_value(payload["result"]) == case.expected_primary_value
 
 
 @pytest.mark.parametrize(

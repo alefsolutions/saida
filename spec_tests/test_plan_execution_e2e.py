@@ -5,6 +5,7 @@ from copy import deepcopy
 from saida import Saida
 from saida.core.contracts import AnalysisPlan, PlanStep
 from .factories import build_sales_dataset, build_support_dataset
+from .result_helpers import normalized_result_value
 
 
 def test_execute_plan_returns_scalar_row_count_for_filtered_slice() -> None:
@@ -31,8 +32,8 @@ def test_execute_plan_returns_scalar_row_count_for_filtered_slice() -> None:
     result = engine.execute_plan(dataset, plan)
 
     assert result.response["result"]["name"] == "row_count"
-    assert result.response["result"]["logical_shape"] == "count"
-    assert result.response["result"]["value"] == 4
+    assert result.response["result"]["logical_shape"] == "scalar"
+    assert normalized_result_value(result.response["result"]) == 4
 
 
 def test_execute_plan_returns_scalar_aggregate_value() -> None:
@@ -58,9 +59,9 @@ def test_execute_plan_returns_scalar_aggregate_value() -> None:
 
     result = engine.execute_plan(dataset, plan)
 
-    assert result.response["result"]["name"] == "revenue_sum"
-    assert result.response["result"]["logical_shape"] == "aggregate"
-    assert result.response["result"]["value"] == 630.0
+    assert result.response["result"]["name"] == "aggregate_value"
+    assert result.response["result"]["logical_shape"] == "scalar"
+    assert normalized_result_value(result.response["result"]) == 630.0
 
 
 def test_execute_plan_returns_grouped_row_count_table() -> None:
@@ -87,7 +88,7 @@ def test_execute_plan_returns_grouped_row_count_table() -> None:
     result = engine.execute_plan(dataset, plan)
     records = result.response["result"]["value"]
 
-    assert result.response["result"]["name"] == "group_row_counts"
+    assert result.response["result"]["name"] == "count_rows_by_group"
     assert result.response["result"]["logical_shape"] == "table"
     assert records[0]["team"] == "Support"
     assert records[0]["row_count"] == 4
@@ -158,8 +159,8 @@ def test_execute_plan_returns_verification_for_row_existence() -> None:
 
     assert result.response["result"]["name"] == "row_existence"
     assert result.response["result"]["logical_shape"] == "verification"
-    assert result.response["result"]["value"]["exists"] is True
-    assert result.response["result"]["value"]["matching_row_count"] == 3
+    assert normalized_result_value(result.response["result"])["exists"] is True
+    assert normalized_result_value(result.response["result"])["matching_row_count"] == 3
 
 
 def test_execute_plan_returns_scalar_column_count() -> None:
@@ -186,8 +187,8 @@ def test_execute_plan_returns_scalar_column_count() -> None:
     result = engine.execute_plan(dataset, plan)
 
     assert result.response["result"]["name"] == "column_count"
-    assert result.response["result"]["logical_shape"] == "count"
-    assert result.response["result"]["value"] == 7
+    assert result.response["result"]["logical_shape"] == "scalar"
+    assert normalized_result_value(result.response["result"]) == 7
 
 
 def test_execute_plan_returns_scalar_distinct_value_count() -> None:
@@ -196,7 +197,7 @@ def test_execute_plan_returns_scalar_distinct_value_count() -> None:
     plan = AnalysisPlan(
         task_type="descriptive",
         rationale="Count distinct support teams.",
-        expected_result_name="team_distinct_count",
+        expected_result_name="distinct_value_count",
         expected_result_shape="scalar",
         steps=[
             PlanStep(
@@ -213,9 +214,9 @@ def test_execute_plan_returns_scalar_distinct_value_count() -> None:
 
     result = engine.execute_plan(dataset, plan)
 
-    assert result.response["result"]["name"] == "team_distinct_count"
-    assert result.response["result"]["logical_shape"] == "count"
-    assert result.response["result"]["value"] == 2
+    assert result.response["result"]["name"] == "distinct_value_count"
+    assert result.response["result"]["logical_shape"] == "scalar"
+    assert normalized_result_value(result.response["result"]) == 2
 
 
 def test_execute_plan_returns_scalar_column_type_lookup_from_plan_metadata() -> None:
@@ -224,8 +225,8 @@ def test_execute_plan_returns_scalar_column_type_lookup_from_plan_metadata() -> 
     plan = AnalysisPlan(
         task_type="descriptive",
         rationale="Look up the data type for created_at.",
-        expected_result_name="created_at_dtype",
-        expected_result_shape="scalar",
+        expected_result_name="column_type_inventory",
+        expected_result_shape="table",
         metadata={"prompt_family": "column_type_lookup"},
         steps=[
             PlanStep(
@@ -241,6 +242,6 @@ def test_execute_plan_returns_scalar_column_type_lookup_from_plan_metadata() -> 
     )
     result = engine.execute_plan(dataset, deepcopy(plan))
 
-    assert result.response["result"]["name"] == "created_at_dtype"
-    assert result.response["result"]["logical_shape"] == "scalar"
-    assert result.response["result"]["value"] == "datetime"
+    assert result.response["result"]["name"] == "column_type_inventory"
+    assert result.response["result"]["logical_shape"] == "table"
+    assert normalized_result_value(result.response["result"])["dtype"] == "datetime"

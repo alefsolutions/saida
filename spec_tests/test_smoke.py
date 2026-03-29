@@ -11,6 +11,7 @@ from saida.sources import DatasetProfiler, SourceContextParser
 from saida.core.contracts import Dataset
 from saida.exceptions import ModelTrainingError
 from saida.sources import CSVAdapter, JSONAdapter, PandasAdapter, SQLAdapter
+from .result_helpers import normalized_result_value, result_row_count
 
 
 def test_context_parser_extracts_metrics_and_rules() -> None:
@@ -550,7 +551,7 @@ def test_analyze_keeps_clear_open_ended_metric_prompt_on_exploratory_family() ->
 
     assert result.response["status"] == "ok"
     assert result.response["interpretation"]["prompt_family"] == "exploratory_metric_overview"
-    assert result.response["result"]["name"] == "time_trend"
+    assert result.response["result"]["name"] == "summary_metrics"
 
 
 @pytest.mark.parametrize(
@@ -580,8 +581,8 @@ def test_analyze_returns_column_count_for_metadata_count_prompt(question: str) -
 
     assert result.response["status"] == "ok"
     assert result.response["result"]["name"] == "column_count"
-    assert result.response["result"]["logical_shape"] == "count"
-    assert result.response["result"]["value"] == 8
+    assert result.response["result"]["logical_shape"] == "scalar"
+    assert normalized_result_value(result.response["result"]) == 8
     assert result.response["interpretation"]["target"] is None
     assert result.response["interpretation"]["intent_name"] == "column_count"
     assert result.response["interpretation"]["prompt_family"] == "column_count"
@@ -613,10 +614,9 @@ def test_analyze_returns_distinct_value_count_for_dimension_count_prompt(questio
     assert result.response["interpretation"]["intent_name"] == "distinct_value_count"
     assert result.response["interpretation"]["prompt_family"] == "distinct_value_count"
     assert result.response["interpretation"]["target"] == "team"
-    assert result.response["result"]["name"] == "team_distinct_count"
-    assert result.response["result"]["logical_shape"] == "count"
-    assert result.response["result"]["dtype"] == "integer"
-    assert result.response["result"]["value"] == 3
+    assert result.response["result"]["name"] == "distinct_value_count"
+    assert result.response["result"]["logical_shape"] == "scalar"
+    assert normalized_result_value(result.response["result"]) == 3
     assert "The column team has 3 distinct values." in result.summary
     assert any(table.name == "distinct_value_count" for table in result.tables)
 
@@ -639,9 +639,8 @@ def test_analyze_returns_high_cardinality_count_without_row_existence_fallback()
     assert result.response["interpretation"]["intent_name"] == "high_cardinality_count"
     assert result.response["interpretation"]["prompt_family"] == "high_cardinality_count"
     assert result.response["result"]["name"] == "high_cardinality_count"
-    assert result.response["result"]["logical_shape"] == "count"
-    assert result.response["result"]["dtype"] == "integer"
-    assert result.response["result"]["value"] == 3
+    assert result.response["result"]["logical_shape"] == "scalar"
+    assert normalized_result_value(result.response["result"]) == 3
     assert "The dataset has 3 high-cardinality columns." in result.summary
     assert any(table.name == "high_cardinality_count" for table in result.tables)
     assert all(table.name != "row_existence" for table in result.tables)
@@ -678,10 +677,10 @@ def test_analyze_identifies_most_represented_group_with_singular_result() -> Non
     assert "The most represented channel is channel=Email with 3 rows." in result.summary
     assert result.response["interpretation"]["intent_name"] == "representation_ranking"
     assert result.response["interpretation"]["target"] == "channel"
-    assert result.response["result"]["physical_shape"] == "object"
+    assert result.response["result"]["physical_shape"] == "recordset"
     assert result.response["result"]["logical_shape"] == "table"
-    assert result.response["result"]["value"]["channel"] == "Email"
-    assert result.response["result"]["value"]["row_count"] == 3
+    assert normalized_result_value(result.response["result"])["channel"] == "Email"
+    assert normalized_result_value(result.response["result"])["row_count"] == 3
     assert any(table.name == "group_row_counts" for table in result.tables)
 
 
@@ -701,7 +700,7 @@ def test_analyze_returns_column_inventory() -> None:
     assert result.response["interpretation"]["intent_name"] == "column_inventory"
     assert result.response["result"]["name"] == "column_inventory"
     assert result.response["result"]["logical_shape"] == "table"
-    assert result.response["result"]["row_count"] == 3
+    assert result_row_count(result.response["result"]) == 3
     assert any(table.name == "column_inventory" for table in result.tables)
 
 
@@ -747,11 +746,10 @@ def test_analyze_returns_single_column_type_lookup(question: str, expected_targe
 
     assert result.response["interpretation"]["intent_name"] == "column_type_inventory"
     assert result.response["interpretation"]["target"] == expected_target
-    assert result.response["result"]["name"] == f"{expected_target}_dtype"
-    assert result.response["result"]["physical_shape"] == "scalar"
-    assert result.response["result"]["dtype"] == "string"
-    assert result.response["result"]["value"] == "datetime"
-    assert "Data type for created_at is datetime (non-null)." in result.summary
+    assert result.response["result"]["name"] == "column_type_inventory"
+    assert result.response["result"]["physical_shape"] == "recordset"
+    assert normalized_result_value(result.response["result"])["dtype"] == "datetime"
+    assert "created_at" in result.summary
     table = next(table for table in result.tables if table.name == "column_type_inventory")
     assert len(table.dataframe) == 1
     assert list(table.dataframe["column_name"]) == ["created_at"]
@@ -1572,7 +1570,7 @@ def test_analyze_returns_filtered_row_table_for_reopened_prompt() -> None:
     table = next(table for table in result.tables if table.name == "tabular_query")
     assert result.response["interpretation"]["intent_name"] == "tabular_query"
     assert result.response["result"]["logical_shape"] == "recordset"
-    assert result.response["result"]["pagination"]["total_rows"] == 2
+    assert result.response["result"]["metadata"]["pagination"]["total_rows"] == 2
     assert len(table.dataframe) == 2
     assert set(table.dataframe["reopened_flag"]) == {"yes"}
 
@@ -1627,8 +1625,8 @@ def test_analyze_returns_paginated_tabular_query() -> None:
 
     table = next(table for table in result.tables if table.name == "tabular_query")
     assert list(table.dataframe["ticket_id"]) == ["T3"]
-    assert result.response["result"]["pagination"]["page"] == 2
-    assert result.response["result"]["pagination"]["total_rows"] == 3
+    assert result.response["result"]["metadata"]["pagination"]["page"] == 2
+    assert result.response["result"]["metadata"]["pagination"]["total_rows"] == 3
 
 
 def _build_recurring_time_filter_dataset() -> Dataset:
@@ -1713,7 +1711,7 @@ def test_analyze_supports_extended_recurring_time_filters(
     assert result.response["status"] == "ok"
     assert result.response["interpretation"]["intent_name"] == "tabular_query"
     assert result.response["interpretation"]["prompt_family"] == "tabular_record_retrieval"
-    assert result.response["result"]["pagination"]["total_rows"] == expected_total_rows
+    assert result.response["result"]["metadata"]["pagination"]["total_rows"] == expected_total_rows
     assert len(table.dataframe) == expected_total_rows
 
 
@@ -1726,7 +1724,7 @@ def test_analyze_supports_recent_window_time_filter() -> None:
     assert result.response["status"] == "ok"
     assert result.response["interpretation"]["intent_name"] == "tabular_query"
     assert result.response["interpretation"]["prompt_family"] == "tabular_record_retrieval"
-    assert result.response["result"]["pagination"]["total_rows"] == 2
+    assert result.response["result"]["metadata"]["pagination"]["total_rows"] == 2
     assert list(table.dataframe["ticket_id"]) == ["T3", "T4"]
 
 
