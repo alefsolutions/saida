@@ -10,7 +10,7 @@ Core framework:
 
 ```python
 from saida import Saida
-from saida.core.contracts import AnalysisPlan, PlanStep
+from saida.core.contracts import AnalysisPlan, PlanInput, PlanStep, StepInputRef, StepOutputSpec
 from saida.sources import CSVSource
 ```
 
@@ -31,7 +31,7 @@ Example:
 
 ```python
 from saida import Saida
-from saida.core.contracts import AnalysisPlan, PlanStep
+from saida.core.contracts import AnalysisPlan, PlanInput, PlanStep, StepInputRef, StepOutputSpec
 from saida.sources import CSVSource
 
 dataset = CSVSource("examples/datasets/support_tickets_500.csv").load()
@@ -39,8 +39,10 @@ dataset = CSVSource("examples/datasets/support_tickets_500.csv").load()
 plan = AnalysisPlan(
     task_type="descriptive",
     rationale="Count tickets by team.",
+    inputs=[PlanInput(input_id="primary_dataset", kind="dataset", ref=dataset.name)],
     expected_result_name="group_row_counts",
     expected_result_shape="table",
+    final_output_ref="group_row_counts",
     steps=[
         PlanStep(
             step_id="count_rows_by_group",
@@ -50,6 +52,23 @@ plan = AnalysisPlan(
             family="aggregation_grouping",
             parameters={"group_by": ["team"]},
             description="Count tickets by team.",
+            inputs=[
+                StepInputRef(
+                    input_id="dataset_input",
+                    source_type="plan_input",
+                    ref="primary_dataset",
+                    expected_kind="dataset",
+                )
+            ],
+            output_refs=["group_row_counts"],
+            outputs=[
+                StepOutputSpec(
+                    output_id="group_row_counts",
+                    kind="frame",
+                    logical_shape="table",
+                    physical_shape="recordset",
+                )
+            ],
         )
     ],
 )
@@ -70,7 +89,8 @@ It:
 
 - profiles the dataset
 - validates the plan
-- routes each step to the right compute adapter
+- resolves plan inputs and step-output refs
+- routes each step through the deterministic DAG scheduler
 - returns a canonical `AnalysisResult`
 
 ### `Saida().profile(dataset)`
@@ -176,12 +196,20 @@ payload = result.to_response_dict()
 print(payload["result"]["name"])
 print(payload["result"]["value"])
 print(payload["execution"]["plan_id"])
+print(payload["execution"]["final_output_ref"])
 ```
 
 ```python
 for table in result.tables:
     print(table.name)
     print(table.dataframe.head())
+```
+
+```python
+for node_result in result.node_results:
+    print(node_result.step_id, node_result.produced_outputs)
+
+print(result.artifact_index.keys())
 ```
 
 ## Optional Prompt Frontend
@@ -207,6 +235,8 @@ result = frontend.analyze(dataset, "How many tickets do we have by team?")
 ```
 
 This path is optional. The framework itself is still centered on authored or generated `AnalysisPlan` execution.
+
+Prompt-generated plans now use the same DAG-ready plan contract as authored plans, so you can inspect `plan.inputs`, `plan.steps[*].inputs`, `plan.steps[*].outputs`, and `plan.final_output_ref` before execution.
 
 ## Reserved APIs
 

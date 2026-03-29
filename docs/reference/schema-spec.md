@@ -12,7 +12,11 @@ Most important rule:
 - `Dataset`
 - `DatasetProfile`
 - `PlanInput`
+- `StepInputRef`
+- `StepOutputSpec`
 - `PlanStep`
+- `ExecutionArtifact`
+- `NodeExecutionResult`
 - `AnalysisPlan`
 - `AnalysisResult`
 
@@ -58,6 +62,33 @@ Main fields:
 - `ref`
 - `metadata`
 
+## `StepInputRef`
+
+Represents one directed input edge into a plan step.
+
+Main fields:
+
+- `input_id`
+- `source_type`
+- `ref`
+- `alias`
+- `required`
+- `expected_kind`
+- `metadata`
+
+## `StepOutputSpec`
+
+Represents one declared step output.
+
+Main fields:
+
+- `output_id`
+- `kind`
+- `logical_shape`
+- `physical_shape`
+- `is_primary`
+- `metadata`
+
 ## `PlanStep`
 
 Represents one executable step inside an `AnalysisPlan`.
@@ -71,6 +102,8 @@ Main fields:
 - `family`
 - `parameters`
 - `depends_on`
+- `inputs`
+- `outputs`
 - `output_refs`
 - `expected_output`
 - `description`
@@ -91,14 +124,43 @@ Main fields:
 - `steps`
 - `expected_result_name`
 - `expected_result_shape`
+- `final_output_ref`
 - `warnings`
 - `metadata`
 
 Notes:
 
 - `version` is currently `saida.plan.v2`
+- execution is DAG-oriented even when a plan is authored as a simple ordered step list
 - `expected_result_name` and `expected_result_shape` tell SAIDA what the primary result should be
+- `final_output_ref` identifies the preferred terminal artifact for canonical result selection
 - `to_dict()` returns a JSON-friendly representation of the plan
+
+## `ExecutionArtifact`
+
+Represents one serialized runtime artifact exposed after execution.
+
+Main fields:
+
+- `artifact_id`
+- `kind`
+- `value`
+- `logical_shape`
+- `physical_shape`
+- `producer_step_id`
+- `metadata`
+
+## `NodeExecutionResult`
+
+Represents one executed step in the runtime graph.
+
+Main fields:
+
+- `step_id`
+- `status`
+- `consumed_inputs`
+- `produced_outputs`
+- `metadata`
 
 ## `AnalysisResult`
 
@@ -117,6 +179,8 @@ Main fields:
 - `trace`
 - `artifacts`
 - `response`
+- `node_results`
+- `artifact_index`
 
 ## Response Envelope
 
@@ -139,6 +203,8 @@ Main top-level fields:
 - `errors`
 - `meta`
 
+The execution and meta sections now also expose artifact lineage and graph execution metadata.
+
 ## `execution` Block
 
 Shows what SAIDA actually ran.
@@ -154,6 +220,9 @@ Main fields:
 - `expected_result_name`
 - `expected_result_shape`
 - `steps`
+- `node_results`
+- `final_output_ref`
+- `artifact_index`
 
 ## `result` Block
 

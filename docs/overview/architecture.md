@@ -6,6 +6,8 @@ The core runtime is:
 
 - `Dataset`
 - `AnalysisPlan`
+- execution DAG validation
+- execution artifact store
 - validation
 - execution
 - `AnalysisResult`
@@ -85,12 +87,17 @@ Purpose:
 The validator checks:
 
 - step structure
+- graph structure
 - method support
 - required parameters
 - field references
 - dataset compatibility
 - backend compatibility
 - expected output and expected result shape
+- step input refs
+- step output refs
+- cycle safety
+- `final_output_ref`
 
 Main component:
 
@@ -109,13 +116,16 @@ The analytics registry is the single source of truth for:
 - required inputs
 - allowed configs
 - output shapes
+- input artifact kinds
+- output artifact kinds
+- node kinds
 - default tool families
 
 ### 5. Compute
 
 Purpose:
 
-- execute validated plan steps
+- execute validated plan steps through a deterministic DAG scheduler
 
 Main abstractions and built-ins:
 
@@ -125,6 +135,14 @@ Main abstractions and built-ins:
 - `StatsModelsAdapter`
 - `MlAdapter`
 - `BackendRouter`
+
+Execution behavior:
+
+- steps are scheduled in topological order
+- single-step authored plans remain valid
+- explicit artifact refs can connect one step output to another step input
+- execution stays deterministic and single-threaded in the current release
+- runtime artifacts are registered in an execution-scoped artifact store
 
 ### 6. Results
 
@@ -140,6 +158,12 @@ Main components:
 The portable JSON contract is:
 
 - `saida.response.v2`
+
+Important result behavior:
+
+- `final_output_ref` is the first-class selector for the primary result
+- `artifact_index` and `node_results` expose graph execution lineage
+- legacy flat `metrics` and `tables` remain available for compatibility
 
 ### 7. Outputs
 
@@ -182,8 +206,16 @@ Important fields include:
 - `steps`
 - `dataset_refs`
 - `inputs`
+- `final_output_ref`
 - `expected_result_name`
 - `expected_result_shape`
+
+Each `PlanStep` can now carry:
+
+- explicit `inputs`
+- explicit `outputs`
+- `depends_on`
+- `output_refs`
 
 ### `AnalysisResult`
 
@@ -195,6 +227,8 @@ It carries:
 - supporting tables
 - warnings
 - execution metadata
+- node execution records
+- artifact lineage
 - summaries
 - canonical response payload
 

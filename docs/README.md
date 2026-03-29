@@ -14,7 +14,8 @@ Prompt and LLM features are documented too, but they are optional frontend layer
 1. [Architecture](./overview/architecture.md)
 2. [API Usage](./reference/api-usage.md)
 3. [Schema Spec](./reference/schema-spec.md)
-4. [File Structure](./overview/file-structure.md)
+4. [DAG Plan Authoring](./guides/dag-plan-authoring.md)
+5. [File Structure](./overview/file-structure.md)
 
 ## Reference
 
@@ -23,6 +24,7 @@ Prompt and LLM features are documented too, but they are optional frontend layer
 ## Guides
 
 - [Prompt Playbook](./guides/prompt-playbook.md)
+- [DAG Plan Authoring](./guides/dag-plan-authoring.md)
 
 ## Internal Notes
 
