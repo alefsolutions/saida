@@ -27,6 +27,7 @@ from saida.plan_generation.graph_templates import (
     build_metric_aggregate_template,
     build_representation_ranking_template,
     build_row_ranking_template,
+    build_tabular_retrieval_template,
     build_time_bucket_breakdown_template,
     build_time_bucket_counts_template,
     build_time_period_comparison_template,
@@ -872,6 +873,8 @@ class PlanBuilder:
             return self._build_grouped_metric_table_graph_plan(request, context, task_type, warnings)
         if prompt_family == "group_ranking":
             return self._build_group_ranking_graph_plan(request, context, task_type, warnings)
+        if prompt_family == "tabular_record_retrieval":
+            return self._build_tabular_retrieval_graph_plan(request, context, task_type, warnings)
         if prompt_family == "time_bucket_breakdown":
             return self._build_time_bucket_breakdown_graph_plan(request, profile, context, task_type, warnings)
         if prompt_family == "time_bucket_counts":
@@ -1030,6 +1033,16 @@ class PlanBuilder:
         warnings: list[str],
     ) -> AnalysisPlan:
         template = build_group_ranking_template(request)
+        return self._finalize_graph_template_plan(task_type, request, context, template, warnings)
+
+    def _build_tabular_retrieval_graph_plan(
+        self,
+        request: AnalysisRequest,
+        context: SourceContext | None,
+        task_type: str,
+        warnings: list[str],
+    ) -> AnalysisPlan:
+        template = build_tabular_retrieval_template(request)
         return self._finalize_graph_template_plan(task_type, request, context, template, warnings)
 
     def _build_time_bucket_breakdown_graph_plan(

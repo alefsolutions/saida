@@ -1989,6 +1989,23 @@ def test_normalizer_detects_latest_rows_sorting() -> None:
     assert request.options["sort_direction"] == "desc"
 
 
+def test_normalizer_detects_latest_rows_limit() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Show the latest 5 rows",
+        build_statistical_dataset(),
+        build_statistical_profile(),
+        None,
+    )
+
+    assert request.intent_name == "tabular_query"
+    assert request.options["sort_by"] == "created_at"
+    assert request.options["sort_direction"] == "desc"
+    assert request.options["limit"] == 5
+    assert request.options["page_size"] == 5
+
+
 def test_normalizer_defaults_tabular_page_size_from_limit() -> None:
     normalizer = RequestNormalizer()
 

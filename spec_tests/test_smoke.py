@@ -1592,7 +1592,8 @@ def test_analyze_returns_selected_columns_for_tabular_prompt() -> None:
 
     table = next(table for table in result.tables if table.name == "tabular_query")
     assert list(table.dataframe.columns) == ["ticket_id", "priority", "created_at"]
-    assert result.response["tables"][0]["result"]["pagination"]["total_rows"] == 3
+    response_table = next(table_entry for table_entry in result.response["tables"] if table_entry["name"] == "tabular_query")
+    assert response_table["result"]["pagination"]["total_rows"] == 3
 
 
 def test_analyze_returns_grouped_tabular_query_for_table_prompt() -> None:
@@ -1629,6 +1630,36 @@ def test_analyze_returns_paginated_tabular_query() -> None:
     assert list(table.dataframe["ticket_id"]) == ["T3"]
     assert result.response["result"]["metadata"]["pagination"]["page"] == 2
     assert result.response["result"]["metadata"]["pagination"]["total_rows"] == 3
+
+
+def test_analyze_returns_latest_five_rows_as_limited_recordset() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "order_id": [f"ORD-{index:03d}" for index in range(1, 9)],
+            "order_date": [
+                "2026-01-01",
+                "2026-01-02",
+                "2026-01-03",
+                "2026-01-04",
+                "2026-01-05",
+                "2026-01-06",
+                "2026-01-07",
+                "2026-01-08",
+            ],
+            "country": ["A", "B", "C", "D", "E", "F", "G", "H"],
+            "total_sales": [10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0],
+        }
+    )
+    dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
+
+    result = PromptAnalysisFrontend().analyze(dataset, "Show the latest 5 rows.")
+
+    table = next(table for table in result.tables if table.name == "tabular_query")
+    assert result.response["interpretation"]["intent_name"] == "tabular_query"
+    assert list(table.dataframe["order_id"]) == ["ORD-008", "ORD-007", "ORD-006", "ORD-005", "ORD-004"]
+    assert len(table.dataframe) == 5
+    assert result.response["result"]["metadata"]["pagination"]["total_rows"] == 5
+    assert list(table.dataframe.columns) == ["order_id", "order_date", "country", "total_sales"]
 
 
 def _build_recurring_time_filter_dataset() -> Dataset:

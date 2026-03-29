@@ -44,7 +44,7 @@ This file is a human-readable snapshot of the live prompt family catalog in `src
 | `sample_size_estimate` | `governed` | `manual` | `manual` | - | target | table | sample_size_estimate | - |
 | `significance_inference` | `governed` | `manual` | `manual` | - | target | table | significance_inference | - |
 | `t_test` | `governed` | `manual` | `manual` | - | target | table | t_test | - |
-| `tabular_record_retrieval` | `governed` | `template` | `template` | tabular_query | - | recordset | tabular_query | - |
+| `tabular_record_retrieval` | `governed` | `manual` | `template` | tabular_query | - | recordset | filter_frame, sort_frame, limit_frame, select_columns, tabular_query | - |
 | `threshold_verification` | `governed` | `manual` | `manual` | existence_check | target, threshold_value, threshold_operator | verification | threshold_check | - |
 | `time_bucket_breakdown` | `governed` | `manual` | `manual` | time_bucket_breakdown | target | table | time_bucket_frame, aggregate_frame | - |
 | `time_bucket_counts` | `partial` | `manual` | `manual` | time_bucket_counts | - | table | time_bucket_frame, aggregate_frame | - |

@@ -440,25 +440,8 @@ def build_default_prompt_family_catalog() -> PromptFamilyCatalog:
             description="Return rows with selected columns, sorting, and pagination.",
             intent_names=("tabular_query",),
             primary_result_shapes=("recordset",),
-            allowed_plan_actions=("tabular_query",),
+            allowed_plan_actions=("filter_frame", "sort_frame", "limit_frame", "select_columns", "tabular_query"),
             examples=("Show the latest 10 tickets with priority and channel.",),
-            plan_steps=(
-                PromptFamilyPlanStepSpec(
-                    step_id="tabular_query",
-                    tool_family="duckdb",
-                    action="tabular_query",
-                    description="Return a filtered, sorted, and paginated recordset for natural-language data discovery.",
-                    parameters={
-                        "selected_columns": PromptFamilyValueSpec("request_option_or_none", key="selected_columns"),
-                        "filters": PromptFamilyValueSpec("request_attr", key="filters"),
-                        "sort_by": PromptFamilyValueSpec("request_option", key="sort_by"),
-                        "sort_direction": PromptFamilyValueSpec("request_option", key="sort_direction", default="asc"),
-                        "limit": PromptFamilyValueSpec("request_option", key="limit"),
-                        "page": PromptFamilyValueSpec("request_option", key="page", default=1),
-                        "page_size": PromptFamilyValueSpec("request_option", key="page_size", default=50),
-                    },
-                ),
-            ),
             primary_result=PromptFamilyResultSpec(
                 source="table",
                 table_name="tabular_query",

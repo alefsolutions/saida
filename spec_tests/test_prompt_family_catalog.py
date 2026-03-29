@@ -156,7 +156,6 @@ def test_prompt_family_catalog_markdown_snapshot_matches_live_catalog() -> None:
         "high_cardinality_count",
         "grouped_entity_count",
         "representation_ranking",
-        "tabular_record_retrieval",
     ],
 )
 def test_high_volume_prompt_families_use_template_plan_compilation(family_id: str) -> None:
@@ -166,6 +165,16 @@ def test_high_volume_prompt_families_use_template_plan_compilation(family_id: st
     assert family_spec is not None
     assert family_spec.plan_steps
     assert family_spec.to_dict()["plan_compilation"] == "template"
+
+
+def test_tabular_record_retrieval_uses_graph_planning_instead_of_inline_template_steps() -> None:
+    catalog = build_default_prompt_family_catalog()
+    family_spec = catalog.get("tabular_record_retrieval")
+
+    assert family_spec is not None
+    assert family_spec.plan_steps == ()
+    assert family_spec.to_dict()["plan_compilation"] == "manual"
+    assert family_spec.allowed_plan_actions == ("filter_frame", "sort_frame", "limit_frame", "select_columns", "tabular_query")
 
 
 @pytest.mark.parametrize(

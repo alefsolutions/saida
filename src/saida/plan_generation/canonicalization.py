@@ -1472,6 +1472,10 @@ class InputCanonicalizer:
     def _extract_tabular_limit(self, question: str) -> int | None:
         lowered = question.lower()
         patterns = [
+            r"\b(?:latest|earliest|newest|oldest)\s+(\d+)\s+rows?\b",
+            r"\b(?:latest|earliest|newest|oldest)\s+(\d+)\s+records?\b",
+            r"\b(?:most\s+recent|least\s+recent)\s+(\d+)\s+rows?\b",
+            r"\b(?:most\s+recent|least\s+recent)\s+(\d+)\s+records?\b",
             r"\b(?:first|last|return|show|list)\s+(\d+)\s+rows?\b",
             r"\b(?:return|show|list)\s+(\d+)\s+records?\b",
             r"\b(?:first|last)\s+(\d+)\b",

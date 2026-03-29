@@ -1096,9 +1096,43 @@ def test_planner_builds_tabular_query_plan() -> None:
 
     plan = planner.build_plan(request, build_tabular_profile())
 
-    assert [step.action for step in plan.steps] == ["tabular_query"]
+    assert [step.action for step in plan.steps] == ["filter_frame", "sort_frame", "limit_frame", "tabular_query"]
     assert plan.steps[0].parameters["filters"] == {"reopened_flag": "yes"}
-    assert plan.steps[0].parameters["sort_by"] == "created_at"
+    assert plan.steps[1].parameters["sort_by"] == "created_at"
+    assert plan.steps[2].parameters["limit"] == 5
+    assert plan.final_output_ref == "tabular_query"
+
+
+def test_planner_builds_tabular_query_plan_with_selected_columns_projection() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="Show ticket_id and priority rows sorted by created_at",
+        intent_name="tabular_query",
+        task_type_hint="descriptive",
+        options={"selected_columns": ["ticket_id", "priority", "created_at"], "sort_by": "created_at", "sort_direction": "asc", "page": 1, "page_size": 50},
+    )
+
+    plan = planner.build_plan(request, build_tabular_profile())
+
+    assert [step.action for step in plan.steps] == ["filter_frame", "sort_frame", "select_columns", "tabular_query"]
+    assert plan.steps[2].parameters["selected_columns"] == ["ticket_id", "priority", "created_at"]
+
+
+def test_planner_builds_tabular_query_plan_for_latest_rows() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="Show the latest 5 rows.",
+        intent_name="tabular_query",
+        prompt_family="tabular_record_retrieval",
+        task_type_hint="descriptive",
+        options={"selected_columns": [], "sort_by": "created_at", "sort_direction": "desc", "limit": 5, "page": 1, "page_size": 5},
+    )
+
+    plan = planner.build_plan(request, build_tabular_profile())
+
+    assert [step.action for step in plan.steps] == ["filter_frame", "sort_frame", "limit_frame", "tabular_query"]
+    assert plan.steps[1].parameters["sort_direction"] == "desc"
+    assert plan.steps[2].parameters["limit"] == 5
 
 
 def test_planner_builds_grouped_tabular_query_plan() -> None:

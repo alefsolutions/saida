@@ -636,7 +636,7 @@ _REPRODUCIBILITY_CASES.extend(
                 "sort_by": "created_at",
                 "sort_direction": "asc",
             },
-            expected_step_actions=("tabular_query",),
+            expected_step_actions=("filter_frame", "sort_frame", "select_columns", "tabular_query"),
             expected_primary_result_name="tabular_query",
             expected_primary_logical_shape="recordset",
         ),

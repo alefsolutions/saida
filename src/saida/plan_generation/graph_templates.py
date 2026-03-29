@@ -73,6 +73,12 @@ def build_default_graph_template_catalog() -> dict[str, GraphTemplateSpec]:
             supported_prompt_families=("row_ranking",),
         ),
         GraphTemplateSpec(
+            template_id="tabular_retrieval_pipeline",
+            label="Tabular Retrieval Pipeline",
+            description="Filter, sort, limit, project, and paginate record retrieval requests.",
+            supported_prompt_families=("tabular_record_retrieval",),
+        ),
+        GraphTemplateSpec(
             template_id="metric_aggregate_pipeline",
             label="Metric Aggregate Pipeline",
             description="Filter rows and reduce them to a scalar aggregate.",
@@ -524,6 +530,108 @@ def build_metric_aggregate_template(request: AnalysisRequest) -> GraphTemplatePl
         template_id="metric_aggregate_pipeline",
         steps=steps,
         final_output_ref="aggregate_value",
+    )
+
+
+def build_tabular_retrieval_template(request: AnalysisRequest) -> GraphTemplatePlan:
+    selected_columns = [str(column) for column in request.options.get("selected_columns", []) if isinstance(column, str)]
+    sort_by = request.options.get("sort_by")
+    sort_direction = str(request.options.get("sort_direction", "asc"))
+    limit = request.options.get("limit")
+    page = int(request.options.get("page", 1))
+    page_size = int(request.options.get("page_size", 50))
+
+    steps: list[PlanStep] = [
+        PlanStep(
+            step_id="filter_frame",
+            tool_family="duckdb",
+            action="filter_frame",
+            parameters={
+                "filters": request.filters,
+                "table_name": "filtered_rows",
+            },
+            description="Prepare the filtered source rows for tabular retrieval.",
+            output_refs=["filtered_rows"],
+        )
+    ]
+
+    previous_output_ref = "filtered_rows"
+    if isinstance(sort_by, str) and sort_by:
+        steps.append(
+            PlanStep(
+                step_id="sort_frame",
+                tool_family="duckdb",
+                action="sort_frame",
+                parameters={
+                    "sort_by": sort_by,
+                    "sort_direction": sort_direction,
+                    "table_name": "sorted_rows",
+                },
+                description="Sort the retrieval rows before pagination or limiting.",
+                inputs=[_step_output_input("filtered_rows_input", previous_output_ref)],
+                output_refs=["sorted_rows"],
+            )
+        )
+        previous_output_ref = "sorted_rows"
+
+    if isinstance(limit, int) and limit > 0:
+        steps.append(
+            PlanStep(
+                step_id="limit_frame",
+                tool_family="duckdb",
+                action="limit_frame",
+                parameters={
+                    "limit": limit,
+                    "table_name": "limited_rows",
+                },
+                description="Apply the requested row limit after sorting.",
+                inputs=[_step_output_input("sorted_rows_input", previous_output_ref)],
+                output_refs=["limited_rows"],
+            )
+        )
+        previous_output_ref = "limited_rows"
+
+    if selected_columns:
+        steps.append(
+            PlanStep(
+                step_id="select_columns",
+                tool_family="duckdb",
+                action="select_columns",
+                parameters={
+                    "selected_columns": selected_columns,
+                    "table_name": "projected_rows",
+                },
+                description="Project the requested columns for the tabular result.",
+                inputs=[_step_output_input("rows_input", previous_output_ref)],
+                output_refs=["projected_rows"],
+            )
+        )
+        previous_output_ref = "projected_rows"
+
+    steps.append(
+        PlanStep(
+            step_id="tabular_query",
+            tool_family="duckdb",
+            action="tabular_query",
+            parameters={
+                "selected_columns": None,
+                "filters": None,
+                "sort_by": None,
+                "sort_direction": "asc",
+                "limit": None,
+                "page": page,
+                "page_size": page_size,
+            },
+            description="Paginate and materialize the final tabular recordset.",
+            inputs=[_step_output_input("rows_input", previous_output_ref)],
+            output_refs=["tabular_query"],
+        )
+    )
+
+    return GraphTemplatePlan(
+        template_id="tabular_retrieval_pipeline",
+        steps=steps,
+        final_output_ref="tabular_query",
     )
 
 
