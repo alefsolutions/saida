@@ -6,7 +6,9 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any
 
+from saida.core.artifacts import RuntimeArtifact
 from saida.core.contracts import Dataset, DatasetProfile, Metric, TableArtifact
+from saida.exceptions import PlanningError
 
 
 @dataclass(slots=True)
@@ -17,6 +19,23 @@ class ComputeRequest:
     dataset: Dataset | None = None
     profile: DatasetProfile | None = None
     parameters: dict[str, Any] = field(default_factory=dict)
+    resolved_inputs: dict[str, RuntimeArtifact] = field(default_factory=dict)
+    artifact_store: object | None = None
+
+    def has_resolved_input(self, input_id: str) -> bool:
+        """Return whether a resolved runtime artifact is available for the given input id."""
+        return input_id in self.resolved_inputs
+
+    def get_resolved_input(self, input_id: str) -> RuntimeArtifact:
+        """Return one resolved runtime artifact or raise a planning error."""
+        artifact = self.resolved_inputs.get(input_id)
+        if artifact is None:
+            raise PlanningError(f"Compute request does not contain resolved input {input_id!r}.")
+        return artifact
+
+    def get_resolved_value(self, input_id: str) -> Any:
+        """Return the raw value for a resolved runtime artifact."""
+        return self.get_resolved_input(input_id).value
 
 
 @dataclass(slots=True)
@@ -25,6 +44,7 @@ class ComputeResponse:
 
     metrics: list[Metric] = field(default_factory=list)
     tables: list[TableArtifact] = field(default_factory=list)
+    produced_artifacts: list[RuntimeArtifact] = field(default_factory=list)
 
 
 class ComputeInterface(ABC):
