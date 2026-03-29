@@ -1280,6 +1280,23 @@ def test_analyze_returns_no_for_missing_column_presence_check() -> None:
     assert any(table.name == "column_presence_check" for table in result.tables)
 
 
+def test_analyze_returns_yes_for_column_presence_check_when_field_name_contains_total_keyword() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "total_sales": [120.0, 85.0],
+            "country": ["Australia", "Japan"],
+        }
+    )
+    dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
+
+    result = PromptAnalysisFrontend().analyze(dataset, "Does the dataset contain a total_sales column?")
+
+    assert "Yes, the dataset contains the total_sales column." in result.summary
+    assert result.response["interpretation"]["options"]["existence_mode"] == "column_presence_check"
+    assert result.response["interpretation"]["options"]["requested_column"] == "total_sales"
+    assert result.response["result"]["name"] == "column_presence_check"
+
+
 def test_analyze_returns_no_for_high_cardinality_property_check() -> None:
     dataframe = pd.DataFrame(
         {

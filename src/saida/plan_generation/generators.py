@@ -65,12 +65,16 @@ class LlmAssistedPlanGenerator(AnalysisPlanGeneratorInterface):
         profile: DatasetProfile,
         context: SourceContext | None,
     ) -> PlanGenerationResult:
+        prompt_entities = self.canonicalizer.extract_prompt_entities(question, profile, context)
         try:
             proposal = self.llm_provider.interpret_prompt(
                 question=question,
                 dataset_name=dataset.name,
                 profile_summary=_profile_summary(profile),
-                context_summary=_context_summary(context),
+                context_summary=_merge_context_summaries(
+                    _context_summary(context),
+                    _frontend_grounding_summary(prompt_entities),
+                ),
             )
         except LlmIntegrationError:
             request, warnings = self.canonicalizer.normalize(question, dataset, profile, context)
@@ -281,6 +285,22 @@ def _context_summary(context: SourceContext | None) -> str | None:
     if context.business_rules:
         parts.append(f"business_rules={context.business_rules}")
     return "; ".join(parts) if parts else None
+
+
+def _frontend_grounding_summary(prompt_entities: object) -> str | None:
+    summary_text = getattr(prompt_entities, "summary_text", None)
+    if callable(summary_text):
+        grounded = summary_text()
+        if grounded.strip():
+            return grounded
+    return None
+
+
+def _merge_context_summaries(*parts: str | None) -> str | None:
+    merged = [part for part in parts if isinstance(part, str) and part.strip()]
+    if not merged:
+        return None
+    return " | ".join(merged)
 
 
 def _is_confident_deterministic_request(request: AnalysisRequest, warnings: list[str]) -> bool:

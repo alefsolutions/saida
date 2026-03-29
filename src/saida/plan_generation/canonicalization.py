@@ -10,6 +10,8 @@ from saida.config import NlpConfig
 from saida.exceptions import ValidationError
 from saida.llm import IntentProposal
 from saida.core.contracts import AnalysisRequest, Dataset, DatasetProfile, SourceContext
+from saida.plan_generation.entities import EntityExtractionResult, PromptEntityExtractor
+from saida.plan_generation.intent import PromptIntentResolver
 from saida.plan_generation.prompt_family_catalog import derive_prompt_family, get_prompt_family_catalog
 
 TASK_LABELS = ["descriptive", "diagnostic", "statistical", "predictive", "forecasting"]
@@ -46,6 +48,7 @@ DISTINCT_VALUE_CATEGORY_KEYWORDS = {
 }
 DISTINCT_COUNT_KEYWORDS = DISTINCT_VALUE_CATEGORY_KEYWORDS | {"distinct", "unique"}
 ROW_COUNT_KEYWORDS = {"how many rows", "number of rows", "data rows", "row count", "count rows"}
+ROW_COUNT_PHRASES = ROW_COUNT_KEYWORDS | {"count total rows", "total rows", "record count", "count records", "total records"}
 REPRESENTATION_LOW_KEYWORDS = {"least represented", "fewest rows", "least number of rows", "smallest count"}
 REPRESENTATION_HIGH_KEYWORDS = {"most represented", "most rows", "highest count", "largest count"}
 TIME_COVERAGE_YEAR_KEYWORDS = {
@@ -373,6 +376,15 @@ METADATA_SURFACE_KEYWORDS = {
     "dimensions",
 }
 UNSAFE_COUNT_KEYWORDS = {"how many", "number of", "count of", "total number", "total count", "total"}
+PROPERTY_KEYWORD_GROUPS = {
+    "high_cardinality": HIGH_CARDINALITY_PROPERTY_KEYWORDS,
+    "dimension": DIMENSION_PROPERTY_KEYWORDS,
+    "measure": MEASURE_PROPERTY_KEYWORDS,
+    "identifier": IDENTIFIER_PROPERTY_KEYWORDS,
+    "datetime": DATETIME_PROPERTY_KEYWORDS,
+    "numeric": NUMERIC_PROPERTY_KEYWORDS,
+    "categorical": CATEGORICAL_PROPERTY_KEYWORDS,
+}
 
 
 class InputCanonicalizer:
@@ -380,6 +392,43 @@ class InputCanonicalizer:
 
     def __init__(self, config: NlpConfig | None = None) -> None:
         self.config = config or NlpConfig()
+        self.entity_extractor = PromptEntityExtractor()
+        self.intent_resolver = PromptIntentResolver(
+            aggregation_keywords=AGGREGATION_KEYWORDS,
+            unsafe_count_keywords=UNSAFE_COUNT_KEYWORDS,
+            distinct_count_keywords=DISTINCT_COUNT_KEYWORDS,
+            row_count_phrases=ROW_COUNT_PHRASES,
+            property_keywords=PROPERTY_KEYWORD_GROUPS,
+        )
+        self._entity_cache: dict[tuple[str, tuple[str, ...], tuple[str, ...], tuple[str, ...]], EntityExtractionResult] = {}
+
+    def extract_prompt_entities(
+        self,
+        question: str,
+        profile: DatasetProfile,
+        context: SourceContext | None = None,
+    ) -> EntityExtractionResult:
+        """Return the schema-aware entity extraction result for a prompt."""
+        cache_key = self._entity_cache_key(question, profile, context)
+        cached = self._entity_cache.get(cache_key)
+        if cached is not None:
+            return cached
+        if len(self._entity_cache) > 128:
+            self._entity_cache.clear()
+        extracted = self.entity_extractor.extract(question, profile, context)
+        self._entity_cache[cache_key] = extracted
+        return extracted
+
+    def _entity_cache_key(
+        self,
+        question: str,
+        profile: DatasetProfile,
+        context: SourceContext | None,
+    ) -> tuple[str, tuple[str, ...], tuple[str, ...], tuple[str, ...]]:
+        profile_columns = tuple(column.name for column in profile.columns)
+        context_fields = tuple(sorted(context.field_descriptions)) if context is not None else ()
+        context_metrics = tuple(sorted(context.metric_definitions)) if context is not None else ()
+        return question, profile_columns, context_fields, context_metrics
 
     def normalize(
         self,
@@ -397,13 +446,14 @@ class InputCanonicalizer:
             raise ValidationError("Dataset profile contains no columns.")
 
         warnings: list[str] = []
-        intent_name = self._detect_intent_name(question, profile)
-        task_type_hint = self._classify_task(question)
+        surface = self.extract_prompt_entities(question, profile, context)
+        intent_name = self._detect_intent_name(question, profile, surface)
+        task_type_hint = self._classify_task(question, surface)
         if self.config.enable_transformers and self.config.zero_shot_model:
             task_type_hint = self._maybe_refine_task_with_transformers(question, task_type_hint, warnings)
 
         target = self._resolve_target(question, profile, context, intent_name)
-        aggregation = self._extract_aggregation(question)
+        aggregation = self._extract_aggregation(question, profile, context, surface)
         time_reference = self._extract_time_reference(question)
         horizon = self._extract_horizon(question)
         group_by = self._extract_group_by(question, profile)
@@ -472,7 +522,7 @@ class InputCanonicalizer:
         elif options.get("statistical_test") in {"t_test", "anova", "mann_whitney", "significance_inference", "power_analysis", "sample_size_estimate"} and not group_by:
             group_by = self._extract_statistical_group_by(question, profile, target)
 
-        explicit_count_intent = self._resolve_explicit_count_intent(question, profile, target)
+        explicit_count_intent = self._resolve_explicit_count_intent(question, profile, target, surface)
         if explicit_count_intent is not None:
             intent_name = explicit_count_intent
             aggregation = None
@@ -491,6 +541,7 @@ class InputCanonicalizer:
             aggregation,
             group_by,
             options.get("statistical_test"),
+            surface=surface,
         )
         intent_name, target, aggregation, group_by, filters, time_reference = self._apply_semantic_intent_override(
             semantic_intent,
@@ -542,6 +593,7 @@ class InputCanonicalizer:
             aggregation,
             group_by,
             options.get("statistical_test"),
+            surface=surface,
         )
         if semantic_intent is not None:
             options["semantic_intent"] = semantic_intent
@@ -605,7 +657,7 @@ class InputCanonicalizer:
             return target, aggregation, group_by
         if existence_mode == "column_property_check":
             target = target or self._extract_property_check_target(question, profile)
-            expected_property = self._extract_expected_property(question)
+            expected_property = self._extract_expected_property(question, profile)
             if expected_property is not None:
                 options["expected_property"] = expected_property
             if target is not None:
@@ -640,10 +692,11 @@ class InputCanonicalizer:
 
         canonical_question = self._resolve_candidate_canonical_question(proposal.canonical_question, question)
         rule_question = canonical_question or question
-        rule_intent_name = self._detect_intent_name(rule_question, profile)
-        rule_task_type = self._classify_task(rule_question)
+        surface = self.extract_prompt_entities(rule_question, profile, context)
+        rule_intent_name = self._detect_intent_name(rule_question, profile, surface)
+        rule_task_type = self._classify_task(rule_question, surface)
         rule_target = self._resolve_target(rule_question, profile, context, rule_intent_name)
-        rule_aggregation = self._extract_aggregation(rule_question)
+        rule_aggregation = self._extract_aggregation(rule_question, profile, context, surface)
         rule_time_reference = self._extract_time_reference(rule_question)
         rule_horizon = self._extract_horizon(rule_question)
         rule_group_by = self._extract_group_by(rule_question, profile)
@@ -728,7 +781,7 @@ class InputCanonicalizer:
             group_by = None
         elif options.get("statistical_test") in {"t_test", "anova", "mann_whitney", "significance_inference", "power_analysis", "sample_size_estimate"} and not group_by:
             group_by = self._extract_statistical_group_by(rule_question, profile, target)
-        explicit_count_intent = self._resolve_explicit_count_intent(rule_question, profile, target)
+        explicit_count_intent = self._resolve_explicit_count_intent(rule_question, profile, target, surface)
         if explicit_count_intent is not None:
             rule_intent_name = explicit_count_intent
             aggregation = None
@@ -746,6 +799,7 @@ class InputCanonicalizer:
             aggregation,
             group_by,
             options.get("statistical_test"),
+            surface=surface,
         )
         proposal_semantic_intent = self._resolve_candidate_semantic_intent(proposal, profile, context)
         semantic_intent = self._merge_semantic_intents(rule_semantic_intent, proposal_semantic_intent)
@@ -813,6 +867,7 @@ class InputCanonicalizer:
             aggregation,
             group_by,
             options.get("statistical_test"),
+            surface=surface,
         )
         semantic_intent = self._merge_semantic_intents(final_rule_semantic_intent, proposal_semantic_intent)
         if semantic_intent is not None:
@@ -961,7 +1016,7 @@ class InputCanonicalizer:
         group_by: list[str] | None,
     ) -> str | None:
         lowered = question.lower()
-        if self._looks_like_unsupported_metadata_count_request(question):
+        if self._looks_like_unsupported_metadata_count_request(question, profile):
             return (
                 "SAIDA understood this as a dataset schema or metadata count request, "
                 "but direct column or field counts are not supported yet. "
@@ -1003,13 +1058,14 @@ class InputCanonicalizer:
         options["llm_message"] = message
         options["clarification_reason"] = reason
 
-    def _looks_like_unsupported_metadata_count_request(self, question: str) -> bool:
+    def _looks_like_unsupported_metadata_count_request(self, question: str, profile: DatasetProfile) -> bool:
         lowered = question.lower()
         if any(keyword in lowered for keyword in ROW_COUNT_KEYWORDS):
             return False
-        if self._resolve_metadata_count_intent(question) is not None:
+        if self._resolve_metadata_count_intent(question, profile) is not None:
             return False
-        if not any(keyword in lowered for keyword in UNSAFE_COUNT_KEYWORDS):
+        surface = self.extract_prompt_entities(question, profile)
+        if not self.intent_resolver.contains_unsafe_count_language(surface):
             return False
         return any(keyword in lowered for keyword in METADATA_COUNT_OBJECT_KEYWORDS)
 
@@ -1018,19 +1074,31 @@ class InputCanonicalizer:
         question: str,
         profile: DatasetProfile,
         target: str | None,
+        surface: EntityExtractionResult | None = None,
     ) -> str | None:
-        metadata_count_intent = self._resolve_metadata_count_intent(question)
+        metadata_count_intent = self._resolve_metadata_count_intent(question, profile, surface)
         if metadata_count_intent is not None:
             return metadata_count_intent
-        if self._looks_like_distinct_value_count_request(question, target, profile):
+        if self._looks_like_distinct_value_count_request(question, target, profile, surface):
             return "distinct_value_count"
         return None
 
-    def _resolve_metadata_count_intent(self, question: str) -> str | None:
-        lowered = question.lower()
+    def _resolve_metadata_count_intent(
+        self,
+        question: str,
+        profile: DatasetProfile | None = None,
+        surface: EntityExtractionResult | None = None,
+    ) -> str | None:
+        if surface is None and profile is not None:
+            surface = self.extract_prompt_entities(question, profile)
+        lowered = surface.masked_lower_question if surface is not None else question.lower()
         if any(keyword in lowered for keyword in ROW_COUNT_KEYWORDS):
             return None
-        if not any(keyword in lowered for keyword in UNSAFE_COUNT_KEYWORDS):
+        if surface is not None:
+            has_unsafe_count = self.intent_resolver.contains_unsafe_count_language(surface)
+        else:
+            has_unsafe_count = any(keyword in lowered for keyword in UNSAFE_COUNT_KEYWORDS)
+        if not has_unsafe_count:
             return None
         if any(keyword in lowered for keyword in HIGH_CARDINALITY_INVENTORY_KEYWORDS):
             return "high_cardinality_count"
@@ -1057,13 +1125,15 @@ class InputCanonicalizer:
         question: str,
         target: str | None,
         profile: DatasetProfile,
+        surface: EntityExtractionResult | None = None,
     ) -> bool:
         if target is None or target not in set(profile.dimension_columns):
             return False
-        lowered = question.lower()
-        if not any(keyword in lowered for keyword in UNSAFE_COUNT_KEYWORDS):
+        if surface is None:
+            surface = self.extract_prompt_entities(question, profile)
+        if not self.intent_resolver.contains_unsafe_count_language(surface):
             return False
-        return any(keyword in lowered for keyword in DISTINCT_COUNT_KEYWORDS)
+        return self.intent_resolver.contains_any(surface, DISTINCT_COUNT_KEYWORDS)
 
     def _looks_like_schema_metadata_surface(self, lowered: str) -> bool:
         return any(keyword in lowered for keyword in METADATA_SURFACE_KEYWORDS)
@@ -1106,8 +1176,8 @@ class InputCanonicalizer:
         if profile.column_count == 0:
             raise ValidationError("Dataset profile contains no columns.")
 
-    def _classify_task(self, question: str) -> str:
-        lowered = question.lower()
+    def _classify_task(self, question: str, surface: EntityExtractionResult | None = None) -> str:
+        lowered = surface.masked_lower_question if surface is not None else question.lower()
         for task_name, keywords in TASK_KEYWORDS.items():
             if any(keyword in lowered for keyword in keywords):
                 return task_name
@@ -1140,7 +1210,6 @@ class InputCanonicalizer:
         context: SourceContext | None,
         intent_name: str | None,
     ) -> str | None:
-        lowered = question.lower()
         measure_aliases: dict[str, str] = {}
         dimension_aliases: dict[str, str] = {}
         if context:
@@ -1152,33 +1221,34 @@ class InputCanonicalizer:
             dimension_aliases[column_name.lower()] = column_name
         time_aliases = {column_name.lower(): column_name for column_name in profile.time_columns}
         all_column_aliases = {column.name.lower(): column.name for column in profile.columns}
+        named_columns = self._extract_named_columns(question, profile, context)
+        named_measure_columns = [column for column in named_columns if column in set(profile.measure_columns)]
+        named_time_columns = [column for column in named_columns if column in set(profile.time_columns)]
+        named_dimension_columns = [column for column in named_columns if column in set(profile.dimension_columns)]
 
         if intent_name == "column_type_inventory":
             return self._resolve_single_column_type_target(question, profile)
 
-        for alias, resolved_name in measure_aliases.items():
-            if alias in lowered:
-                return resolved_name
+        if named_measure_columns:
+            return named_measure_columns[0]
+        lowered = question.lower()
         measure_token_matches = self._resolve_column_by_tokens(lowered, profile.measure_columns, context)
         if measure_token_matches:
             return measure_token_matches
-        if self._extract_aggregation(question):
-            for alias, resolved_name in time_aliases.items():
-                if alias in lowered:
-                    return resolved_name
+        if self._extract_aggregation(question, profile, context):
+            if named_time_columns:
+                return named_time_columns[0]
             time_token_match = self._resolve_column_by_tokens(lowered, profile.time_columns, context)
             if time_token_match:
                 return time_token_match
-            for alias, resolved_name in dimension_aliases.items():
-                if alias in lowered:
-                    return resolved_name
+            if named_dimension_columns:
+                return named_dimension_columns[0]
             dimension_token_match = self._resolve_column_by_tokens(lowered, profile.dimension_columns, context)
             if dimension_token_match:
                 return dimension_token_match
         if intent_name == "existence_check":
-            for alias, resolved_name in all_column_aliases.items():
-                if alias in lowered:
-                    return resolved_name
+            if named_columns:
+                return named_columns[0]
             any_column_token_match = self._resolve_column_by_tokens(
                 lowered,
                 [column.name for column in profile.columns],
@@ -1187,9 +1257,8 @@ class InputCanonicalizer:
             if any_column_token_match:
                 return any_column_token_match
         if intent_name == "tabular_query":
-            for alias, resolved_name in all_column_aliases.items():
-                if alias in lowered:
-                    return resolved_name
+            if named_columns:
+                return named_columns[0]
             any_column_token_match = self._resolve_column_by_tokens(
                 lowered,
                 [column.name for column in profile.columns],
@@ -1198,16 +1267,14 @@ class InputCanonicalizer:
             if any_column_token_match:
                 return any_column_token_match
         if intent_name == "grouped_tabular_query":
-            for alias, resolved_name in measure_aliases.items():
-                if alias in lowered:
-                    return resolved_name
+            if named_measure_columns:
+                return named_measure_columns[0]
             measure_token_match = self._resolve_column_by_tokens(lowered, profile.measure_columns, context)
             if measure_token_match:
                 return measure_token_match
         if intent_name in {"distinct_values", "representation_ranking"}:
-            for alias, resolved_name in dimension_aliases.items():
-                if alias in lowered:
-                    return resolved_name
+            if named_dimension_columns:
+                return named_dimension_columns[0]
             dimension_token_match = self._resolve_column_by_tokens(lowered, profile.dimension_columns, context)
             if dimension_token_match:
                 return dimension_token_match
@@ -1233,7 +1300,17 @@ class InputCanonicalizer:
                 return candidate_name
         return None
 
-    def _extract_aggregation(self, question: str) -> str | None:
+    def _extract_aggregation(
+        self,
+        question: str,
+        profile: DatasetProfile | None = None,
+        context: SourceContext | None = None,
+        surface: EntityExtractionResult | None = None,
+    ) -> str | None:
+        if surface is None and profile is not None:
+            surface = self.extract_prompt_entities(question, profile, context)
+        if surface is not None:
+            return self.intent_resolver.extract_aggregation(surface)
         lowered = question.lower()
         for aggregation, keywords in AGGREGATION_KEYWORDS.items():
             if any(keyword in lowered for keyword in keywords):
@@ -1805,102 +1882,22 @@ class InputCanonicalizer:
         aggregation: str | None,
         group_by: list[str] | None,
         statistical_test: str | None = None,
+        surface: EntityExtractionResult | None = None,
     ) -> dict[str, object] | None:
-        if statistical_test is not None:
+        if surface is None:
+            surface = self.extract_prompt_entities(question, profile)
+        frontend_intent = self.intent_resolver.derive_semantic_intent(
+            surface=surface,
+            profile=profile,
+            intent_name=intent_name,
+            target=target,
+            aggregation=aggregation,
+            group_by=group_by,
+            statistical_test=statistical_test,
+        )
+        if frontend_intent is None:
             return None
-        lowered = question.lower()
-        countish = "count" in lowered or any(keyword in lowered for keyword in UNSAFE_COUNT_KEYWORDS)
-        row_count_phrases = {
-            "how many rows",
-            "number of rows",
-            "row count",
-            "count rows",
-            "count total rows",
-            "total rows",
-            "record count",
-            "count records",
-            "total records",
-        }
-        if any(phrase in lowered for phrase in row_count_phrases):
-            return {
-                "operation": "count",
-                "object_kind": "rows",
-                "expected_result_shape": "count",
-                "source": "rules",
-            }
-        if countish and target is not None and target in set(profile.dimension_columns) and any(
-            keyword in lowered for keyword in DISTINCT_COUNT_KEYWORDS
-        ):
-            return {
-                "operation": "count",
-                "object_kind": "distinct_values",
-                "object_ref": target,
-                "expected_result_shape": "count",
-                "source": "rules",
-            }
-        if intent_name == "row_count":
-            return {
-                "operation": "count",
-                "object_kind": "rows",
-                "expected_result_shape": "count",
-                "source": "rules",
-            }
-        if intent_name == "tabular_query":
-            return {
-                "operation": "list",
-                "object_kind": "rows",
-                "expected_result_shape": "recordset",
-                "source": "rules",
-            }
-        if intent_name == "distinct_value_count" and target is not None:
-            return {
-                "operation": "count",
-                "object_kind": "distinct_values",
-                "object_ref": target,
-                "expected_result_shape": "count",
-                "source": "rules",
-            }
-        if intent_name == "distinct_values" and target is not None:
-            return {
-                "operation": "list",
-                "object_kind": "distinct_values",
-                "object_ref": target,
-                "expected_result_shape": "table",
-                "source": "rules",
-            }
-        metadata_count_mapping = {
-            "column_count": "columns",
-            "numeric_column_count": "numeric_columns",
-            "categorical_column_count": "categorical_columns",
-            "measure_count": "measure_columns",
-            "dimension_count": "dimension_columns",
-            "time_column_count": "time_columns",
-            "identifier_count": "identifier_columns",
-            "high_cardinality_count": "high_cardinality_columns",
-        }
-        if intent_name in metadata_count_mapping:
-            return {
-                "operation": "count",
-                "object_kind": metadata_count_mapping[intent_name],
-                "expected_result_shape": "count",
-                "source": "rules",
-            }
-        if aggregation in {"sum", "mean", "max", "min"} and target is not None and target in set(profile.measure_columns):
-            return {
-                "operation": aggregation,
-                "object_kind": "measure",
-                "object_ref": target,
-                "expected_result_shape": "aggregate",
-                "source": "rules",
-            }
-        if group_by and target is not None and aggregation == "count":
-            return {
-                "operation": "count",
-                "object_kind": "rows",
-                "expected_result_shape": "table",
-                "source": "rules",
-            }
-        return None
+        return frontend_intent.to_dict()
 
     def _merge_semantic_intents(
         self,
@@ -1987,9 +1984,10 @@ class InputCanonicalizer:
         profile: DatasetProfile,
         options: dict[str, object],
     ) -> None:
-        statistical_test = self._extract_statistical_test(question)
+        surface = self.extract_prompt_entities(question, profile)
+        statistical_test = self._extract_statistical_test(question, profile, surface)
         if statistical_test is None:
-            statistical_test = self._infer_statistical_test(question, profile)
+            statistical_test = self._infer_statistical_test(question, profile, surface)
         if statistical_test is None:
             return
 
@@ -2009,15 +2007,29 @@ class InputCanonicalizer:
             elif len(named_columns) >= 2:
                 options["feature_columns"] = named_columns[1:]
 
-    def _extract_statistical_test(self, question: str) -> str | None:
-        lowered = question.lower()
+    def _extract_statistical_test(
+        self,
+        question: str,
+        profile: DatasetProfile | None = None,
+        surface: EntityExtractionResult | None = None,
+    ) -> str | None:
+        if surface is None and profile is not None:
+            surface = self.extract_prompt_entities(question, profile)
+        lowered = surface.masked_lower_question if surface is not None else question.lower()
         for test_name, keywords in STATISTICAL_TEST_KEYWORDS.items():
             if any(keyword in lowered for keyword in keywords):
                 return test_name
         return None
 
-    def _infer_statistical_test(self, question: str, profile: DatasetProfile) -> str | None:
-        lowered = question.lower()
+    def _infer_statistical_test(
+        self,
+        question: str,
+        profile: DatasetProfile,
+        surface: EntityExtractionResult | None = None,
+    ) -> str | None:
+        if surface is None:
+            surface = self.extract_prompt_entities(question, profile)
+        lowered = surface.masked_lower_question
         named_columns = self._extract_named_columns(question, profile)
         named_measures = [column for column in named_columns if column in profile.measure_columns]
         named_dimensions = [column for column in named_columns if column in profile.dimension_columns]
@@ -2078,23 +2090,14 @@ class InputCanonicalizer:
                 return target_columns[0], feature_columns
         return None, []
 
-    def _extract_named_columns(self, question: str, profile: DatasetProfile) -> list[str]:
-        lowered = question.lower()
-        matches: list[tuple[int, str]] = []
-        for column in profile.columns:
-            patterns = [rf"\b{re.escape(column.name.lower())}\b"]
-            if "_" not in column.name:
-                patterns.append(rf"\b{re.escape(column.name.lower())}s\b")
-            match = None
-            for pattern in patterns:
-                match = re.search(pattern, lowered)
-                if match:
-                    break
-            if match:
-                matches.append((match.start(), column.name))
-        matches.sort(key=lambda item: item[0])
-        ordered_names = [column_name for _, column_name in matches]
-        return list(dict.fromkeys(ordered_names))
+    def _extract_named_columns(
+        self,
+        question: str,
+        profile: DatasetProfile,
+        context: SourceContext | None = None,
+    ) -> list[str]:
+        surface = self.extract_prompt_entities(question, profile, context)
+        return surface.ordered_columns
 
     def _extract_alpha(self, question: str) -> float:
         lowered = question.lower()
@@ -2118,8 +2121,15 @@ class InputCanonicalizer:
         power = int(match.group(1)) / 100.0
         return power if 0.0 < power < 1.0 else 0.80
 
-    def _detect_intent_name(self, question: str, profile: DatasetProfile) -> str | None:
-        lowered = question.lower()
+    def _detect_intent_name(
+        self,
+        question: str,
+        profile: DatasetProfile,
+        surface: EntityExtractionResult | None = None,
+    ) -> str | None:
+        if surface is None:
+            surface = self.extract_prompt_entities(question, profile)
+        lowered = surface.masked_lower_question
         if self._looks_like_single_column_type_lookup(question, profile):
             return "column_type_inventory"
         if self._looks_like_column_type_inventory_request(lowered):
@@ -2156,7 +2166,7 @@ class InputCanonicalizer:
             return "time_bucket_breakdown"
         if self._looks_like_time_coverage_request(question):
             return "time_coverage"
-        if self._looks_like_distinct_values_request(question) or self._looks_like_dimension_category_request(question, profile):
+        if self._looks_like_distinct_values_request(question, profile, surface) or self._looks_like_dimension_category_request(question, profile, surface):
             return "distinct_values"
         if self._looks_like_representation_request(question, profile):
             return "representation_ranking"
@@ -2301,7 +2311,7 @@ class InputCanonicalizer:
         return None
 
     def _extract_property_check_target(self, question: str, profile: DatasetProfile) -> str | None:
-        expected_property = self._extract_expected_property(question)
+        expected_property = self._extract_expected_property(question, profile)
         if expected_property is None:
             return None
 
@@ -2324,15 +2334,27 @@ class InputCanonicalizer:
                 return self._resolve_requested_column_name(candidate, profile)
         return None
 
-    def _looks_like_distinct_values_request(self, question: str) -> bool:
-        lowered = question.lower()
-        return any(keyword in lowered for keyword in DISTINCT_VALUE_KEYWORDS)
+    def _looks_like_distinct_values_request(
+        self,
+        question: str,
+        profile: DatasetProfile,
+        surface: EntityExtractionResult | None = None,
+    ) -> bool:
+        if surface is None:
+            surface = self.extract_prompt_entities(question, profile)
+        return self.intent_resolver.contains_any(surface, DISTINCT_VALUE_KEYWORDS)
 
-    def _looks_like_dimension_category_request(self, question: str, profile: DatasetProfile) -> bool:
-        lowered = question.lower()
-        if not any(keyword in lowered for keyword in DISTINCT_VALUE_CATEGORY_KEYWORDS):
+    def _looks_like_dimension_category_request(
+        self,
+        question: str,
+        profile: DatasetProfile,
+        surface: EntityExtractionResult | None = None,
+    ) -> bool:
+        if surface is None:
+            surface = self.extract_prompt_entities(question, profile)
+        if not self.intent_resolver.contains_any(surface, DISTINCT_VALUE_CATEGORY_KEYWORDS):
             return False
-        return any(column.lower() in lowered for column in profile.dimension_columns)
+        return any(column in surface.ordered_columns for column in profile.dimension_columns)
 
     def _looks_like_time_coverage_request(self, question: str) -> bool:
         lowered = question.lower()
@@ -2354,7 +2376,7 @@ class InputCanonicalizer:
         if any(keyword in lowered for keyword in TIME_COMPARISON_KEYWORDS):
             return False
         has_measure_language = any(column.lower() in lowered for column in profile.measure_columns) or bool(
-            self._extract_aggregation(question)
+            self._extract_aggregation(question, profile)
         )
         if not has_measure_language:
             return False
@@ -2369,7 +2391,7 @@ class InputCanonicalizer:
         if not any(keyword in lowered for keyword in TIME_COMPARISON_KEYWORDS):
             return False
         has_measure_language = any(column.lower() in lowered for column in profile.measure_columns) or bool(
-            self._extract_aggregation(question)
+            self._extract_aggregation(question, profile)
         )
         if not has_measure_language:
             return False
@@ -2494,7 +2516,17 @@ class InputCanonicalizer:
                 return {"threshold_operator": operator, "threshold_value": float(match.group(1))}
         return None
 
-    def _extract_expected_property(self, question: str) -> str | None:
+    def _extract_expected_property(
+        self,
+        question: str,
+        profile: DatasetProfile | None = None,
+        context: SourceContext | None = None,
+    ) -> str | None:
+        if profile is not None:
+            surface = self.extract_prompt_entities(question, profile, context)
+            expected_property = self.intent_resolver.extract_expected_property(surface)
+            if expected_property is not None:
+                return expected_property
         lowered = question.lower()
         if any(keyword in lowered for keyword in HIGH_CARDINALITY_PROPERTY_KEYWORDS):
             return "high_cardinality"
@@ -2528,9 +2560,9 @@ class InputCanonicalizer:
             return False
         if target not in profile.dimension_columns:
             return False
-        if self._extract_aggregation(question):
+        if self._extract_aggregation(question, profile):
             return False
-        return self._looks_like_distinct_values_request(question) or self._looks_like_dimension_category_request(question, profile)
+        return self._looks_like_distinct_values_request(question, profile) or self._looks_like_dimension_category_request(question, profile)
 
     def _build_request_options(self, dataset_name: str, intent_name: str | None) -> dict[str, object]:
         return {
@@ -2606,8 +2638,8 @@ class InputCanonicalizer:
         if target in set(profile.measure_columns):
             return False
 
-        lowered = question.lower()
-        return any(keyword in lowered for keyword in {"count", "how many", "number of", "total"})
+        surface = self.extract_prompt_entities(question, profile)
+        return self.intent_resolver.contains_any(surface, {"count", "how many", "number of", "total"})
 
     def _resolve_candidate_column(
         self,

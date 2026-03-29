@@ -32,6 +32,29 @@ class CanonicalCountProvider(BaseLlmProvider):
         return SummaryProposal(status="ready", summary=summary_context.deterministic_summary)
 
 
+class GroundedEntityProvider(BaseLlmProvider):
+    provider_name = "openai"
+
+    def __init__(self) -> None:
+        self.last_context_summary: str | None = None
+
+    def interpret_prompt(
+        self,
+        question: str,
+        dataset_name: str,
+        profile_summary: str,
+        context_summary: str | None,
+    ) -> IntentProposal | None:
+        _ = question
+        _ = dataset_name
+        _ = profile_summary
+        self.last_context_summary = context_summary
+        return IntentProposal(status="ready")
+
+    def generate_summary(self, summary_context: SummaryContext) -> SummaryProposal | None:
+        return SummaryProposal(status="ready", summary=summary_context.deterministic_summary)
+
+
 def test_rule_based_plan_generator_produces_row_count_plan() -> None:
     engine = PromptAnalysisFrontend()
     dataset = build_support_dataset()
@@ -68,3 +91,19 @@ def test_engine_uses_named_openai_plan_generator_when_provider_is_openai() -> No
 
     assert isinstance(engine.llm_plan_generator, OpenAIPlanGenerator)
     assert engine.llm_plan_generator.generator_name == "openai_plan_generator"
+
+
+def test_llm_assisted_plan_generator_passes_grounded_entity_summary_to_provider() -> None:
+    provider = GroundedEntityProvider()
+    engine = PromptAnalysisFrontend(llm_provider=provider)
+    dataset = build_support_dataset()
+    dataset.data = dataset.data.rename(columns={"resolution_hours": "total_sales"})
+    profile = engine.profile(dataset)
+    generator = LlmAssistedPlanGenerator(engine.canonicalizer, engine.plan_builder, provider)
+
+    generation = generator.generate("Does the dataset contain a total_sales column?", dataset, profile, dataset.context)
+
+    assert generation.request.options["requested_column"] == "total_sales"
+    assert provider.last_context_summary is not None
+    assert "Resolved fields: total_sales." in provider.last_context_summary
+    assert "Masked question: Does the dataset contain a [ENTITY] column?." in provider.last_context_summary

@@ -416,6 +416,7 @@ LLM_INTENT_PROMPT_CONTRACT = {
     ],
     "routing_rules": [
         "Do not invent columns.",
+        "If frontend grounding provides resolved fields or a masked question, treat resolved fields as schema entities and do not reinterpret words inside those field names as operations.",
         "If the user's wording is verbose or awkward, return canonical_question as a simpler equivalent prompt that preserves the same analytical meaning.",
         "Use canonical_question only when it is semantically equivalent to the user's request; do not drop constraints or add new ones.",
         "If you can infer the governed SAIDA prompt family safely, return prompt_family_hint.",
