@@ -30,6 +30,7 @@ from saida.core.contracts import (
     TableArtifact,
     TrainResult,
 )
+from saida.core.dag_contract import ArtifactTypeSpec, DagExecutionContract, build_default_dag_execution_contract
 from saida.core.result_canonicalization import ResultBuilder, ResultCanonicalizer
 from saida.core.routing import BackendRouter
 from saida.core.validation import PlanValidator
@@ -43,9 +44,12 @@ __all__ = [
     "AnalyticsMethodSpec",
     "AnalyticsRelationSpec",
     "AnalyticsRegistry",
+    "ArtifactTypeSpec",
     "BackendRouter",
     "build_default_analytics_registry",
+    "build_default_dag_execution_contract",
     "ColumnProfile",
+    "DagExecutionContract",
     "Dataset",
     "DatasetProfile",
     "ExecutionTraceEvent",
