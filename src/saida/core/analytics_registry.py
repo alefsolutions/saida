@@ -467,14 +467,8 @@ def _derive_method_artifact_contract(
     str | None,
     str | None,
 ]:
-    input_artifact_kinds: list[str] = []
-    consumes: list[str] = []
-    if "dataset" in required_inputs:
-        input_artifact_kinds.append("dataset")
-        consumes.append("dataset")
-    else:
-        input_artifact_kinds.append("artifact")
-        consumes.append("artifact")
+    input_artifact_kinds = list(_input_artifact_kinds_for_method(method_id, required_inputs))
+    consumes: list[str] = ["dataset"] if "dataset" in required_inputs else ["artifact"]
     semantic_input_kinds = list(_semantic_input_kinds_for_method(method_id))
 
     output_artifact_kinds: list[str] = []
@@ -514,10 +508,65 @@ def _artifact_kind_for_output_shape(output_shape: str) -> str:
     return "frame"
 
 
+def _input_artifact_kinds_for_method(method_id: str, required_inputs: tuple[str, ...]) -> tuple[str, ...]:
+    if method_id in {"join_frame", "union_frame"}:
+        return ("frame",)
+    if "dataset" in required_inputs:
+        return ("dataset", "frame")
+    return ("frame",)
+
+
 def _semantic_input_kinds_for_method(method_id: str) -> tuple[str, ...]:
     if method_id in {"join_frame", "union_frame"}:
-        return ("table",)
-    return ("dataset_or_frame",)
+        return ("table", "grouped_table", "ranked_table", "time_series", "feature_matrix")
+    if method_id in {
+        "period_comparison",
+        "grouped_period_comparison",
+        "top_movers",
+        "contribution_breakdown",
+        "forecast",
+    }:
+        return ("time_series",)
+    if method_id == "time_series_diagnostics":
+        return ("time_series", "table")
+    if method_id in {
+        "numeric_summary",
+        "distribution_summary",
+        "target_correlation",
+        "anomaly_summary",
+        "group_mean_comparison",
+        "t_test",
+        "chi_square",
+        "anova",
+        "mann_whitney",
+        "confidence_interval",
+        "regression_significance",
+        "significance_inference",
+        "power_analysis",
+        "sample_size_estimate",
+        "column_count",
+        "column_inventory",
+        "column_type_inventory",
+        "numeric_column_inventory",
+        "numeric_column_count",
+        "categorical_column_inventory",
+        "categorical_column_count",
+        "measure_inventory",
+        "measure_count",
+        "dimension_inventory",
+        "dimension_count",
+        "time_column_inventory",
+        "time_column_count",
+        "missing_value_inventory",
+        "identifier_inventory",
+        "identifier_count",
+        "high_cardinality_inventory",
+        "high_cardinality_count",
+        "column_property_check",
+        "column_presence_check",
+    }:
+        return ("table", "grouped_table", "ranked_table", "time_series", "feature_matrix")
+    return ("dataset", "table", "grouped_table", "ranked_table", "time_series", "feature_matrix")
 
 
 def _semantic_kind_for_method_output(method_id: str, output_shape: str) -> str:

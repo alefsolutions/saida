@@ -49,7 +49,7 @@ def test_engine_execute_plan_records_node_results_and_artifact_index_for_dag_sty
     dataset = build_support_dataset()
     plan = AnalysisPlan(
         task_type="descriptive",
-        rationale="Count rows and summarize numeric fields with explicit graph metadata.",
+        rationale="Project rows and summarize numeric fields with explicit graph metadata.",
         dataset_refs=[dataset.name],
         inputs=[PlanInput(input_id="primary_dataset", kind="dataset", ref=dataset.name)],
         expected_result_name="numeric_summary_table",
@@ -57,20 +57,20 @@ def test_engine_execute_plan_records_node_results_and_artifact_index_for_dag_sty
         final_output_ref="numeric_summary_table",
         steps=[
             PlanStep(
-                step_id="row_count",
+                step_id="project_rows",
                 tool_family="duckdb",
-                action="row_count",
-                method_id="row_count",
-                family="aggregation_grouping",
-                parameters={},
-                description="Count all rows.",
+                action="select_columns",
+                method_id="select_columns",
+                family="selection_filtering",
+                parameters={"selected_columns": ["resolution_hours", "csat_score"]},
+                description="Project numeric columns for downstream stats.",
                 inputs=[StepInputRef(input_id="dataset_input", source_type="plan_input", ref="primary_dataset", expected_kind="dataset")],
-                output_refs=["row_count_value"],
-                outputs=[StepOutputSpec(output_id="row_count_value", kind="scalar", logical_shape="scalar", physical_shape="scalar")],
+                output_refs=["projected_rows"],
+                outputs=[StepOutputSpec(output_id="projected_rows", kind="frame", logical_shape="table", physical_shape="recordset")],
                 expected_output={
-                    "output_id": "row_count_value",
-                    "logical_shape": "scalar",
-                    "physical_shape": "scalar",
+                    "output_id": "projected_rows",
+                    "logical_shape": "table",
+                    "physical_shape": "recordset",
                 },
             ),
             PlanStep(
@@ -81,7 +81,7 @@ def test_engine_execute_plan_records_node_results_and_artifact_index_for_dag_sty
                 family="diagnostic_workflows",
                 parameters={},
                 description="Summarize numeric columns.",
-                inputs=[StepInputRef(input_id="count_input", source_type="step_output", ref="row_count_value")],
+                inputs=[StepInputRef(input_id="frame_input", source_type="step_output", ref="projected_rows", expected_kind="frame")],
                 output_refs=["numeric_summary_table"],
                 outputs=[
                     StepOutputSpec(
@@ -102,12 +102,12 @@ def test_engine_execute_plan_records_node_results_and_artifact_index_for_dag_sty
 
     result = engine.execute_plan(dataset, plan)
 
-    assert [node_result.step_id for node_result in result.node_results] == ["row_count", "numeric_summary"]
-    assert result.node_results[0].produced_outputs == ["row_count_value"]
-    assert result.node_results[1].consumed_inputs == ["count_input"]
+    assert [node_result.step_id for node_result in result.node_results] == ["project_rows", "numeric_summary"]
+    assert result.node_results[0].produced_outputs == ["projected_rows"]
+    assert result.node_results[1].consumed_inputs == ["frame_input"]
     assert "primary_dataset" in result.artifact_index
-    assert "row_count_value" in result.artifact_index
+    assert "projected_rows" in result.artifact_index
     assert "numeric_summary_table" in result.artifact_index
-    assert result.artifact_index["row_count_value"].kind == "scalar"
+    assert result.artifact_index["projected_rows"].kind == "frame"
     assert result.artifact_index["numeric_summary_table"].kind == "frame"
     assert result.response["execution"]["final_output_ref"] == "numeric_summary_table"

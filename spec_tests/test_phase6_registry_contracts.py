@@ -9,7 +9,7 @@ def test_registry_methods_expose_artifact_contract_fields_for_scalar_method() ->
     method = registry.get_method("row_count")
 
     assert method is not None
-    assert method.input_artifact_kinds == ("dataset",)
+    assert method.input_artifact_kinds == ("dataset", "frame")
     assert method.output_artifact_kinds == ("scalar",)
     assert method.consumes == ("dataset",)
     assert method.node_kind == "source"
@@ -48,7 +48,7 @@ def test_registry_method_to_dict_includes_artifact_contract_fields() -> None:
 
     payload = registry.get_method("grouped_tabular_query").to_dict()
 
-    assert payload["input_artifact_kinds"] == ["dataset"]
+    assert payload["input_artifact_kinds"] == ["dataset", "frame"]
     assert payload["output_artifact_kinds"] == ["frame"]
     assert payload["consumes"] == ["dataset"]
     assert payload["node_kind"] == "source"

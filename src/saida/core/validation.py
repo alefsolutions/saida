@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from numbers import Real
 
 import pandas as pd
@@ -9,6 +10,16 @@ import pandas as pd
 from saida.core.analytics_registry import AnalyticsMethodSpec, get_analytics_registry
 from saida.exceptions import PlanningError, ValidationError
 from saida.core.contracts import AnalysisPlan, Dataset, DatasetProfile
+
+
+@dataclass(slots=True)
+class _ArtifactContract:
+    ref: str
+    kind: str
+    logical_shape: str | None = None
+    physical_shape: str | None = None
+    semantic_kind: str | None = None
+    producer_step_id: str | None = None
 
 
 class PlanValidator:
@@ -176,6 +187,7 @@ class PlanValidator:
             if router is not None:
                 self._validate_backend_support(step.step_id, step.tool_family, method_id, router)
 
+        self._validate_semantic_graph_contracts(plan, resolved_methods)
         self._validate_plan_result_expectation(plan, analytics_registry)
 
     def _validate_required_inputs(
@@ -299,6 +311,197 @@ class PlanValidator:
                 raise PlanningError(
                     f"Plan step {step.step_id!r} uses unsupported step input source_type {step_input.source_type!r}."
                 )
+
+    def _validate_semantic_graph_contracts(
+        self,
+        plan: AnalysisPlan,
+        resolved_methods: list[tuple[object, AnalyticsMethodSpec, str]],
+    ) -> None:
+        available_contracts = self._build_available_contracts(plan, resolved_methods)
+        for step, method_spec, method_id in resolved_methods:
+            resolved_inputs = [available_contracts[step_input.ref] for step_input in step.inputs]
+            upstream_artifacts = [
+                contract
+                for step_input, contract in zip(step.inputs, resolved_inputs, strict=False)
+                if step_input.source_type in {"step_output", "artifact"}
+            ]
+            if len(upstream_artifacts) > 1 and method_id not in {"join_frame", "union_frame"}:
+                raise PlanningError(
+                    f"Plan step {step.step_id!r} declares multiple upstream artifacts, "
+                    f"but method {method_id!r} does not support fan-in merging."
+                )
+            if method_id == "join_frame":
+                self._validate_join_inputs(step.step_id, upstream_artifacts)
+            if method_id == "union_frame":
+                self._validate_union_inputs(step.step_id, upstream_artifacts)
+
+            for step_input, contract in zip(step.inputs, resolved_inputs, strict=False):
+                self._validate_step_input_expected_kind(step.step_id, step_input, contract)
+                self._validate_method_input_contract(step.step_id, method_spec, step_input, contract)
+                self._validate_method_input_semantics(step.step_id, method_id, method_spec, step_input, contract)
+
+    def _build_available_contracts(
+        self,
+        plan: AnalysisPlan,
+        resolved_methods: list[tuple[object, AnalyticsMethodSpec, str]],
+    ) -> dict[str, _ArtifactContract]:
+        contracts: dict[str, _ArtifactContract] = {}
+        for plan_input in plan.inputs:
+            semantic_kind = plan_input.metadata.get("semantic_kind") if isinstance(plan_input.metadata, dict) else None
+            contracts[plan_input.input_id] = _ArtifactContract(
+                ref=plan_input.input_id,
+                kind=plan_input.kind,
+                logical_shape="dataset" if plan_input.kind == "dataset" else None,
+                physical_shape="dataset" if plan_input.kind == "dataset" else None,
+                semantic_kind=str(semantic_kind) if isinstance(semantic_kind, str) else plan_input.kind,
+            )
+
+        for step, method_spec, _ in resolved_methods:
+            for output_spec in step.outputs:
+                contracts[output_spec.output_id] = _ArtifactContract(
+                    ref=output_spec.output_id,
+                    kind=output_spec.kind,
+                    logical_shape=output_spec.logical_shape or self._expected_output_value(step.expected_output, "logical_shape"),
+                    physical_shape=output_spec.physical_shape or self._expected_output_value(step.expected_output, "physical_shape"),
+                    semantic_kind=(
+                        output_spec.semantic_kind
+                        or self._expected_output_value(step.expected_output, "semantic_kind")
+                        or self._default_semantic_kind(method_spec, output_spec.logical_shape)
+                    ),
+                    producer_step_id=step.step_id,
+                )
+        return contracts
+
+    def _validate_step_input_expected_kind(
+        self,
+        step_id: str,
+        step_input: object,
+        contract: _ArtifactContract,
+    ) -> None:
+        expected_kind = step_input.expected_kind
+        if expected_kind is None:
+            return
+        if expected_kind == contract.kind:
+            return
+        if expected_kind == "artifact" and contract.kind != "dataset":
+            return
+        raise PlanningError(
+            f"Plan step {step_id!r} expects input kind {expected_kind!r} for {step_input.ref!r}, "
+            f"but resolved output kind is {contract.kind!r}."
+        )
+
+    def _validate_method_input_contract(
+        self,
+        step_id: str,
+        method_spec: AnalyticsMethodSpec,
+        step_input: object,
+        contract: _ArtifactContract,
+    ) -> None:
+        allowed_kinds = set(method_spec.input_artifact_kinds)
+        if not allowed_kinds:
+            return
+        if contract.kind in allowed_kinds:
+            return
+        raise PlanningError(
+            f"Plan step {step_id!r} cannot consume {contract.kind!r} input {step_input.ref!r} "
+            f"with method {method_spec.method_id!r}; supported artifact kinds are {sorted(allowed_kinds)!r}."
+        )
+
+    def _validate_method_input_semantics(
+        self,
+        step_id: str,
+        method_id: str,
+        method_spec: AnalyticsMethodSpec,
+        step_input: object,
+        contract: _ArtifactContract,
+    ) -> None:
+        if contract.kind == "dataset":
+            return
+
+        resolved_semantic = contract.semantic_kind or self._semantic_fallback_for_kind(contract.kind)
+        if method_id in {"period_comparison", "grouped_period_comparison", "top_movers", "contribution_breakdown", "forecast"}:
+            if resolved_semantic != "time_series":
+                raise PlanningError(
+                    f"Plan step {step_id!r} requires a time_series upstream artifact for method {method_id!r}, "
+                    f"but {step_input.ref!r} resolves to semantic kind {resolved_semantic!r}."
+                )
+
+        allowed_semantics = set(method_spec.semantic_input_kinds)
+        if allowed_semantics and not self._semantic_kind_is_compatible(resolved_semantic, contract.kind, allowed_semantics):
+            raise PlanningError(
+                f"Plan step {step_id!r} cannot consume semantic input {resolved_semantic!r} from {step_input.ref!r} "
+                f"with method {method_id!r}; supported semantic inputs are {sorted(allowed_semantics)!r}."
+            )
+
+    def _validate_join_inputs(self, step_id: str, contracts: list[_ArtifactContract]) -> None:
+        if len(contracts) != 2:
+            return
+        non_frame_inputs = [contract.ref for contract in contracts if contract.kind != "frame"]
+        if non_frame_inputs:
+            raise PlanningError(
+                f"Plan step {step_id!r} using join_frame can only consume frame artifacts; "
+                f"received incompatible inputs {non_frame_inputs!r}."
+            )
+
+    def _validate_union_inputs(self, step_id: str, contracts: list[_ArtifactContract]) -> None:
+        if len(contracts) < 2:
+            return
+        non_frame_inputs = [contract.ref for contract in contracts if contract.kind != "frame"]
+        if non_frame_inputs:
+            raise PlanningError(
+                f"Plan step {step_id!r} using union_frame can only consume frame artifacts; "
+                f"received incompatible inputs {non_frame_inputs!r}."
+            )
+
+    def _semantic_kind_is_compatible(
+        self,
+        semantic_kind: str | None,
+        kind: str,
+        allowed_semantics: set[str],
+    ) -> bool:
+        if semantic_kind is None:
+            semantic_kind = self._semantic_fallback_for_kind(kind)
+        if semantic_kind in allowed_semantics:
+            return True
+        if kind == "frame" and "table" in allowed_semantics and semantic_kind in {
+            "table",
+            "grouped_table",
+            "ranked_table",
+            "time_series",
+            "feature_matrix",
+        }:
+            return True
+        if kind == "series" and "series" in allowed_semantics and semantic_kind in {"series", "prediction_series"}:
+            return True
+        return False
+
+    def _semantic_fallback_for_kind(self, kind: str) -> str | None:
+        if kind == "frame":
+            return "table"
+        if kind == "verification":
+            return "verification_result"
+        if kind == "scalar":
+            return "scalar"
+        if kind == "series":
+            return "series"
+        if kind == "forecast":
+            return "prediction_series"
+        return kind
+
+    def _expected_output_value(self, expected_output: dict[str, object] | None, field_name: str) -> str | None:
+        if expected_output is None:
+            return None
+        value = expected_output.get(field_name)
+        return value if isinstance(value, str) and value.strip() else None
+
+    def _default_semantic_kind(self, method_spec: AnalyticsMethodSpec, logical_shape: str | None) -> str | None:
+        if logical_shape == "verification":
+            return "verification_result"
+        if logical_shape == "statistical_test":
+            return "statistical_test"
+        if logical_shape in {"scalar", "count", "aggregate"}:
+            return "scalar"
+        return method_spec.default_semantic_kind
 
     def _validate_dependency_graph_has_no_cycles(self, plan: AnalysisPlan) -> None:
         adjacency: dict[str, set[str]] = {step.step_id: set(step.depends_on) for step in plan.steps}
