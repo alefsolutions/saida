@@ -10,7 +10,7 @@ def test_dag_plan_authoring_guide_documents_explicit_plan_contracts() -> None:
     assert "DAG Plan Authoring" in content
     assert "`final_output_ref`" in content
     assert "`PromptAnalysisFrontend.plan(...)` now emits graph-valid plans" in content
-    assert "existing single-step authored plans still execute" in content
+    assert "authored plans should be explicit DAG plans" in content
 
 
 def test_schema_spec_and_api_usage_describe_dag_runtime_contracts() -> None:

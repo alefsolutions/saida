@@ -197,6 +197,7 @@ print(payload["result"]["name"])
 print(payload["result"]["value"])
 print(payload["execution"]["plan_id"])
 print(payload["execution"]["final_output_ref"])
+print(payload["execution"]["plan"].get("metadata", {}).get("graph_template_id"))
 ```
 
 ```python

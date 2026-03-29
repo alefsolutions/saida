@@ -16,6 +16,8 @@ __all__ = [
     "derive_prompt_family",
     "EntityExtractionResult",
     "FrontendIntent",
+    "GraphTemplatePlan",
+    "GraphTemplateSpec",
     "get_llm_contract",
     "InputCanonicalizer",
     "LlmAssistedPlanGenerator",
@@ -28,6 +30,7 @@ __all__ = [
     "PromptAnalysisFrontend",
     "RequestNormalizer",
     "RuleBasedPlanGenerator",
+    "build_default_graph_template_catalog",
 ]
 
 _EXPORT_TO_MODULE = {
@@ -46,12 +49,15 @@ _EXPORT_TO_MODULE = {
     "RuleBasedPlanGenerator": "saida.plan_generation.generators",
     "AnalysisPlanGeneratorInterface": "saida.plan_generation.interfaces",
     "PlanGenerationResult": "saida.plan_generation.interfaces",
+    "GraphTemplatePlan": "saida.plan_generation.graph_templates",
+    "GraphTemplateSpec": "saida.plan_generation.graph_templates",
     "AnalysisPlanner": "saida.plan_generation.planning",
     "PlanBuilder": "saida.plan_generation.planning",
     "PromptPlanContract": "saida.plan_generation.planning",
     "build_prompt_plan_contract": "saida.plan_generation.planning",
     "derive_prompt_contract_status": "saida.plan_generation.planning",
     "build_default_prompt_family_catalog": "saida.plan_generation.prompt_family_catalog",
+    "build_default_graph_template_catalog": "saida.plan_generation.graph_templates",
     "derive_prompt_family": "saida.plan_generation.prompt_family_catalog",
 }
 

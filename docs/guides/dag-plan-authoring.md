@@ -115,11 +115,18 @@ plan = AnalysisPlan(
 - dataset input refs are attached automatically
 - output refs and output specs are inferred when the registry can do so safely
 - `final_output_ref` is set during plan finalization
+- reusable prompt families compile through named graph templates such as:
+  - `grouped_table_pipeline`
+  - `group_ranking_pipeline`
+  - `time_bucket_breakdown_pipeline`
+  - `time_period_comparison_pipeline`
+  - `row_ranking_pipeline`
+  - `metric_aggregate_pipeline`
+  - `exploratory_metric_overview_pipeline`
 
 This keeps prompt generation and authored plans on the same execution contract.
 
 ## Migration Notes
 
-- existing single-step authored plans still execute
-- the engine can bind missing dataset inputs and output refs during contract binding
-- new authored plans should prefer explicit `inputs`, `outputs`, and `final_output_ref`
+- authored plans should be explicit DAG plans with declared `inputs`, `outputs`, and `final_output_ref`
+- prompt-generated plans may include `metadata.graph_template_id` so you can see which reusable DAG template compiled the workflow

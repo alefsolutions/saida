@@ -16,6 +16,20 @@ from saida.core.contracts import (
     StepInputRef,
     StepOutputSpec,
 )
+from saida.plan_generation.graph_templates import (
+    GraphTemplatePlan,
+    build_default_graph_template_catalog,
+    build_distinct_value_count_template,
+    build_exploratory_metric_overview_template,
+    build_group_ranking_template,
+    build_grouped_table_template,
+    build_metric_aggregate_template,
+    build_representation_ranking_template,
+    build_row_ranking_template,
+    build_time_bucket_breakdown_template,
+    build_time_bucket_counts_template,
+    build_time_period_comparison_template,
+)
 from saida.plan_generation.prompt_family_catalog import derive_prompt_family, get_prompt_family_catalog
 
 
@@ -725,6 +739,14 @@ def _capabilities_for_existence_mode(existence_mode: object) -> list[str]:
 class PlanBuilder:
     """Create executable analytical plans from canonical requests."""
 
+    def graph_template_catalog(self) -> dict[str, dict[str, Any]]:
+        """Return the reusable graph templates available to the planner."""
+
+        return {
+            template_id: template.to_dict()
+            for template_id, template in build_default_graph_template_catalog().items()
+        }
+
     def build_plan_from_contract(
         self,
         prompt_contract: PromptPlanContract,
@@ -890,6 +912,24 @@ class PlanBuilder:
 
         return None
 
+    def _finalize_graph_template_plan(
+        self,
+        task_type: str,
+        request: AnalysisRequest,
+        context: SourceContext | None,
+        template: GraphTemplatePlan,
+        warnings: list[str],
+    ) -> AnalysisPlan:
+        return self._finalize_plan(
+            task_type,
+            request,
+            context,
+            template.steps,
+            warnings,
+            final_output_ref=template.final_output_ref,
+            graph_template_id=template.template_id,
+        )
+
     def _build_distinct_value_count_graph_plan(
         self,
         request: AnalysisRequest,
@@ -897,57 +937,8 @@ class PlanBuilder:
         task_type: str,
         warnings: list[str],
     ) -> AnalysisPlan:
-        steps = [
-            PlanStep(
-                step_id="distinct_frame",
-                tool_family="duckdb",
-                action="distinct_frame",
-                parameters={
-                    "selected_columns": [request.target],
-                    "filters": request.filters,
-                    "table_name": "distinct_values",
-                },
-                description="Project the distinct values for the requested dimension.",
-                output_refs=["distinct_values"],
-            ),
-            PlanStep(
-                step_id="distinct_value_count",
-                tool_family="duckdb",
-                action="row_count",
-                parameters={},
-                description="Count the distinct values from the upstream distinct frame.",
-                inputs=[
-                    StepInputRef(
-                        input_id="distinct_values_input",
-                        source_type="step_output",
-                        ref="distinct_values",
-                        expected_kind="frame",
-                    )
-                ],
-                output_refs=["distinct_value_count"],
-                outputs=[
-                    StepOutputSpec(
-                        output_id="distinct_value_count",
-                        kind="scalar",
-                        logical_shape="scalar",
-                        physical_shape="scalar",
-                    )
-                ],
-                expected_output={
-                    "output_id": "distinct_value_count",
-                    "logical_shape": "scalar",
-                    "physical_shape": "scalar",
-                },
-            ),
-        ]
-        return self._finalize_plan(
-            task_type,
-            request,
-            context,
-            steps,
-            warnings,
-            final_output_ref="distinct_value_count",
-        )
+        template = build_distinct_value_count_template(request)
+        return self._finalize_graph_template_plan(task_type, request, context, template, warnings)
 
     def _build_representation_ranking_graph_plan(
         self,
@@ -956,89 +947,8 @@ class PlanBuilder:
         task_type: str,
         warnings: list[str],
     ) -> AnalysisPlan:
-        ranking_limit = int(request.options.get("ranking_limit", 1))
-        sort_direction = "asc" if request.options.get("ranking_direction") == "asc" else "desc"
-        steps = [
-            PlanStep(
-                step_id="group_frame",
-                tool_family="duckdb",
-                action="group_frame",
-                parameters={
-                    "group_by": [request.target],
-                    "filters": request.filters,
-                    "table_name": "representation_groups",
-                },
-                description="Prepare the requested representation groups.",
-                output_refs=["representation_groups"],
-            ),
-            PlanStep(
-                step_id="count_rows_by_group",
-                tool_family="duckdb",
-                action="aggregate_frame",
-                parameters={
-                    "aggregation": "count",
-                    "value_label": "row_count",
-                    "table_name": "count_rows_by_group",
-                },
-                description="Count rows for each requested group.",
-                inputs=[
-                    StepInputRef(
-                        input_id="grouped_rows_input",
-                        source_type="step_output",
-                        ref="representation_groups",
-                        expected_kind="frame",
-                    )
-                ],
-                output_refs=["representation_counts"],
-            ),
-            PlanStep(
-                step_id="sort_representation",
-                tool_family="duckdb",
-                action="sort_frame",
-                parameters={
-                    "sort_by": "row_count",
-                    "sort_direction": sort_direction,
-                    "table_name": "count_rows_by_group",
-                },
-                description="Sort the grouped row counts for representation analysis.",
-                inputs=[
-                    StepInputRef(
-                        input_id="count_rows_input",
-                        source_type="step_output",
-                        ref="representation_counts",
-                        expected_kind="frame",
-                    )
-                ],
-                output_refs=["sorted_representation_counts"],
-            ),
-            PlanStep(
-                step_id="limit_representation",
-                tool_family="duckdb",
-                action="limit_frame",
-                parameters={
-                    "limit": ranking_limit,
-                    "table_name": "count_rows_by_group",
-                },
-                description="Return only the requested top or bottom representation rows.",
-                inputs=[
-                    StepInputRef(
-                        input_id="sorted_rows_input",
-                        source_type="step_output",
-                        ref="sorted_representation_counts",
-                        expected_kind="frame",
-                    )
-                ],
-                output_refs=["count_rows_by_group"],
-            ),
-        ]
-        return self._finalize_plan(
-            task_type,
-            request,
-            context,
-            steps,
-            warnings,
-            final_output_ref="count_rows_by_group",
-        )
+        template = build_representation_ranking_template(request)
+        return self._finalize_graph_template_plan(task_type, request, context, template, warnings)
 
     def _build_grouped_entity_count_graph_plan(
         self,
@@ -1047,15 +957,13 @@ class PlanBuilder:
         task_type: str,
         warnings: list[str],
     ) -> AnalysisPlan:
-        return self._build_grouped_table_graph_plan(
+        template = build_grouped_table_template(
             request,
-            context,
-            task_type,
-            warnings,
             aggregation="count",
             value_label="row_count",
             final_output_ref="grouped_tabular_query",
         )
+        return self._finalize_graph_template_plan(task_type, request, context, template, warnings)
 
     def _build_grouped_metric_table_graph_plan(
         self,
@@ -1064,122 +972,13 @@ class PlanBuilder:
         task_type: str,
         warnings: list[str],
     ) -> AnalysisPlan:
-        return self._build_grouped_table_graph_plan(
+        template = build_grouped_table_template(
             request,
-            context,
-            task_type,
-            warnings,
             aggregation=request.aggregation or "sum",
             value_label="target_total",
             final_output_ref="grouped_tabular_query",
         )
-
-    def _build_grouped_table_graph_plan(
-        self,
-        request: AnalysisRequest,
-        context: SourceContext | None,
-        task_type: str,
-        warnings: list[str],
-        *,
-        aggregation: str,
-        value_label: str,
-        final_output_ref: str,
-    ) -> AnalysisPlan:
-        sort_direction = request.options.get("sort_direction", "desc")
-        sort_by = self._resolve_grouped_sort_column(request, value_label=value_label)
-        limit = request.options.get("limit")
-        steps = [
-            PlanStep(
-                step_id="group_frame",
-                tool_family="duckdb",
-                action="group_frame",
-                parameters={
-                    "group_by": request.group_by,
-                    "filters": request.filters,
-                    "table_name": "grouped_source_rows",
-                },
-                description="Prepare grouped rows for downstream aggregation.",
-                output_refs=["grouped_source_rows"],
-            ),
-            PlanStep(
-                step_id="grouped_tabular_query",
-                tool_family="duckdb",
-                action="aggregate_frame",
-                parameters={
-                    "target": request.target,
-                    "aggregation": aggregation,
-                    "value_label": value_label,
-                    "table_name": "grouped_tabular_query",
-                },
-                description="Aggregate the grouped rows into a tabular grouped result.",
-                inputs=[
-                    StepInputRef(
-                        input_id="grouped_rows_input",
-                        source_type="step_output",
-                        ref="grouped_source_rows",
-                        expected_kind="frame",
-                    )
-                ],
-                output_refs=["grouped_aggregate"],
-            ),
-        ]
-        previous_output_ref = "grouped_aggregate"
-        if sort_by is not None:
-            steps.append(
-                PlanStep(
-                    step_id="sort_grouped_result",
-                    tool_family="duckdb",
-                    action="sort_frame",
-                    parameters={
-                        "sort_by": sort_by,
-                        "sort_direction": sort_direction,
-                        "table_name": "grouped_tabular_query",
-                    },
-                    description="Sort the grouped tabular result for presentation.",
-                    inputs=[
-                        StepInputRef(
-                            input_id="aggregate_rows_input",
-                            source_type="step_output",
-                            ref=previous_output_ref,
-                            expected_kind="frame",
-                        )
-                    ],
-                    output_refs=["sorted_grouped_result"],
-                )
-            )
-            previous_output_ref = "sorted_grouped_result"
-        if isinstance(limit, int) and limit > 0:
-            steps.append(
-                PlanStep(
-                    step_id="limit_grouped_result",
-                    tool_family="duckdb",
-                    action="limit_frame",
-                    parameters={
-                        "limit": limit,
-                        "table_name": "grouped_tabular_query",
-                    },
-                    description="Limit the grouped tabular result when a top-N size is requested.",
-                    inputs=[
-                        StepInputRef(
-                            input_id="sorted_rows_input",
-                            source_type="step_output",
-                            ref=previous_output_ref,
-                            expected_kind="frame",
-                        )
-                    ],
-                    output_refs=[final_output_ref],
-                )
-            )
-        else:
-            steps[-1].output_refs = [final_output_ref]
-        return self._finalize_plan(
-            task_type,
-            request,
-            context,
-            steps,
-            warnings,
-            final_output_ref=final_output_ref,
-        )
+        return self._finalize_graph_template_plan(task_type, request, context, template, warnings)
 
     def _build_group_ranking_graph_plan(
         self,
@@ -1188,72 +987,8 @@ class PlanBuilder:
         task_type: str,
         warnings: list[str],
     ) -> AnalysisPlan:
-        ranking_limit = int(request.options.get("ranking_limit", 5))
-        sort_direction = "asc" if request.options.get("ranking_direction") == "asc" else "desc"
-        steps = [
-            PlanStep(
-                step_id="group_frame",
-                tool_family="duckdb",
-                action="group_frame",
-                parameters={
-                    "group_by": request.group_by,
-                    "filters": request.filters,
-                    "table_name": "grouped_ranking_source",
-                },
-                description="Prepare grouped rows for grouped ranking.",
-                output_refs=["grouped_ranking_source"],
-            ),
-            PlanStep(
-                step_id="aggregate_group_ranking",
-                tool_family="duckdb",
-                action="aggregate_frame",
-                parameters={
-                    "target": request.target,
-                    "aggregation": request.aggregation or "sum",
-                    "value_label": "target_total",
-                    "table_name": "ranked_breakdown",
-                },
-                description="Aggregate the grouped rows before ranking them.",
-                inputs=[
-                    StepInputRef(
-                        input_id="grouped_rows_input",
-                        source_type="step_output",
-                        ref="grouped_ranking_source",
-                        expected_kind="frame",
-                    )
-                ],
-                output_refs=["grouped_ranking_values"],
-            ),
-            PlanStep(
-                step_id="ranked_breakdown",
-                tool_family="duckdb",
-                action="rank_frame",
-                parameters={
-                    "sort_by": "target_total",
-                    "sort_direction": sort_direction,
-                    "limit": ranking_limit,
-                    "table_name": "ranked_breakdown",
-                },
-                description="Rank the grouped metric totals according to the requested ordering.",
-                inputs=[
-                    StepInputRef(
-                        input_id="aggregate_rows_input",
-                        source_type="step_output",
-                        ref="grouped_ranking_values",
-                        expected_kind="frame",
-                    )
-                ],
-                output_refs=["ranked_breakdown"],
-            ),
-        ]
-        return self._finalize_plan(
-            task_type,
-            request,
-            context,
-            steps,
-            warnings,
-            final_output_ref="ranked_breakdown",
-        )
+        template = build_group_ranking_template(request)
+        return self._finalize_graph_template_plan(task_type, request, context, template, warnings)
 
     def _build_time_bucket_breakdown_graph_plan(
         self,
@@ -1263,53 +998,8 @@ class PlanBuilder:
         task_type: str,
         warnings: list[str],
     ) -> AnalysisPlan:
-        bucket = request.options.get("time_bucket", "month")
-        bucket_label = bucket
-        grouped_columns = [bucket_label, *(request.group_by or [])]
-        steps = [
-            PlanStep(
-                step_id="time_bucket_frame",
-                tool_family="duckdb",
-                action="time_bucket_frame",
-                parameters={
-                    "time_column": profile.time_columns[0],
-                    "bucket": bucket,
-                    "filters": request.filters,
-                    "table_name": "time_bucket_frame",
-                },
-                description="Add explicit time bucket labels for downstream aggregation.",
-            ),
-            PlanStep(
-                step_id="time_bucket_breakdown",
-                tool_family="duckdb",
-                action="aggregate_frame",
-                parameters={
-                    "target": request.target,
-                    "aggregation": request.aggregation or "sum",
-                    "group_by": grouped_columns,
-                    "value_label": "target_total",
-                    "table_name": "time_bucket_breakdown",
-                },
-                description="Aggregate the metric across derived time buckets and optional groups.",
-                inputs=[
-                    StepInputRef(
-                        input_id="bucketed_rows_input",
-                        source_type="step_output",
-                        ref="time_bucket_frame",
-                        expected_kind="frame",
-                    )
-                ],
-                output_refs=["time_bucket_breakdown"],
-            ),
-        ]
-        return self._finalize_plan(
-            task_type,
-            request,
-            context,
-            steps,
-            warnings,
-            final_output_ref="time_bucket_breakdown",
-        )
+        template = build_time_bucket_breakdown_template(request, profile)
+        return self._finalize_graph_template_plan(task_type, request, context, template, warnings)
 
     def _build_time_bucket_counts_graph_plan(
         self,
@@ -1319,44 +1009,8 @@ class PlanBuilder:
         task_type: str,
         warnings: list[str],
     ) -> AnalysisPlan:
-        bucket = str(request.options.get("time_bucket", "year"))
-        steps = [
-            PlanStep(
-                step_id="time_bucket_frame",
-                tool_family="duckdb",
-                action="time_bucket_frame",
-                parameters={
-                    "time_column": profile.time_columns[0],
-                    "bucket": bucket,
-                    "filters": request.filters,
-                    "table_name": "time_bucket_frame",
-                },
-                description="Add explicit time bucket labels for downstream row counting.",
-                output_refs=["bucketed_rows"],
-            ),
-            PlanStep(
-                step_id="time_bucket_counts",
-                tool_family="duckdb",
-                action="aggregate_frame",
-                parameters={
-                    "aggregation": "count",
-                    "group_by": [bucket],
-                    "value_label": "row_count",
-                    "table_name": "time_bucket_counts",
-                },
-                description="Count rows across the derived time buckets.",
-                inputs=[
-                    StepInputRef(
-                        input_id="bucketed_rows_input",
-                        source_type="step_output",
-                        ref="bucketed_rows",
-                        expected_kind="frame",
-                    )
-                ],
-                output_refs=["time_bucket_counts"],
-            ),
-        ]
-        return self._finalize_plan(task_type, request, context, steps, warnings, final_output_ref="time_bucket_counts")
+        template = build_time_bucket_counts_template(request, profile)
+        return self._finalize_graph_template_plan(task_type, request, context, template, warnings)
 
     def _build_time_period_comparison_graph_plan(
         self,
@@ -1366,47 +1020,8 @@ class PlanBuilder:
         task_type: str,
         warnings: list[str],
     ) -> AnalysisPlan:
-        bucket = str(request.options.get("time_bucket", "month"))
-        comparison_action = "grouped_period_comparison" if request.group_by else "period_comparison"
-        steps = [
-            PlanStep(
-                step_id="time_bucket_frame",
-                tool_family="duckdb",
-                action="time_bucket_frame",
-                parameters={
-                    "time_column": profile.time_columns[0],
-                    "bucket": bucket,
-                    "filters": request.filters,
-                    "table_name": "time_bucket_frame",
-                },
-                description="Prepare bucketed time rows for downstream period comparison.",
-                output_refs=["bucketed_rows"],
-            ),
-            PlanStep(
-                step_id=comparison_action,
-                tool_family="duckdb",
-                action=comparison_action,
-                parameters={
-                    "target": request.target,
-                    "group_by": request.group_by,
-                    "time_column": profile.time_columns[0],
-                    "time_reference": request.time_reference,
-                    "bucket": bucket,
-                    "aggregation": request.aggregation or "sum",
-                },
-                description="Compare adjacent derived time periods such as month, quarter, or year.",
-                inputs=[
-                    StepInputRef(
-                        input_id="bucketed_rows_input",
-                        source_type="step_output",
-                        ref="bucketed_rows",
-                        expected_kind="frame",
-                    )
-                ],
-                output_refs=[comparison_action],
-            ),
-        ]
-        return self._finalize_plan(task_type, request, context, steps, warnings, final_output_ref=comparison_action)
+        template = build_time_period_comparison_template(request, profile)
+        return self._finalize_graph_template_plan(task_type, request, context, template, warnings)
 
     def _build_row_ranking_graph_plan(
         self,
@@ -1415,51 +1030,8 @@ class PlanBuilder:
         task_type: str,
         warnings: list[str],
     ) -> AnalysisPlan:
-        ranking_limit = int(request.options.get("ranking_limit", 5))
-        sort_direction = "asc" if request.options.get("ranking_direction") == "asc" else "desc"
-        steps = [
-            PlanStep(
-                step_id="filter_frame",
-                tool_family="duckdb",
-                action="filter_frame",
-                parameters={
-                    "filters": request.filters,
-                    "table_name": "ranking_source_rows",
-                },
-                description="Prepare the filtered source rows for row ranking.",
-                output_refs=["ranking_source_rows"],
-            ),
-            PlanStep(
-                step_id="ranked_rows",
-                tool_family="duckdb",
-                action="rank_frame",
-                parameters={
-                    "sort_by": request.target,
-                    "sort_direction": sort_direction,
-                    "limit": ranking_limit,
-                    "table_name": "ranked_rows",
-                },
-                description="Rank individual rows by the requested numeric target.",
-                inputs=[
-                    StepInputRef(
-                        input_id="ranking_source_input",
-                        source_type="step_output",
-                        ref="ranking_source_rows",
-                        expected_kind="frame",
-                    )
-                ],
-                output_refs=["ranked_rows"],
-            ),
-        ]
-        return self._finalize_plan(task_type, request, context, steps, warnings, final_output_ref="ranked_rows")
-
-    def _resolve_grouped_sort_column(self, request: AnalysisRequest, *, value_label: str) -> str | None:
-        sort_by = request.options.get("sort_by")
-        if sort_by is None:
-            return value_label
-        if sort_by == request.target and request.target is not None:
-            return value_label
-        return str(sort_by)
+        template = build_row_ranking_template(request)
+        return self._finalize_graph_template_plan(task_type, request, context, template, warnings)
 
     def _build_metric_aggregate_graph_plan(
         self,
@@ -1468,37 +1040,8 @@ class PlanBuilder:
         task_type: str,
         warnings: list[str],
     ) -> AnalysisPlan:
-        aggregation = request.aggregation or "sum"
-        steps = [
-            PlanStep(
-                step_id="filter_frame",
-                tool_family="duckdb",
-                action="filter_frame",
-                parameters={
-                    "filters": request.filters,
-                    "table_name": "metric_aggregate_source",
-                },
-                description="Prepare the filtered source rows for scalar aggregation.",
-                output_refs=["metric_aggregate_source"],
-            ),
-            PlanStep(
-                step_id="aggregate_value",
-                tool_family="duckdb",
-                action="aggregate_value",
-                parameters={"target": request.target, "aggregation": aggregation},
-                description="Reduce the prepared frame to the requested scalar aggregate.",
-                inputs=[
-                    StepInputRef(
-                        input_id="metric_source_input",
-                        source_type="step_output",
-                        ref="metric_aggregate_source",
-                        expected_kind="frame",
-                    )
-                ],
-                output_refs=["aggregate_value"],
-            ),
-        ]
-        return self._finalize_plan(task_type, request, context, steps, warnings, final_output_ref="aggregate_value")
+        template = build_metric_aggregate_template(request)
+        return self._finalize_graph_template_plan(task_type, request, context, template, warnings)
 
     def _build_exploratory_metric_overview_graph_plan(
         self,
@@ -1508,510 +1051,8 @@ class PlanBuilder:
         task_type: str,
         warnings: list[str],
     ) -> AnalysisPlan:
-        steps = self._build_metric_overview_steps(request, profile, task_type)
-        return self._finalize_plan(task_type, request, context, steps, warnings, final_output_ref="summary_metrics")
-
-    def _build_metric_overview_steps(
-        self,
-        request: AnalysisRequest,
-        profile: DatasetProfile,
-        task_type: str,
-    ) -> list[PlanStep]:
-        if request.target is None or request.target not in set(profile.measure_columns):
-            raise PlanningError("Exploratory metric workflows require a numeric target.")
-
-        steps: list[PlanStep] = [
-            PlanStep(
-                step_id="filter_frame",
-                tool_family="duckdb",
-                action="filter_frame",
-                parameters={
-                    "filters": request.filters,
-                    "table_name": "overview_source_rows",
-                },
-                description="Prepare a reusable filtered source frame for the exploratory workflow.",
-                output_refs=["overview_source_rows"],
-            )
-        ]
-
-        steps.append(
-            PlanStep(
-                step_id="summary_metrics",
-                tool_family="duckdb",
-                action="dataset_summary",
-                parameters={"target": request.target},
-                description="Compute top-level dataset metrics.",
-                inputs=[
-                    StepInputRef(
-                        input_id="overview_source_input",
-                        source_type="step_output",
-                        ref="overview_source_rows",
-                        expected_kind="frame",
-                    )
-                ],
-                output_refs=["summary_metrics"],
-            )
-        )
-        if profile.time_columns:
-            time_bucket = str(request.options.get("time_bucket", "month"))
-            steps.append(
-                PlanStep(
-                    step_id="time_bucket_frame",
-                    tool_family="duckdb",
-                    action="time_bucket_frame",
-                    parameters={
-                        "time_column": profile.time_columns[0],
-                        "bucket": time_bucket,
-                        "table_name": "overview_time_bucket_frame",
-                    },
-                    description="Add reusable time bucket labels for downstream trend and period steps.",
-                    inputs=[
-                        StepInputRef(
-                            input_id="overview_source_input",
-                            source_type="step_output",
-                            ref="overview_source_rows",
-                            expected_kind="frame",
-                        )
-                    ],
-                    output_refs=["overview_time_bucket_rows"],
-                )
-            )
-            steps.append(
-                PlanStep(
-                    step_id="time_trend",
-                    tool_family="duckdb",
-                    action="aggregate_frame",
-                    parameters={
-                        "target": request.target,
-                        "group_by": [time_bucket],
-                        "aggregation": request.aggregation or "sum",
-                        "value_label": "target_total",
-                        "table_name": "time_trend",
-                    },
-                    description="Compute the target trend over time.",
-                    inputs=[
-                        StepInputRef(
-                            input_id="bucketed_rows_input",
-                            source_type="step_output",
-                            ref="overview_time_bucket_rows",
-                            expected_kind="frame",
-                        )
-                    ],
-                    output_refs=["time_trend"],
-                )
-            )
-        if request.time_reference and profile.time_columns:
-            steps.append(
-                PlanStep(
-                    step_id="period_comparison",
-                    tool_family="duckdb",
-                    action="period_comparison",
-                    parameters={
-                        "target": request.target,
-                        "time_column": profile.time_columns[0],
-                        "time_reference": request.time_reference,
-                        "bucket": str(request.options.get("time_bucket", "month")),
-                        "aggregation": request.aggregation or "sum",
-                    },
-                    description="Compare the requested period against the previous comparable period.",
-                    inputs=[
-                        StepInputRef(
-                            input_id="time_series_input",
-                            source_type="step_output",
-                            ref="overview_time_bucket_rows",
-                            expected_kind="frame",
-                        )
-                    ],
-                    output_refs=["period_comparison"],
-                )
-            )
-            if request.group_by:
-                steps.append(
-                    PlanStep(
-                        step_id="grouped_period_comparison",
-                        tool_family="duckdb",
-                        action="grouped_period_comparison",
-                        parameters={
-                            "target": request.target,
-                            "group_by": request.group_by,
-                            "time_column": profile.time_columns[0],
-                            "time_reference": request.time_reference,
-                            "bucket": str(request.options.get("time_bucket", "month")),
-                            "aggregation": request.aggregation or "sum",
-                        },
-                        description="Compare grouped totals between adjacent periods.",
-                        inputs=[
-                            StepInputRef(
-                                input_id="time_series_input",
-                                source_type="step_output",
-                                ref="overview_time_bucket_rows",
-                                expected_kind="frame",
-                            )
-                        ],
-                        output_refs=["grouped_period_comparison"],
-                    )
-                )
-        if request.group_by:
-            steps.append(
-                PlanStep(
-                    step_id="group_frame",
-                    tool_family="duckdb",
-                    action="group_frame",
-                    parameters={
-                        "group_by": request.group_by,
-                        "table_name": "overview_grouped_rows",
-                    },
-                    description="Prepare grouped exploratory rows for downstream grouped summaries.",
-                    inputs=[
-                        StepInputRef(
-                            input_id="overview_source_input",
-                            source_type="step_output",
-                            ref="overview_source_rows",
-                            expected_kind="frame",
-                        )
-                    ],
-                    output_refs=["overview_grouped_rows"],
-                )
-            )
-            steps.append(
-                PlanStep(
-                    step_id="group_breakdown",
-                    tool_family="duckdb",
-                    action="aggregate_frame",
-                    parameters={
-                        "target": request.target,
-                        "aggregation": request.aggregation or "sum",
-                        "value_label": "target_total",
-                        "table_name": "group_breakdown",
-                    },
-                    description="Break down the target metric by requested dimensions.",
-                    inputs=[
-                        StepInputRef(
-                            input_id="grouped_rows_input",
-                            source_type="step_output",
-                            ref="overview_grouped_rows",
-                            expected_kind="frame",
-                        )
-                    ],
-                    output_refs=["group_breakdown"],
-                )
-            )
-            steps.append(
-                PlanStep(
-                    step_id="ranked_breakdown",
-                    tool_family="duckdb",
-                    action="rank_frame",
-                    parameters={
-                        "sort_by": "target_total",
-                        "sort_direction": "desc",
-                        "limit": 5,
-                        "table_name": "ranked_breakdown",
-                    },
-                    description="Rank the largest grouped contributors.",
-                    inputs=[
-                        StepInputRef(
-                            input_id="group_breakdown_input",
-                            source_type="step_output",
-                            ref="group_breakdown",
-                            expected_kind="frame",
-                        )
-                    ],
-                    output_refs=["ranked_breakdown"],
-                )
-            )
-            if request.time_reference and profile.time_columns:
-                steps.append(
-                    PlanStep(
-                        step_id="top_movers",
-                        tool_family="duckdb",
-                        action="top_movers",
-                        parameters={
-                            "target": request.target,
-                            "group_by": request.group_by,
-                            "time_column": profile.time_columns[0],
-                            "time_reference": request.time_reference,
-                            "bucket": str(request.options.get("time_bucket", "month")),
-                            "aggregation": request.aggregation or "sum",
-                            "limit": 5,
-                        },
-                        description="Identify the largest grouped movers between adjacent periods.",
-                        inputs=[
-                            StepInputRef(
-                                input_id="time_series_input",
-                                source_type="step_output",
-                                ref="overview_time_bucket_rows",
-                                expected_kind="frame",
-                            )
-                        ],
-                        output_refs=["top_movers"],
-                    )
-                )
-        elif task_type == "diagnostic" and profile.dimension_columns:
-            steps.append(
-                PlanStep(
-                    step_id="top_dimension_group_frame",
-                    tool_family="duckdb",
-                    action="group_frame",
-                    parameters={
-                        "group_by": [profile.dimension_columns[0]],
-                        "table_name": "top_dimension_group_rows",
-                    },
-                    description="Prepare grouped rows for the leading dimension candidate.",
-                    inputs=[
-                        StepInputRef(
-                            input_id="overview_source_input",
-                            source_type="step_output",
-                            ref="overview_source_rows",
-                            expected_kind="frame",
-                        )
-                    ],
-                    output_refs=["top_dimension_group_rows"],
-                )
-            )
-            steps.append(
-                PlanStep(
-                    step_id="top_dimension_breakdown",
-                    tool_family="duckdb",
-                    action="aggregate_frame",
-                    parameters={
-                        "target": request.target,
-                        "aggregation": request.aggregation or "sum",
-                        "value_label": "target_total",
-                        "table_name": "group_breakdown",
-                    },
-                    description="Break down the target metric by the leading dimension candidate.",
-                    inputs=[
-                        StepInputRef(
-                            input_id="top_dimension_group_input",
-                            source_type="step_output",
-                            ref="top_dimension_group_rows",
-                            expected_kind="frame",
-                        )
-                    ],
-                    output_refs=["top_dimension_breakdown"],
-                )
-            )
-            steps.append(
-                PlanStep(
-                    step_id="top_dimension_ranking",
-                    tool_family="duckdb",
-                    action="rank_frame",
-                    parameters={
-                        "sort_by": "target_total",
-                        "sort_direction": "desc",
-                        "limit": 5,
-                        "table_name": "ranked_breakdown",
-                    },
-                    description="Rank the leading grouped contributors for the diagnostic workflow.",
-                    inputs=[
-                        StepInputRef(
-                            input_id="top_dimension_breakdown_input",
-                            source_type="step_output",
-                            ref="top_dimension_breakdown",
-                            expected_kind="frame",
-                        )
-                    ],
-                    output_refs=["top_dimension_ranking"],
-                )
-            )
-            if request.time_reference and profile.time_columns:
-                steps.append(
-                    PlanStep(
-                        step_id="top_dimension_movers",
-                        tool_family="duckdb",
-                        action="top_movers",
-                        parameters={
-                            "target": request.target,
-                            "group_by": [profile.dimension_columns[0]],
-                            "time_column": profile.time_columns[0],
-                            "time_reference": request.time_reference,
-                            "bucket": str(request.options.get("time_bucket", "month")),
-                            "aggregation": request.aggregation or "sum",
-                            "limit": 5,
-                        },
-                        description="Identify the largest movers for the leading dimension candidate.",
-                        inputs=[
-                            StepInputRef(
-                                input_id="time_series_input",
-                                source_type="step_output",
-                                ref="overview_time_bucket_rows",
-                                expected_kind="frame",
-                            )
-                        ],
-                        output_refs=["top_dimension_movers"],
-                    )
-                )
-        if task_type == "diagnostic" and profile.dimension_columns:
-            steps.append(
-                PlanStep(
-                    step_id="contribution_breakdown",
-                    tool_family="duckdb",
-                    action="contribution_breakdown",
-                    parameters={
-                        "target": request.target,
-                        "group_by": request.group_by or [profile.dimension_columns[0]],
-                        "time_column": profile.time_columns[0] if profile.time_columns else None,
-                        "time_reference": request.time_reference,
-                        "bucket": str(request.options.get("time_bucket", "month")) if profile.time_columns else None,
-                        "aggregation": request.aggregation or "sum",
-                    },
-                    description="Estimate group-level contribution changes for the diagnostic workflow.",
-                    inputs=(
-                        [
-                            StepInputRef(
-                                input_id="time_series_input",
-                                source_type="step_output",
-                                ref="overview_time_bucket_rows",
-                                expected_kind="frame",
-                            )
-                        ]
-                        if profile.time_columns
-                        else [
-                            StepInputRef(
-                                input_id="overview_source_input",
-                                source_type="step_output",
-                                ref="overview_source_rows",
-                                expected_kind="frame",
-                            )
-                        ]
-                    ),
-                    output_refs=["contribution_breakdown"],
-                )
-            )
-        steps.append(
-            PlanStep(
-                step_id="missingness_summary",
-                tool_family="stats",
-                action="missingness_summary",
-                parameters={},
-                description="Summarize missing values by column.",
-                inputs=[
-                    StepInputRef(
-                        input_id="overview_source_input",
-                        source_type="step_output",
-                        ref="overview_source_rows",
-                        expected_kind="frame",
-                    )
-                ],
-                output_refs=["missingness_summary"],
-            )
-        )
-        steps.append(
-            PlanStep(
-                step_id="numeric_summary",
-                tool_family="stats",
-                action="numeric_summary",
-                parameters={},
-                description="Summarize numeric columns with deterministic statistics.",
-                inputs=[
-                    StepInputRef(
-                        input_id="overview_source_input",
-                        source_type="step_output",
-                        ref="overview_source_rows",
-                        expected_kind="frame",
-                    )
-                ],
-                output_refs=["numeric_summary"],
-            )
-        )
-        steps.append(
-            PlanStep(
-                step_id="distribution_summary",
-                tool_family="stats",
-                action="distribution_summary",
-                parameters={"target": request.target},
-                description="Summarize the target distribution.",
-                inputs=[
-                    StepInputRef(
-                        input_id="overview_source_input",
-                        source_type="step_output",
-                        ref="overview_source_rows",
-                        expected_kind="frame",
-                    )
-                ],
-                output_refs=["distribution_summary"],
-            )
-        )
-        steps.append(
-            PlanStep(
-                step_id="target_correlation",
-                tool_family="stats",
-                action="target_correlation",
-                parameters={"target": request.target},
-                description="Measure correlations between the target and other numeric columns.",
-                inputs=[
-                    StepInputRef(
-                        input_id="overview_source_input",
-                        source_type="step_output",
-                        ref="overview_source_rows",
-                        expected_kind="frame",
-                    )
-                ],
-                output_refs=["target_correlation"],
-            )
-        )
-        steps.append(
-            PlanStep(
-                step_id="anomaly_summary",
-                tool_family="stats",
-                action="anomaly_summary",
-                parameters={
-                    "target": request.target,
-                    "time_column": profile.time_columns[0] if profile.time_columns else None,
-                },
-                description="Flag simple anomaly candidates for the target.",
-                inputs=[
-                    StepInputRef(
-                        input_id="overview_source_input",
-                        source_type="step_output",
-                        ref="overview_source_rows",
-                        expected_kind="frame",
-                    )
-                ],
-                output_refs=["anomaly_summary"],
-            )
-        )
-        if profile.time_columns:
-            steps.append(
-                PlanStep(
-                    step_id="time_series_diagnostics",
-                    tool_family="stats",
-                    action="time_series_diagnostics",
-                    parameters={"target": request.target, "time_column": profile.time_columns[0]},
-                    description="Compute simple time-series diagnostics for the target.",
-                    inputs=[
-                        StepInputRef(
-                            input_id="time_series_input",
-                            source_type="step_output",
-                            ref="overview_time_bucket_rows",
-                            expected_kind="frame",
-                        )
-                    ],
-                    output_refs=["time_series_diagnostics"],
-                )
-            )
-        candidate_dimensions = request.group_by or profile.dimension_columns
-        comparison_dimension = [column for column in candidate_dimensions if column != request.target][:1]
-        if comparison_dimension:
-            steps.append(
-                PlanStep(
-                    step_id="group_mean_comparison",
-                    tool_family="stats",
-                    action="group_mean_comparison",
-                    parameters={"target": request.target, "group_column": comparison_dimension[0]},
-                    description="Compare the target mean across the first available grouping dimension.",
-                    inputs=[
-                        StepInputRef(
-                            input_id="overview_source_input",
-                            source_type="step_output",
-                            ref="overview_source_rows",
-                            expected_kind="frame",
-                        )
-                    ],
-                    output_refs=["group_mean_comparison"],
-                )
-            )
-        return steps
+        template = build_exploratory_metric_overview_template(request, profile, task_type)
+        return self._finalize_graph_template_plan(task_type, request, context, template, warnings)
 
     def _build_existence_family_plan(
         self,
@@ -2118,15 +1159,20 @@ class PlanBuilder:
         steps: list[PlanStep],
         warnings: list[str],
         final_output_ref: str | None = None,
+        graph_template_id: str | None = None,
     ) -> AnalysisPlan:
         normalized_steps = [self._normalize_step_graph_contract(self._normalize_step_parameters(step)) for step in steps]
         rationale = self._build_rationale(task_type, request, context)
+        metadata: dict[str, Any] = {}
+        if graph_template_id is not None:
+            metadata["graph_template_id"] = graph_template_id
         plan = AnalysisPlan(
             task_type=task_type,
             rationale=rationale,
             steps=normalized_steps,
             warnings=list(warnings),
             final_output_ref=final_output_ref or self._infer_plan_final_output_ref(normalized_steps),
+            metadata=metadata,
         )
         if request.prompt_family:
             self._validate_family_plan(request.prompt_family, plan)
