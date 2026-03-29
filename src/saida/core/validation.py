@@ -52,6 +52,8 @@ class PlanValidator:
         resolved_methods: list[tuple[object, AnalyticsMethodSpec, str]] = []
         seen_step_ids: set[str] = set()
         duplicate_step_ids: list[str] = []
+        global_output_refs: set[str] = set()
+        duplicate_global_output_refs: list[str] = []
         for step in plan.steps:
             if not step.step_id.strip():
                 raise PlanningError("Analysis plan contains a step with an empty step_id.")
@@ -78,13 +80,25 @@ class PlanValidator:
                 raise PlanningError(f"Plan step {step.step_id!r} contains duplicate output_refs.")
             if step.step_id in step.depends_on:
                 raise PlanningError(f"Plan step {step.step_id!r} cannot depend on itself.")
+            self._validate_step_input_contract(step)
+            self._validate_step_output_contract(step)
+            declared_step_outputs = set(step.output_refs)
+            declared_step_outputs.update(output_spec.output_id for output_spec in step.outputs)
+            for output_ref in declared_step_outputs:
+                if output_ref in global_output_refs and output_ref not in duplicate_global_output_refs:
+                    duplicate_global_output_refs.append(output_ref)
+                global_output_refs.add(output_ref)
             resolved_methods.append((step, method_spec, method_id))
 
         if duplicate_step_ids:
             joined = ", ".join(sorted(duplicate_step_ids))
             raise PlanningError(f"Analysis plan contains duplicate step_ids: {joined}")
+        if duplicate_global_output_refs:
+            joined = ", ".join(sorted(duplicate_global_output_refs))
+            raise PlanningError(f"Analysis plan contains duplicate output refs across steps: {joined}")
 
         prior_step_ids: set[str] = set()
+        prior_output_refs: set[str] = {plan_input.input_id for plan_input in plan.inputs}
         for step in plan.steps:
             missing_dependencies = [dependency for dependency in step.depends_on if dependency not in seen_step_ids]
             if missing_dependencies:
@@ -96,7 +110,10 @@ class PlanValidator:
                 raise PlanningError(
                     f"Plan step {step.step_id!r} depends on steps that appear later in the ordered plan: {joined}"
                 )
+            self._validate_step_input_references(step, plan, prior_output_refs)
             prior_step_ids.add(step.step_id)
+            prior_output_refs.update(step.output_refs)
+            prior_output_refs.update(output_spec.output_id for output_spec in step.outputs)
 
         seen_input_ids: set[str] = set()
         duplicate_input_ids: list[str] = []
@@ -127,6 +144,8 @@ class PlanValidator:
                 raise PlanningError(
                     f"Analysis plan inputs {dataset_inputs!r} do not reference the provided dataset {dataset.name!r}."
                 )
+        self._validate_dependency_graph_has_no_cycles(plan)
+        self._validate_final_output_ref(plan, available_output_refs=global_output_refs)
 
         for step, method_spec, method_id in resolved_methods:
             self._validate_required_inputs(step.step_id, step.parameters, method_spec, dataset)
@@ -160,6 +179,104 @@ class PlanValidator:
                 raise PlanningError(f"Plan step {step_id!r} requires a time_column parameter.")
             if required_input == "time_reference" and not isinstance(parameters.get("time_reference"), dict):
                 raise PlanningError(f"Plan step {step_id!r} requires a time_reference parameter.")
+
+    def _validate_step_input_contract(self, step: object) -> None:
+        seen_input_ids: set[str] = set()
+        for step_input in step.inputs:
+            if not step_input.input_id.strip():
+                raise PlanningError(f"Plan step {step.step_id!r} contains a step input with an empty input_id.")
+            if step_input.input_id in seen_input_ids:
+                raise PlanningError(f"Plan step {step.step_id!r} contains duplicate step input ids: {step_input.input_id}")
+            seen_input_ids.add(step_input.input_id)
+            if not step_input.source_type.strip():
+                raise PlanningError(f"Plan step {step.step_id!r} contains a step input with an empty source_type.")
+            if not step_input.ref.strip():
+                raise PlanningError(f"Plan step {step.step_id!r} contains a step input with an empty ref.")
+            if step_input.expected_kind is not None and not step_input.expected_kind.strip():
+                raise PlanningError(f"Plan step {step.step_id!r} contains a step input with an empty expected_kind.")
+
+    def _validate_step_output_contract(self, step: object) -> None:
+        seen_output_ids: set[str] = set()
+        for output_spec in step.outputs:
+            if not output_spec.output_id.strip():
+                raise PlanningError(f"Plan step {step.step_id!r} contains a step output with an empty output_id.")
+            if output_spec.output_id in seen_output_ids:
+                raise PlanningError(f"Plan step {step.step_id!r} contains duplicate step output ids: {output_spec.output_id}")
+            seen_output_ids.add(output_spec.output_id)
+            if not output_spec.kind.strip():
+                raise PlanningError(f"Plan step {step.step_id!r} contains a step output with an empty kind.")
+        if step.output_refs and step.outputs:
+            step_output_ids = {output_spec.output_id for output_spec in step.outputs}
+            missing_output_specs = [output_ref for output_ref in step.output_refs if output_ref not in step_output_ids]
+            if missing_output_specs:
+                joined = ", ".join(missing_output_specs)
+                raise PlanningError(
+                    f"Plan step {step.step_id!r} declares output_refs without matching output specs: {joined}."
+                )
+
+    def _validate_step_input_references(
+        self,
+        step: object,
+        plan: AnalysisPlan,
+        prior_output_refs: set[str],
+    ) -> None:
+        plan_input_lookup = {plan_input.input_id: plan_input.kind for plan_input in plan.inputs}
+        for step_input in step.inputs:
+            if step_input.source_type == "plan_input":
+                if step_input.ref not in plan_input_lookup:
+                    raise PlanningError(
+                        f"Plan step {step.step_id!r} references unknown plan input {step_input.ref!r}."
+                    )
+                if step_input.expected_kind is not None and step_input.expected_kind != plan_input_lookup[step_input.ref]:
+                    raise PlanningError(
+                        f"Plan step {step.step_id!r} expects input kind {step_input.expected_kind!r} "
+                        f"for {step_input.ref!r}, received {plan_input_lookup[step_input.ref]!r}."
+                    )
+            elif step_input.source_type in {"step_output", "artifact"}:
+                if step_input.ref not in prior_output_refs:
+                    raise PlanningError(
+                        f"Plan step {step.step_id!r} references unresolved prior output {step_input.ref!r}."
+                    )
+            else:
+                raise PlanningError(
+                    f"Plan step {step.step_id!r} uses unsupported step input source_type {step_input.source_type!r}."
+                )
+
+    def _validate_dependency_graph_has_no_cycles(self, plan: AnalysisPlan) -> None:
+        adjacency: dict[str, set[str]] = {step.step_id: set(step.depends_on) for step in plan.steps}
+        produced_by_ref: dict[str, str] = {}
+        for step in plan.steps:
+            for output_ref in (*step.output_refs, *(output_spec.output_id for output_spec in step.outputs)):
+                produced_by_ref[output_ref] = step.step_id
+        for step in plan.steps:
+            for step_input in step.inputs:
+                if step_input.source_type in {"step_output", "artifact"} and step_input.ref in produced_by_ref:
+                    adjacency[step.step_id].add(produced_by_ref[step_input.ref])
+
+        visited: set[str] = set()
+        active: set[str] = set()
+
+        def visit(step_id: str) -> None:
+            if step_id in active:
+                raise PlanningError(f"Analysis plan contains a cyclic dependency involving step {step_id!r}.")
+            if step_id in visited:
+                return
+            active.add(step_id)
+            for dependency in adjacency.get(step_id, set()):
+                visit(dependency)
+            active.remove(step_id)
+            visited.add(step_id)
+
+        for step in plan.steps:
+            visit(step.step_id)
+
+    def _validate_final_output_ref(self, plan: AnalysisPlan, available_output_refs: set[str]) -> None:
+        if plan.final_output_ref is None:
+            return
+        if plan.final_output_ref not in available_output_refs:
+            raise PlanningError(
+                f"Analysis plan final_output_ref {plan.final_output_ref!r} does not match any declared step output."
+            )
 
     def _validate_supported_parameters(
         self,
