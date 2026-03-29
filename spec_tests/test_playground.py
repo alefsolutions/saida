@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
+import json
 import sys
 
 import pandas as pd
@@ -236,3 +237,45 @@ def test_sqlite_playground_prints_summary_for_loaded_sqlite_dataset(
     assert "Dataset: sales_sqlite_40" in output
     assert "The dataset contains 40 rows." in output
     assert fake_engine.calls == ["How many rows are there?"]
+
+
+def test_sqlite_playground_can_mirror_analysis_result_json_to_second_shell(
+    monkeypatch: object,
+    capsys: object,
+    tmp_path: Path,
+) -> None:
+    fake_engine = _FakeEngine(summary="The dataset contains 40 rows.")
+    dataset = SimpleNamespace(name="sales_sqlite_40", data=pd.DataFrame({"total_sales": [1.0]}))
+    json_path = tmp_path / "sqlite_result.json"
+    launched_commands: list[list[str]] = []
+
+    monkeypatch.setattr(sqlite_playground, "load_project_env", lambda project_root: None)
+    monkeypatch.setattr(
+        sqlite_playground.os,
+        "getenv",
+        lambda key, default=None: {
+            "OPENAI_API_KEY": "test-key",
+            "SAIDA_SQLITE_JSON_PATH": str(json_path),
+        }.get(key, default),
+    )
+    monkeypatch.setattr(sqlite_playground.SQLiteSource, "load", lambda self: dataset)
+    monkeypatch.setattr(sqlite_playground, "PromptAnalysisFrontend", lambda config=None: fake_engine)
+    monkeypatch.setattr(sqlite_playground.sys, "argv", ["run_analysis_sqlite_sales_40.py", "--json-window"])
+    monkeypatch.setattr(
+        sqlite_playground.subprocess,
+        "Popen",
+        lambda command, creationflags=0: launched_commands.append(command) or SimpleNamespace(),
+    )
+
+    answers = iter(["How many rows are there?", "exit"])
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(answers))
+
+    sqlite_playground.main()
+    output = capsys.readouterr().out
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+
+    assert "JSON mirror window: enabled" in output
+    assert launched_commands
+    assert launched_commands[0][0].lower() == "powershell"
+    assert payload["schema_version"] == "saida.response.v2"
+    assert payload["summary"]["summary"] == "The dataset contains 40 rows."
