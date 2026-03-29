@@ -151,10 +151,41 @@ class PlanStep:
     depends_on: list[str] = field(default_factory=list)
     output_refs: list[str] = field(default_factory=list)
     expected_output: dict[str, Any] | None = None
+    inputs: list["StepInputRef"] = field(default_factory=list)
+    outputs: list["StepOutputSpec"] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serializable dictionary for the step."""
+        return asdict(self)
+
+
+@dataclass(slots=True)
+class StepInputRef:
+    input_id: str
+    source_type: str
+    ref: str
+    alias: str | None = None
+    required: bool = True
+    expected_kind: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a JSON-serializable dictionary for the step input reference."""
+        return asdict(self)
+
+
+@dataclass(slots=True)
+class StepOutputSpec:
+    output_id: str
+    kind: str
+    logical_shape: str | None = None
+    physical_shape: str | None = None
+    is_primary: bool = True
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a JSON-serializable dictionary for the step output specification."""
         return asdict(self)
 
 
@@ -182,6 +213,7 @@ class AnalysisPlan:
     inputs: list[PlanInput] = field(default_factory=list)
     expected_result_name: str | None = None
     expected_result_shape: str | None = None
+    final_output_ref: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -210,6 +242,35 @@ class ExecutionTraceEvent:
     stage: str
     message: str
     payload: dict[str, Any] | None = None
+
+
+@dataclass(slots=True)
+class ExecutionArtifact:
+    artifact_id: str
+    kind: str
+    value: Any
+    logical_shape: str | None = None
+    physical_shape: str | None = None
+    producer_step_id: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a JSON-serializable dictionary for the execution artifact."""
+        return asdict(self)
+
+
+@dataclass(slots=True)
+class NodeExecutionResult:
+    step_id: str
+    status: str
+    consumed_inputs: list[str] = field(default_factory=list)
+    produced_outputs: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a JSON-serializable dictionary for the node execution result."""
+        return asdict(self)
 
 
 @dataclass(slots=True)
@@ -263,6 +324,8 @@ class AnalysisResult:
     warnings: list[str]
     plan: AnalysisPlan
     trace: list[ExecutionTraceEvent]
+    node_results: list[NodeExecutionResult] = field(default_factory=list)
+    artifact_index: dict[str, ExecutionArtifact] = field(default_factory=dict)
     artifacts: dict[str, Any] = field(default_factory=dict)
     response: dict[str, Any] = field(default_factory=dict)
 
