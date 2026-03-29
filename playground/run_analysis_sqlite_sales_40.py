@@ -1,9 +1,7 @@
 from pathlib import Path
 import json
 import os
-import subprocess
 import sys
-import tempfile
 import threading
 import time
 
@@ -23,7 +21,9 @@ EXIT_WORDS = {"exit", "quit", "q"}
 DEFAULT_DATABASE_PATH = PROJECT_ROOT / "examples" / "sqlite_sales_40" / "sales_sqlite_40.db"
 DEFAULT_CONTEXT_PATH = PROJECT_ROOT / "examples" / "sqlite_sales_40" / "sales_sqlite_40.md"
 DEFAULT_QUERY = "SELECT * FROM sales_orders"
-DEFAULT_JSON_WINDOW_PATH = Path(tempfile.gettempdir()) / "saida_sqlite_sales_40_result.json"
+ANSI_RESET = "\033[0m"
+ANSI_RED = "\033[31m"
+ANSI_YELLOW = "\033[33m"
 
 
 def _show_loader(stop_event: threading.Event) -> None:
@@ -40,59 +40,14 @@ def _compose_clarification_follow_up(original_question: str, answer: str) -> str
     return f"Original request: {original_question}\nClarification answer: {answer}"
 
 
-def _json_window_enabled(argv: list[str] | None = None) -> bool:
-    arguments = argv or sys.argv[1:]
-    return "--json-window" in arguments or os.getenv("SAIDA_SQLITE_JSON_WINDOW") == "1"
-
-
-def _json_output_path() -> Path:
-    configured = os.getenv("SAIDA_SQLITE_JSON_PATH")
-    return Path(configured) if configured else DEFAULT_JSON_WINDOW_PATH
-
-
-def _write_analysis_result_json(path: Path, result: object) -> None:
+def _render_analysis_result_json(result: object) -> str:
     payload = result.to_response_dict()
-    path.write_text(
-        json.dumps(payload, indent=2, ensure_ascii=True, allow_nan=False),
-        encoding="utf-8",
-    )
-
-
-def _spawn_json_window(path: Path) -> None:
-    escaped_path = str(path).replace("'", "''")
-    viewer_script = (
-        "$Host.UI.RawUI.WindowTitle = 'SAIDA AnalysisResult JSON'; "
-        f"$path = '{escaped_path}'; "
-        "while ($true) { "
-        "Clear-Host; "
-        "Write-Host 'SAIDA AnalysisResult JSON'; "
-        "Write-Host ''; "
-        "if (Test-Path -LiteralPath $path) { "
-        "Get-Content -LiteralPath $path -Raw "
-        "} else { "
-        "Write-Host 'Waiting for first result...' "
-        "} "
-        "Start-Sleep -Milliseconds 750 "
-        "}"
-    )
-    subprocess.Popen(
-        [
-            "powershell",
-            "-NoLogo",
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-Command",
-            viewer_script,
-        ],
-        creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0),
-    )
+    formatted = json.dumps(payload, indent=2, ensure_ascii=True, allow_nan=False)
+    return f"{ANSI_YELLOW}{formatted}{ANSI_RESET}"
 
 
 def main() -> None:
     load_project_env(PROJECT_ROOT)
-    json_window_enabled = _json_window_enabled()
-    json_output_path = _json_output_path()
 
     if not os.getenv("OPENAI_API_KEY"):
         raise RuntimeError("OPENAI_API_KEY is not set.")
@@ -119,9 +74,6 @@ def main() -> None:
     print(f"Dataset: {dataset.name}")
     print("Source: sqlite")
     print("Type a question, or type 'exit' to quit.")
-    if json_window_enabled:
-        _spawn_json_window(json_output_path)
-        print(f"JSON mirror window: enabled -> {json_output_path}")
 
     pending_prompt: str | None = None
     while True:
@@ -148,13 +100,9 @@ def main() -> None:
             stop_event.set()
             loader_thread.join()
 
-        if json_window_enabled:
-            _write_analysis_result_json(json_output_path, result)
-        print((getattr(result, "llm_summary", None) or result.summary).strip())
-        if result.tables:
-            print("Tables:", ", ".join(table.name for table in result.tables))
-        if result.warnings:
-            print("Warnings:", "; ".join(result.warnings))
+        llm_response = (getattr(result, "llm_summary", None) or result.summary).strip()
+        print(f"{ANSI_RED}{llm_response}{ANSI_RESET}")
+        print(_render_analysis_result_json(result))
         if result.plan.task_type == "clarification":
             pending_prompt = question
             print("Please answer the clarification above, or type 'exit' to quit.")
