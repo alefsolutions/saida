@@ -9,6 +9,7 @@ from saida.core.analytics_registry import (
     build_default_analytics_registry,
     get_analytics_registry,
 )
+from saida.core.artifact_store import ArtifactStore
 from saida.core.artifacts import (
     FrameArtifact,
     RuntimeArtifact,
@@ -56,6 +57,7 @@ __all__ = [
     "AnalyticsMethodSpec",
     "AnalyticsRelationSpec",
     "AnalyticsRegistry",
+    "ArtifactStore",
     "ArtifactTypeSpec",
     "BackendRouter",
     "artifact_from_value",
