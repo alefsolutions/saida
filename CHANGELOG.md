@@ -64,8 +64,8 @@ Quick links:
 ### Compatibility And Release Hardening
 
 - Preserved `saida.response.v2` as the public response schema while surfacing DAG execution details under `execution` and `meta`.
-- Preserved compatibility for legacy authored single-step plans by binding missing dataset inputs, output refs, expected outputs, and `final_output_ref`.
-- Added compatibility metadata to execution results so callers can see when legacy plan shims were applied.
+- Preserved clean execution for minimally declared authored plans by binding missing dataset inputs, output refs, expected outputs, and `final_output_ref`.
+- Added contract-binding metadata to execution results so callers can see when execution filled undeclared plan fields.
 - Kept execution deterministic and single-threaded for the current release scope.
 
 ### Still Present But Optional

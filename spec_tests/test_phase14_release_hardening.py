@@ -8,7 +8,7 @@ from saida.core.contracts import AnalysisPlan, PlanInput, PlanStep, StepInputRef
 from .factories import build_support_dataset
 
 
-def test_legacy_plan_execution_exposes_compatibility_metadata() -> None:
+def test_legacy_plan_execution_exposes_contract_binding_metadata() -> None:
     engine = Saida()
     dataset = build_support_dataset()
     plan = AnalysisPlan(
@@ -27,16 +27,16 @@ def test_legacy_plan_execution_exposes_compatibility_metadata() -> None:
 
     result = engine.execute_plan(dataset, plan)
 
-    compatibility = result.response["execution"]["compatibility"]
+    contract_binding = result.response["execution"]["contract_binding"]
 
     assert result.response["schema_version"] == "saida.response.v2"
     assert result.response["execution"]["execution_model"] == "dag-single-threaded"
-    assert compatibility["legacy_plan_compatible"] is True
-    assert compatibility["explicit_dag_contract"] is False
-    assert "plan_inputs" in compatibility["legacy_plan_shims"]
-    assert "row_count:step_inputs" in compatibility["legacy_plan_shims"]
-    assert "row_count:output_refs" in compatibility["legacy_plan_shims"]
-    assert "final_output_ref" in compatibility["legacy_plan_shims"]
+    assert contract_binding["binding_applied"] is True
+    assert contract_binding["fully_declared_dag"] is False
+    assert "plan_inputs" in contract_binding["applied_bindings"]
+    assert "row_count:step_inputs" in contract_binding["applied_bindings"]
+    assert "row_count:output_refs" in contract_binding["applied_bindings"]
+    assert "final_output_ref" in contract_binding["applied_bindings"]
 
 
 def test_explicit_dag_plan_execution_reports_no_legacy_shims() -> None:
@@ -73,12 +73,12 @@ def test_explicit_dag_plan_execution_reports_no_legacy_shims() -> None:
 
     result = engine.execute_plan(dataset, plan)
 
-    compatibility = result.response["meta"]["compatibility"]
+    contract_binding = result.response["meta"]["contract_binding"]
 
     assert result.response["execution"]["execution_model"] == "dag-single-threaded"
-    assert compatibility["legacy_plan_compatible"] is True
-    assert compatibility["explicit_dag_contract"] is True
-    assert compatibility["legacy_plan_shims"] == []
+    assert contract_binding["binding_applied"] is False
+    assert contract_binding["fully_declared_dag"] is True
+    assert contract_binding["applied_bindings"] == []
 
 
 def test_changelog_documents_dag_release_hardening() -> None:
@@ -88,4 +88,4 @@ def test_changelog_documents_dag_release_hardening() -> None:
     assert "### DAG Execution" in content
     assert "### Compatibility And Release Hardening" in content
     assert "Preserved `saida.response.v2` as the public response schema" in content
-    assert "Added compatibility metadata to execution results" in content
+    assert "Added contract-binding metadata to execution results" in content

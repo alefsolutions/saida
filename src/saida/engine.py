@@ -254,7 +254,7 @@ class Saida:
         interpretation: AnalysisInterpretation | None = None,
     ) -> AnalysisPlan:
         analytics_registry = get_analytics_registry()
-        compatibility_shims: list[str] = []
+        binding_actions: list[str] = []
         if not plan.dataset_refs:
             plan.dataset_refs = [dataset.name]
         elif dataset.name not in set(plan.dataset_refs):
@@ -269,7 +269,7 @@ class Saida:
                     metadata={"source_type": dataset.source_type},
                 )
             ]
-            compatibility_shims.append("plan_inputs")
+            binding_actions.append("plan_inputs")
 
         plan.metadata = deepcopy(plan.metadata)
         plan.metadata["dataset_name"] = dataset.name
@@ -313,15 +313,15 @@ class Saida:
                         expected_kind=plan.inputs[0].kind,
                     )
                 ]
-                compatibility_shims.append(f"{step.step_id}:step_inputs")
+                binding_actions.append(f"{step.step_id}:step_inputs")
             if not step.output_refs:
                 step.output_refs = [step.step_id]
-                compatibility_shims.append(f"{step.step_id}:output_refs")
+                binding_actions.append(f"{step.step_id}:output_refs")
             if step.expected_output is None:
                 inferred_output = self._infer_step_expected_output(step)
                 if inferred_output is not None:
                     step.expected_output = inferred_output
-                    compatibility_shims.append(f"{step.step_id}:expected_output")
+                    binding_actions.append(f"{step.step_id}:expected_output")
             step.metadata = deepcopy(step.metadata)
             step.metadata.setdefault("execution_order", index)
 
@@ -339,12 +339,12 @@ class Saida:
         if plan.final_output_ref is None and plan.steps:
             first_output_ref = plan.steps[0].output_refs[0] if plan.steps[0].output_refs else None
             plan.final_output_ref = first_output_ref
-            compatibility_shims.append("final_output_ref")
-        compatibility = dict(plan.metadata.get("compatibility") or {})
-        compatibility["legacy_plan_shims"] = compatibility_shims
-        compatibility["legacy_plan_compatible"] = True
-        compatibility["explicit_dag_contract"] = not compatibility_shims
-        plan.metadata["compatibility"] = compatibility
+            binding_actions.append("final_output_ref")
+        contract_binding = dict(plan.metadata.get("contract_binding") or {})
+        contract_binding["applied_bindings"] = binding_actions
+        contract_binding["binding_applied"] = bool(binding_actions)
+        contract_binding["fully_declared_dag"] = not binding_actions
+        plan.metadata["contract_binding"] = contract_binding
         return plan
 
     def _schedule_steps(self, plan: AnalysisPlan) -> list[object]:

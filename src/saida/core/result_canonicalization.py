@@ -206,7 +206,7 @@ class ResultCanonicalizer:
             for artifact_id, artifact in artifact_index.items()
         }
         execution_model = plan.metadata.get("execution_model") if isinstance(plan.metadata, dict) else None
-        compatibility = dict(plan.metadata.get("compatibility") or {}) if isinstance(plan.metadata, dict) else {}
+        contract_binding = dict(plan.metadata.get("contract_binding") or {}) if isinstance(plan.metadata, dict) else {}
 
         return self._json_safe(
             {
@@ -248,7 +248,7 @@ class ResultCanonicalizer:
                 "final_output_ref": plan.final_output_ref,
                 "artifact_index": serialized_artifact_index,
                 "execution_model": execution_model,
-                "compatibility": compatibility,
+                "contract_binding": contract_binding,
             },
             "result": primary_result,
             "tables": table_entries,
@@ -283,7 +283,7 @@ class ResultCanonicalizer:
                 "artifact_ids": list(artifact_index),
                 "artifact_index": serialized_artifact_index,
                 "execution_model": execution_model,
-                "compatibility": compatibility,
+                "contract_binding": contract_binding,
                 "table_names": [table.name for table in tables],
             },
             }

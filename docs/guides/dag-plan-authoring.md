@@ -121,5 +121,5 @@ This keeps prompt generation and authored plans on the same execution contract.
 ## Migration Notes
 
 - existing single-step authored plans still execute
-- the engine binds missing dataset inputs and output refs for backward compatibility
+- the engine can bind missing dataset inputs and output refs during contract binding
 - new authored plans should prefer explicit `inputs`, `outputs`, and `final_output_ref`
