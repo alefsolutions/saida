@@ -49,7 +49,7 @@ def test_planner_emits_graph_contracts_for_multistep_prompt_plan() -> None:
 
     plan = planner.build_plan(request, profile)
 
-    assert plan.final_output_ref == plan.steps[0].output_refs[0]
+    assert plan.final_output_ref == "summary_metrics"
     assert len(plan.steps) > 3
     assert all(step.method_id for step in plan.steps)
     assert all(step.output_refs for step in plan.steps)
@@ -58,4 +58,4 @@ def test_planner_emits_graph_contracts_for_multistep_prompt_plan() -> None:
     assert plan.steps[0].outputs[0].kind == "frame"
     assert plan.steps[0].outputs[0].logical_shape == "table"
     assert plan.steps[-1].outputs[0].kind == "frame"
-    assert plan.steps[-1].inputs[0].ref == "primary_dataset"
+    assert plan.steps[-1].inputs[0].ref == "overview_source_rows"

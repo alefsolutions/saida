@@ -221,8 +221,9 @@ def test_planner_builds_grouped_descriptive_plan() -> None:
     plan = planner.build_plan(request, build_profile())
     actions = [step.action for step in plan.steps]
 
-    assert "group_breakdown" in actions
-    assert "ranked_breakdown" in actions
+    assert "group_frame" in actions
+    assert "aggregate_frame" in actions
+    assert "rank_frame" in actions
 
 
 def test_planner_builds_aggregate_value_plan_for_average_request() -> None:
@@ -237,7 +238,7 @@ def test_planner_builds_aggregate_value_plan_for_average_request() -> None:
     plan = planner.build_plan(request, build_profile())
     actions = [step.action for step in plan.steps]
 
-    assert "aggregate_value" in actions
+    assert actions == ["filter_frame", "aggregate_value"]
 
 
 def test_planner_passes_aggregation_into_group_breakdown() -> None:
@@ -251,7 +252,9 @@ def test_planner_passes_aggregation_into_group_breakdown() -> None:
     )
 
     plan = planner.build_plan(request, build_profile())
-    group_step = next(step for step in plan.steps if step.action == "group_breakdown")
+    group_step = next(
+        step for step in plan.steps if step.action == "aggregate_frame" and step.parameters.get("table_name") == "group_breakdown"
+    )
 
     assert group_step.parameters["aggregation"] == "max"
 
@@ -460,8 +463,9 @@ def test_planner_builds_time_bucket_count_plan() -> None:
 
     plan = planner.build_plan(request, build_profile())
 
-    assert [step.action for step in plan.steps] == ["time_bucket_counts"]
+    assert [step.action for step in plan.steps] == ["time_bucket_frame", "aggregate_frame"]
     assert plan.steps[0].parameters["bucket"] == "year"
+    assert plan.steps[1].parameters["group_by"] == ["year"]
 
 
 def test_planner_builds_time_bucket_breakdown_plan() -> None:
@@ -511,8 +515,9 @@ def test_planner_builds_time_period_comparison_plan() -> None:
 
     plan = planner.build_plan(request, build_profile())
 
-    assert [step.action for step in plan.steps] == ["period_comparison"]
+    assert [step.action for step in plan.steps] == ["time_bucket_frame", "period_comparison"]
     assert plan.steps[0].parameters["bucket"] == "quarter"
+    assert plan.steps[1].parameters["bucket"] == "quarter"
 
 
 def test_planner_builds_grouped_time_period_comparison_plan() -> None:
@@ -529,8 +534,9 @@ def test_planner_builds_grouped_time_period_comparison_plan() -> None:
 
     plan = planner.build_plan(request, build_profile())
 
-    assert [step.action for step in plan.steps] == ["grouped_period_comparison"]
+    assert [step.action for step in plan.steps] == ["time_bucket_frame", "grouped_period_comparison"]
     assert plan.steps[0].parameters["bucket"] == "year"
+    assert plan.steps[1].parameters["bucket"] == "year"
 
 
 def test_planner_builds_time_value_existence_plan() -> None:
@@ -770,7 +776,7 @@ def test_planner_allows_quarter_time_reference_for_time_period_comparison() -> N
 
     plan = planner.build_plan(request, build_profile())
 
-    assert plan.steps[0].action == "period_comparison"
+    assert [step.action for step in plan.steps] == ["time_bucket_frame", "period_comparison"]
 
 
 def test_planner_rejects_unsupported_aggregation() -> None:
@@ -797,7 +803,7 @@ def test_planner_builds_exploratory_metric_overview_from_prompt_family() -> None
 
     plan = planner.build_plan(request, build_profile())
 
-    assert [step.action for step in plan.steps[:3]] == ["dataset_summary", "time_trend", "missingness_summary"]
+    assert [step.action for step in plan.steps[:4]] == ["filter_frame", "dataset_summary", "time_bucket_frame", "aggregate_frame"]
     assert "group_mean_comparison" in [step.action for step in plan.steps]
 
 
@@ -977,8 +983,8 @@ def test_planner_builds_row_ranking_plan() -> None:
 
     plan = planner.build_plan(request, build_profile())
 
-    assert [step.action for step in plan.steps] == ["ranked_rows"]
-    assert plan.steps[0].parameters["limit"] == 5
+    assert [step.action for step in plan.steps] == ["filter_frame", "rank_frame"]
+    assert plan.steps[1].parameters["limit"] == 5
 
 
 def test_planner_builds_group_ranking_plan() -> None:

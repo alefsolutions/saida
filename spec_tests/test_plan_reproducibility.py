@@ -15,8 +15,10 @@ from .result_helpers import normalized_result_value
 _UNSET = object()
 
 _EXPLORATORY_METRIC_OVERVIEW_ACTIONS = (
+    "filter_frame",
     "dataset_summary",
-    "time_trend",
+    "time_bucket_frame",
+    "aggregate_frame",
     "missingness_summary",
     "numeric_summary",
     "distribution_summary",
@@ -26,7 +28,7 @@ _EXPLORATORY_METRIC_OVERVIEW_ACTIONS = (
     "group_mean_comparison",
 )
 
-_METRIC_AGGREGATE_ACTIONS = ("aggregate_value", *_EXPLORATORY_METRIC_OVERVIEW_ACTIONS)
+_METRIC_AGGREGATE_ACTIONS = ("filter_frame", "aggregate_value")
 
 
 @dataclass(frozen=True, slots=True)
@@ -447,7 +449,7 @@ _REPRODUCIBILITY_CASES.extend(
             expected_intent_name="row_ranking",
             expected_target="resolution_hours",
             expected_option_subset={"ranking_direction": "desc", "ranking_limit": 2},
-            expected_step_actions=("ranked_rows",),
+            expected_step_actions=("filter_frame", "rank_frame"),
             expected_primary_result_name="ranked_rows",
             expected_primary_logical_shape="table",
         ),
@@ -561,7 +563,7 @@ _REPRODUCIBILITY_CASES.extend(
             prompts=("How many tickets were created by quarter?", "Count tickets by quarter", "Show ticket counts by quarter"),
             expected_intent_name="time_bucket_counts",
             expected_option_subset={"time_bucket": "quarter"},
-            expected_step_actions=("time_bucket_counts",),
+            expected_step_actions=("time_bucket_frame", "aggregate_frame"),
             expected_primary_result_name="time_bucket_counts",
             expected_primary_logical_shape="table",
         ),
@@ -587,7 +589,7 @@ _REPRODUCIBILITY_CASES.extend(
             expected_intent_name="time_period_comparison",
             expected_target="revenue",
             expected_option_subset={"time_bucket": "quarter"},
-            expected_step_actions=("period_comparison",),
+            expected_step_actions=("time_bucket_frame", "period_comparison"),
             expected_primary_result_name="period_comparison",
             expected_primary_logical_shape="timeseries",
         ),

@@ -295,5 +295,5 @@ def test_prompt_frontend_generated_plan_omits_group_by_for_ungrouped_period_comp
 
     plan = engine.plan(dataset, "Compare revenue this quarter to last quarter")
 
-    assert plan.steps[0].method_id == "period_comparison"
-    assert "group_by" not in plan.steps[0].parameters
+    assert [step.method_id for step in plan.steps] == ["time_bucket_frame", "period_comparison"]
+    assert "group_by" not in plan.steps[1].parameters

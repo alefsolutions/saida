@@ -480,7 +480,9 @@ def test_analyze_prioritizes_grouped_total_answer_for_grouped_aggregation_prompt
 
     result = PromptAnalysisFrontend().analyze(dataset, "Give me the total revenue by region")
 
-    assert "Total revenue by region: region=West = 220.00; region=East = 170.00." in result.summary
+    assert "Total revenue by region:" in result.summary
+    assert "region=West = 220.00" in result.summary
+    assert "region=East = 170.00" in result.summary
     assert "The latest period is" not in result.summary
     assert any(table.name == "group_breakdown" for table in result.tables)
 

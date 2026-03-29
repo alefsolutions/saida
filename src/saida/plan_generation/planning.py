@@ -810,18 +810,20 @@ class PlanBuilder:
             return self._build_group_ranking_graph_plan(request, context, task_type, warnings)
         if prompt_family == "time_bucket_breakdown":
             return self._build_time_bucket_breakdown_graph_plan(request, profile, context, task_type, warnings)
+        if prompt_family == "time_bucket_counts":
+            return self._build_time_bucket_counts_graph_plan(request, profile, context, task_type, warnings)
+        if prompt_family == "time_period_comparison":
+            return self._build_time_period_comparison_graph_plan(request, profile, context, task_type, warnings)
         family_spec = get_prompt_family_catalog().get(prompt_family)
         if family_spec is not None and family_spec.plan_steps:
             steps = family_spec.compile_steps(request, profile)
             return self._finalize_plan(task_type, request, context, steps, warnings)
 
         if prompt_family == "metric_aggregate":
-            steps = self._build_metric_overview_steps(request, profile, task_type, include_aggregate_step=True)
-            return self._finalize_plan(task_type, request, context, steps, warnings)
+            return self._build_metric_aggregate_graph_plan(request, context, task_type, warnings)
 
         if prompt_family == "exploratory_metric_overview":
-            steps = self._build_metric_overview_steps(request, profile, task_type, include_aggregate_step=False)
-            return self._finalize_plan(task_type, request, context, steps, warnings)
+            return self._build_exploratory_metric_overview_graph_plan(request, profile, context, task_type, warnings)
 
         if prompt_family in _STATISTICAL_PROMPT_FAMILIES:
             steps = [
@@ -873,43 +875,6 @@ class PlanBuilder:
             ]
             return self._finalize_plan(task_type, request, context, steps, warnings)
 
-        if prompt_family == "time_bucket_counts":
-            steps = [
-                PlanStep(
-                    step_id="time_bucket_counts",
-                    tool_family="duckdb",
-                    action="time_bucket_counts",
-                    parameters={
-                        "time_column": profile.time_columns[0],
-                        "filters": request.filters,
-                        "bucket": request.options.get("time_bucket", "year"),
-                    },
-                    description="Count rows across derived time buckets such as years or months.",
-                )
-            ]
-            return self._finalize_plan(task_type, request, context, steps, warnings)
-
-        if prompt_family == "time_period_comparison":
-            comparison_action = "grouped_period_comparison" if request.group_by else "period_comparison"
-            steps = [
-                PlanStep(
-                    step_id=comparison_action,
-                    tool_family="duckdb",
-                    action=comparison_action,
-                    parameters={
-                        "target": request.target,
-                        "group_by": request.group_by,
-                        "time_column": profile.time_columns[0],
-                        "time_reference": request.time_reference,
-                        "bucket": request.options.get("time_bucket", "month"),
-                        "aggregation": request.aggregation or "sum",
-                        "filters": request.filters,
-                    },
-                    description="Compare adjacent derived time periods such as month, quarter, or year.",
-                )
-            ]
-            return self._finalize_plan(task_type, request, context, steps, warnings)
-
         if prompt_family in {
             "column_presence_check",
             "column_property_check",
@@ -921,21 +886,7 @@ class PlanBuilder:
             return self._build_existence_family_plan(request, profile, context, task_type, warnings, prompt_family)
 
         if prompt_family == "row_ranking" and request.target:
-            steps = [
-                PlanStep(
-                    step_id="ranked_rows",
-                    tool_family="duckdb",
-                    action="ranked_rows",
-                    parameters={
-                        "target": request.target,
-                        "filters": request.filters,
-                        "ascending": request.options.get("ranking_direction") == "asc",
-                        "limit": int(request.options.get("ranking_limit", 5)),
-                    },
-                    description="Rank individual rows by the requested numeric target.",
-                )
-            ]
-            return self._finalize_plan(task_type, request, context, steps, warnings)
+            return self._build_row_ranking_graph_plan(request, context, task_type, warnings)
 
         return None
 
@@ -1360,6 +1311,148 @@ class PlanBuilder:
             final_output_ref="time_bucket_breakdown",
         )
 
+    def _build_time_bucket_counts_graph_plan(
+        self,
+        request: AnalysisRequest,
+        profile: DatasetProfile,
+        context: SourceContext | None,
+        task_type: str,
+        warnings: list[str],
+    ) -> AnalysisPlan:
+        bucket = str(request.options.get("time_bucket", "year"))
+        steps = [
+            PlanStep(
+                step_id="time_bucket_frame",
+                tool_family="duckdb",
+                action="time_bucket_frame",
+                parameters={
+                    "time_column": profile.time_columns[0],
+                    "bucket": bucket,
+                    "filters": request.filters,
+                    "table_name": "time_bucket_frame",
+                },
+                description="Add explicit time bucket labels for downstream row counting.",
+                output_refs=["bucketed_rows"],
+            ),
+            PlanStep(
+                step_id="time_bucket_counts",
+                tool_family="duckdb",
+                action="aggregate_frame",
+                parameters={
+                    "aggregation": "count",
+                    "group_by": [bucket],
+                    "value_label": "row_count",
+                    "table_name": "time_bucket_counts",
+                },
+                description="Count rows across the derived time buckets.",
+                inputs=[
+                    StepInputRef(
+                        input_id="bucketed_rows_input",
+                        source_type="step_output",
+                        ref="bucketed_rows",
+                        expected_kind="frame",
+                    )
+                ],
+                output_refs=["time_bucket_counts"],
+            ),
+        ]
+        return self._finalize_plan(task_type, request, context, steps, warnings, final_output_ref="time_bucket_counts")
+
+    def _build_time_period_comparison_graph_plan(
+        self,
+        request: AnalysisRequest,
+        profile: DatasetProfile,
+        context: SourceContext | None,
+        task_type: str,
+        warnings: list[str],
+    ) -> AnalysisPlan:
+        bucket = str(request.options.get("time_bucket", "month"))
+        comparison_action = "grouped_period_comparison" if request.group_by else "period_comparison"
+        steps = [
+            PlanStep(
+                step_id="time_bucket_frame",
+                tool_family="duckdb",
+                action="time_bucket_frame",
+                parameters={
+                    "time_column": profile.time_columns[0],
+                    "bucket": bucket,
+                    "filters": request.filters,
+                    "table_name": "time_bucket_frame",
+                },
+                description="Prepare bucketed time rows for downstream period comparison.",
+                output_refs=["bucketed_rows"],
+            ),
+            PlanStep(
+                step_id=comparison_action,
+                tool_family="duckdb",
+                action=comparison_action,
+                parameters={
+                    "target": request.target,
+                    "group_by": request.group_by,
+                    "time_column": profile.time_columns[0],
+                    "time_reference": request.time_reference,
+                    "bucket": bucket,
+                    "aggregation": request.aggregation or "sum",
+                },
+                description="Compare adjacent derived time periods such as month, quarter, or year.",
+                inputs=[
+                    StepInputRef(
+                        input_id="bucketed_rows_input",
+                        source_type="step_output",
+                        ref="bucketed_rows",
+                        expected_kind="frame",
+                    )
+                ],
+                output_refs=[comparison_action],
+            ),
+        ]
+        return self._finalize_plan(task_type, request, context, steps, warnings, final_output_ref=comparison_action)
+
+    def _build_row_ranking_graph_plan(
+        self,
+        request: AnalysisRequest,
+        context: SourceContext | None,
+        task_type: str,
+        warnings: list[str],
+    ) -> AnalysisPlan:
+        ranking_limit = int(request.options.get("ranking_limit", 5))
+        sort_direction = "asc" if request.options.get("ranking_direction") == "asc" else "desc"
+        steps = [
+            PlanStep(
+                step_id="filter_frame",
+                tool_family="duckdb",
+                action="filter_frame",
+                parameters={
+                    "filters": request.filters,
+                    "table_name": "ranking_source_rows",
+                },
+                description="Prepare the filtered source rows for row ranking.",
+                output_refs=["ranking_source_rows"],
+            ),
+            PlanStep(
+                step_id="ranked_rows",
+                tool_family="duckdb",
+                action="rank_frame",
+                parameters={
+                    "sort_by": request.target,
+                    "sort_direction": sort_direction,
+                    "limit": ranking_limit,
+                    "table_name": "ranked_rows",
+                },
+                description="Rank individual rows by the requested numeric target.",
+                inputs=[
+                    StepInputRef(
+                        input_id="ranking_source_input",
+                        source_type="step_output",
+                        ref="ranking_source_rows",
+                        expected_kind="frame",
+                    )
+                ],
+                output_refs=["ranked_rows"],
+            ),
+        ]
+        return self._finalize_plan(task_type, request, context, steps, warnings, final_output_ref="ranked_rows")
+
     def _resolve_grouped_sort_column(self, request: AnalysisRequest, *, value_label: str) -> str | None:
         sort_by = request.options.get("sort_by")
         if sort_by is None:
@@ -1368,55 +1461,143 @@ class PlanBuilder:
             return value_label
         return str(sort_by)
 
+    def _build_metric_aggregate_graph_plan(
+        self,
+        request: AnalysisRequest,
+        context: SourceContext | None,
+        task_type: str,
+        warnings: list[str],
+    ) -> AnalysisPlan:
+        aggregation = request.aggregation or "sum"
+        steps = [
+            PlanStep(
+                step_id="filter_frame",
+                tool_family="duckdb",
+                action="filter_frame",
+                parameters={
+                    "filters": request.filters,
+                    "table_name": "metric_aggregate_source",
+                },
+                description="Prepare the filtered source rows for scalar aggregation.",
+                output_refs=["metric_aggregate_source"],
+            ),
+            PlanStep(
+                step_id="aggregate_value",
+                tool_family="duckdb",
+                action="aggregate_value",
+                parameters={"target": request.target, "aggregation": aggregation},
+                description="Reduce the prepared frame to the requested scalar aggregate.",
+                inputs=[
+                    StepInputRef(
+                        input_id="metric_source_input",
+                        source_type="step_output",
+                        ref="metric_aggregate_source",
+                        expected_kind="frame",
+                    )
+                ],
+                output_refs=["aggregate_value"],
+            ),
+        ]
+        return self._finalize_plan(task_type, request, context, steps, warnings, final_output_ref="aggregate_value")
+
+    def _build_exploratory_metric_overview_graph_plan(
+        self,
+        request: AnalysisRequest,
+        profile: DatasetProfile,
+        context: SourceContext | None,
+        task_type: str,
+        warnings: list[str],
+    ) -> AnalysisPlan:
+        steps = self._build_metric_overview_steps(request, profile, task_type)
+        return self._finalize_plan(task_type, request, context, steps, warnings, final_output_ref="summary_metrics")
+
     def _build_metric_overview_steps(
         self,
         request: AnalysisRequest,
         profile: DatasetProfile,
         task_type: str,
-        *,
-        include_aggregate_step: bool,
     ) -> list[PlanStep]:
         if request.target is None or request.target not in set(profile.measure_columns):
             raise PlanningError("Exploratory metric workflows require a numeric target.")
 
-        steps: list[PlanStep] = []
-        if include_aggregate_step and request.aggregation:
-            steps.append(
-                PlanStep(
-                    step_id="aggregate_value",
-                    tool_family="duckdb",
-                    action="aggregate_value",
-                    parameters={
-                        "target": request.target,
-                        "aggregation": request.aggregation,
-                        "filters": request.filters,
-                    },
-                    description=f"Compute the {request.aggregation} value for the requested target.",
-                )
+        steps: list[PlanStep] = [
+            PlanStep(
+                step_id="filter_frame",
+                tool_family="duckdb",
+                action="filter_frame",
+                parameters={
+                    "filters": request.filters,
+                    "table_name": "overview_source_rows",
+                },
+                description="Prepare a reusable filtered source frame for the exploratory workflow.",
+                output_refs=["overview_source_rows"],
             )
+        ]
 
         steps.append(
             PlanStep(
                 step_id="summary_metrics",
                 tool_family="duckdb",
                 action="dataset_summary",
-                parameters={"target": request.target, "filters": request.filters},
+                parameters={"target": request.target},
                 description="Compute top-level dataset metrics.",
+                inputs=[
+                    StepInputRef(
+                        input_id="overview_source_input",
+                        source_type="step_output",
+                        ref="overview_source_rows",
+                        expected_kind="frame",
+                    )
+                ],
+                output_refs=["summary_metrics"],
             )
         )
         if profile.time_columns:
+            time_bucket = str(request.options.get("time_bucket", "month"))
+            steps.append(
+                PlanStep(
+                    step_id="time_bucket_frame",
+                    tool_family="duckdb",
+                    action="time_bucket_frame",
+                    parameters={
+                        "time_column": profile.time_columns[0],
+                        "bucket": time_bucket,
+                        "table_name": "overview_time_bucket_frame",
+                    },
+                    description="Add reusable time bucket labels for downstream trend and period steps.",
+                    inputs=[
+                        StepInputRef(
+                            input_id="overview_source_input",
+                            source_type="step_output",
+                            ref="overview_source_rows",
+                            expected_kind="frame",
+                        )
+                    ],
+                    output_refs=["overview_time_bucket_rows"],
+                )
+            )
             steps.append(
                 PlanStep(
                     step_id="time_trend",
                     tool_family="duckdb",
-                    action="time_trend",
+                    action="aggregate_frame",
                     parameters={
                         "target": request.target,
-                        "time_column": profile.time_columns[0],
+                        "group_by": [time_bucket],
                         "aggregation": request.aggregation or "sum",
-                        "filters": request.filters,
+                        "value_label": "target_total",
+                        "table_name": "time_trend",
                     },
                     description="Compute the target trend over time.",
+                    inputs=[
+                        StepInputRef(
+                            input_id="bucketed_rows_input",
+                            source_type="step_output",
+                            ref="overview_time_bucket_rows",
+                            expected_kind="frame",
+                        )
+                    ],
+                    output_refs=["time_trend"],
                 )
             )
         if request.time_reference and profile.time_columns:
@@ -1429,10 +1610,19 @@ class PlanBuilder:
                         "target": request.target,
                         "time_column": profile.time_columns[0],
                         "time_reference": request.time_reference,
+                        "bucket": str(request.options.get("time_bucket", "month")),
                         "aggregation": request.aggregation or "sum",
-                        "filters": request.filters,
                     },
                     description="Compare the requested period against the previous comparable period.",
+                    inputs=[
+                        StepInputRef(
+                            input_id="time_series_input",
+                            source_type="step_output",
+                            ref="overview_time_bucket_rows",
+                            expected_kind="frame",
+                        )
+                    ],
+                    output_refs=["period_comparison"],
                 )
             )
             if request.group_by:
@@ -1446,40 +1636,87 @@ class PlanBuilder:
                             "group_by": request.group_by,
                             "time_column": profile.time_columns[0],
                             "time_reference": request.time_reference,
+                            "bucket": str(request.options.get("time_bucket", "month")),
                             "aggregation": request.aggregation or "sum",
-                            "filters": request.filters,
                         },
                         description="Compare grouped totals between adjacent periods.",
+                        inputs=[
+                            StepInputRef(
+                                input_id="time_series_input",
+                                source_type="step_output",
+                                ref="overview_time_bucket_rows",
+                                expected_kind="frame",
+                            )
+                        ],
+                        output_refs=["grouped_period_comparison"],
                     )
                 )
         if request.group_by:
             steps.append(
                 PlanStep(
+                    step_id="group_frame",
+                    tool_family="duckdb",
+                    action="group_frame",
+                    parameters={
+                        "group_by": request.group_by,
+                        "table_name": "overview_grouped_rows",
+                    },
+                    description="Prepare grouped exploratory rows for downstream grouped summaries.",
+                    inputs=[
+                        StepInputRef(
+                            input_id="overview_source_input",
+                            source_type="step_output",
+                            ref="overview_source_rows",
+                            expected_kind="frame",
+                        )
+                    ],
+                    output_refs=["overview_grouped_rows"],
+                )
+            )
+            steps.append(
+                PlanStep(
                     step_id="group_breakdown",
                     tool_family="duckdb",
-                    action="group_breakdown",
+                    action="aggregate_frame",
                     parameters={
                         "target": request.target,
-                        "group_by": request.group_by,
                         "aggregation": request.aggregation or "sum",
-                        "filters": request.filters,
+                        "value_label": "target_total",
+                        "table_name": "group_breakdown",
                     },
                     description="Break down the target metric by requested dimensions.",
+                    inputs=[
+                        StepInputRef(
+                            input_id="grouped_rows_input",
+                            source_type="step_output",
+                            ref="overview_grouped_rows",
+                            expected_kind="frame",
+                        )
+                    ],
+                    output_refs=["group_breakdown"],
                 )
             )
             steps.append(
                 PlanStep(
                     step_id="ranked_breakdown",
                     tool_family="duckdb",
-                    action="ranked_breakdown",
+                    action="rank_frame",
                     parameters={
-                        "target": request.target,
-                        "group_by": request.group_by,
-                        "aggregation": request.aggregation or "sum",
-                        "filters": request.filters,
+                        "sort_by": "target_total",
+                        "sort_direction": "desc",
                         "limit": 5,
+                        "table_name": "ranked_breakdown",
                     },
                     description="Rank the largest grouped contributors.",
+                    inputs=[
+                        StepInputRef(
+                            input_id="group_breakdown_input",
+                            source_type="step_output",
+                            ref="group_breakdown",
+                            expected_kind="frame",
+                        )
+                    ],
+                    output_refs=["ranked_breakdown"],
                 )
             )
             if request.time_reference and profile.time_columns:
@@ -1493,41 +1730,88 @@ class PlanBuilder:
                             "group_by": request.group_by,
                             "time_column": profile.time_columns[0],
                             "time_reference": request.time_reference,
+                            "bucket": str(request.options.get("time_bucket", "month")),
                             "aggregation": request.aggregation or "sum",
-                            "filters": request.filters,
                             "limit": 5,
                         },
                         description="Identify the largest grouped movers between adjacent periods.",
+                        inputs=[
+                            StepInputRef(
+                                input_id="time_series_input",
+                                source_type="step_output",
+                                ref="overview_time_bucket_rows",
+                                expected_kind="frame",
+                            )
+                        ],
+                        output_refs=["top_movers"],
                     )
                 )
         elif task_type == "diagnostic" and profile.dimension_columns:
             steps.append(
                 PlanStep(
+                    step_id="top_dimension_group_frame",
+                    tool_family="duckdb",
+                    action="group_frame",
+                    parameters={
+                        "group_by": [profile.dimension_columns[0]],
+                        "table_name": "top_dimension_group_rows",
+                    },
+                    description="Prepare grouped rows for the leading dimension candidate.",
+                    inputs=[
+                        StepInputRef(
+                            input_id="overview_source_input",
+                            source_type="step_output",
+                            ref="overview_source_rows",
+                            expected_kind="frame",
+                        )
+                    ],
+                    output_refs=["top_dimension_group_rows"],
+                )
+            )
+            steps.append(
+                PlanStep(
                     step_id="top_dimension_breakdown",
                     tool_family="duckdb",
-                    action="group_breakdown",
+                    action="aggregate_frame",
                     parameters={
                         "target": request.target,
-                        "group_by": [profile.dimension_columns[0]],
                         "aggregation": request.aggregation or "sum",
-                        "filters": request.filters,
+                        "value_label": "target_total",
+                        "table_name": "group_breakdown",
                     },
                     description="Break down the target metric by the leading dimension candidate.",
+                    inputs=[
+                        StepInputRef(
+                            input_id="top_dimension_group_input",
+                            source_type="step_output",
+                            ref="top_dimension_group_rows",
+                            expected_kind="frame",
+                        )
+                    ],
+                    output_refs=["top_dimension_breakdown"],
                 )
             )
             steps.append(
                 PlanStep(
                     step_id="top_dimension_ranking",
                     tool_family="duckdb",
-                    action="ranked_breakdown",
+                    action="rank_frame",
                     parameters={
-                        "target": request.target,
-                        "group_by": [profile.dimension_columns[0]],
-                        "aggregation": request.aggregation or "sum",
-                        "filters": request.filters,
+                        "sort_by": "target_total",
+                        "sort_direction": "desc",
                         "limit": 5,
+                        "table_name": "ranked_breakdown",
                     },
                     description="Rank the leading grouped contributors for the diagnostic workflow.",
+                    inputs=[
+                        StepInputRef(
+                            input_id="top_dimension_breakdown_input",
+                            source_type="step_output",
+                            ref="top_dimension_breakdown",
+                            expected_kind="frame",
+                        )
+                    ],
+                    output_refs=["top_dimension_ranking"],
                 )
             )
             if request.time_reference and profile.time_columns:
@@ -1541,11 +1825,20 @@ class PlanBuilder:
                             "group_by": [profile.dimension_columns[0]],
                             "time_column": profile.time_columns[0],
                             "time_reference": request.time_reference,
+                            "bucket": str(request.options.get("time_bucket", "month")),
                             "aggregation": request.aggregation or "sum",
-                            "filters": request.filters,
                             "limit": 5,
                         },
                         description="Identify the largest movers for the leading dimension candidate.",
+                        inputs=[
+                            StepInputRef(
+                                input_id="time_series_input",
+                                source_type="step_output",
+                                ref="overview_time_bucket_rows",
+                                expected_kind="frame",
+                            )
+                        ],
+                        output_refs=["top_dimension_movers"],
                     )
                 )
         if task_type == "diagnostic" and profile.dimension_columns:
@@ -1559,10 +1852,30 @@ class PlanBuilder:
                         "group_by": request.group_by or [profile.dimension_columns[0]],
                         "time_column": profile.time_columns[0] if profile.time_columns else None,
                         "time_reference": request.time_reference,
+                        "bucket": str(request.options.get("time_bucket", "month")) if profile.time_columns else None,
                         "aggregation": request.aggregation or "sum",
-                        "filters": request.filters,
                     },
                     description="Estimate group-level contribution changes for the diagnostic workflow.",
+                    inputs=(
+                        [
+                            StepInputRef(
+                                input_id="time_series_input",
+                                source_type="step_output",
+                                ref="overview_time_bucket_rows",
+                                expected_kind="frame",
+                            )
+                        ]
+                        if profile.time_columns
+                        else [
+                            StepInputRef(
+                                input_id="overview_source_input",
+                                source_type="step_output",
+                                ref="overview_source_rows",
+                                expected_kind="frame",
+                            )
+                        ]
+                    ),
+                    output_refs=["contribution_breakdown"],
                 )
             )
         steps.append(
@@ -1572,6 +1885,15 @@ class PlanBuilder:
                 action="missingness_summary",
                 parameters={},
                 description="Summarize missing values by column.",
+                inputs=[
+                    StepInputRef(
+                        input_id="overview_source_input",
+                        source_type="step_output",
+                        ref="overview_source_rows",
+                        expected_kind="frame",
+                    )
+                ],
+                output_refs=["missingness_summary"],
             )
         )
         steps.append(
@@ -1581,6 +1903,15 @@ class PlanBuilder:
                 action="numeric_summary",
                 parameters={},
                 description="Summarize numeric columns with deterministic statistics.",
+                inputs=[
+                    StepInputRef(
+                        input_id="overview_source_input",
+                        source_type="step_output",
+                        ref="overview_source_rows",
+                        expected_kind="frame",
+                    )
+                ],
+                output_refs=["numeric_summary"],
             )
         )
         steps.append(
@@ -1590,6 +1921,15 @@ class PlanBuilder:
                 action="distribution_summary",
                 parameters={"target": request.target},
                 description="Summarize the target distribution.",
+                inputs=[
+                    StepInputRef(
+                        input_id="overview_source_input",
+                        source_type="step_output",
+                        ref="overview_source_rows",
+                        expected_kind="frame",
+                    )
+                ],
+                output_refs=["distribution_summary"],
             )
         )
         steps.append(
@@ -1599,6 +1939,15 @@ class PlanBuilder:
                 action="target_correlation",
                 parameters={"target": request.target},
                 description="Measure correlations between the target and other numeric columns.",
+                inputs=[
+                    StepInputRef(
+                        input_id="overview_source_input",
+                        source_type="step_output",
+                        ref="overview_source_rows",
+                        expected_kind="frame",
+                    )
+                ],
+                output_refs=["target_correlation"],
             )
         )
         steps.append(
@@ -1611,6 +1960,15 @@ class PlanBuilder:
                     "time_column": profile.time_columns[0] if profile.time_columns else None,
                 },
                 description="Flag simple anomaly candidates for the target.",
+                inputs=[
+                    StepInputRef(
+                        input_id="overview_source_input",
+                        source_type="step_output",
+                        ref="overview_source_rows",
+                        expected_kind="frame",
+                    )
+                ],
+                output_refs=["anomaly_summary"],
             )
         )
         if profile.time_columns:
@@ -1621,6 +1979,15 @@ class PlanBuilder:
                     action="time_series_diagnostics",
                     parameters={"target": request.target, "time_column": profile.time_columns[0]},
                     description="Compute simple time-series diagnostics for the target.",
+                    inputs=[
+                        StepInputRef(
+                            input_id="time_series_input",
+                            source_type="step_output",
+                            ref="overview_time_bucket_rows",
+                            expected_kind="frame",
+                        )
+                    ],
+                    output_refs=["time_series_diagnostics"],
                 )
             )
         candidate_dimensions = request.group_by or profile.dimension_columns
@@ -1633,6 +2000,15 @@ class PlanBuilder:
                     action="group_mean_comparison",
                     parameters={"target": request.target, "group_column": comparison_dimension[0]},
                     description="Compare the target mean across the first available grouping dimension.",
+                    inputs=[
+                        StepInputRef(
+                            input_id="overview_source_input",
+                            source_type="step_output",
+                            ref="overview_source_rows",
+                            expected_kind="frame",
+                        )
+                    ],
+                    output_refs=["group_mean_comparison"],
                 )
             )
         return steps
