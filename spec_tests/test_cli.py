@@ -85,7 +85,7 @@ def test_cli_version_command(monkeypatch: object, capsys: object) -> None:
     output = capsys.readouterr().out
 
     assert exit_code == 0
-    assert "SAIDA CLI 0.2.0" in output
+    assert "SAIDA CLI 0.3.0" in output
 
 
 def test_cli_without_command_prints_help(monkeypatch: object, capsys: object) -> None:

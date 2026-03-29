@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "saida"
-version = "0.2.0"
+version = "0.3.0"
 description = "SAIDA canonical analytics framework for standardized plans and analytical results"
 readme = "README.md"
 requires-python = ">=3.11"

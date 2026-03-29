@@ -44,7 +44,7 @@ def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
     if args.command == "version":
-        print("SAIDA CLI 0.2.0")
+        print("SAIDA CLI 0.3.0")
         return 0
 
     if args.command == "profile":

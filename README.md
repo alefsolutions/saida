@@ -2,7 +2,7 @@
 
 # SAIDA
 
-[![Version](https://img.shields.io/badge/version-0.2.0-1f6feb)](pyproject.toml)
+[![Version](https://img.shields.io/badge/version-0.3.0-1f6feb)](pyproject.toml)
 [![License](https://img.shields.io/badge/license-MIT-2ea043)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%2B-3776AB)](pyproject.toml)
 

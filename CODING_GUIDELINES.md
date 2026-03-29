@@ -1,10 +1,10 @@
 ![SAIDA Banner](assets/github-banner.png)
 
-# SAIDA 0.2.0 Coding Guidelines
+# SAIDA 0.3.0 Coding Guidelines
 
 ## Purpose
 
-These guidelines are intended specifically for **SAIDA 0.2.0**.
+These guidelines are intended specifically for **SAIDA 0.3.0**.
 
 These guidelines define how SAIDA code should be written so the library remains:
 
@@ -136,7 +136,7 @@ Prefer:
 
 ## Directory intent
 
-For 0.2.0, the intended architecture should be kept clear in code organization:
+For 0.3.0, the intended architecture should be kept clear in code organization:
 
 - `core/` owns canonical meaning, validation, routing, and result normalization
 - `sources/` owns source access and schema discovery

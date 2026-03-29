@@ -1,8 +1,8 @@
 ![SAIDA Banner](assets/github-banner.png)
 
-# SAIDA 0.2.0 Things To Add / Wishlist
+# SAIDA 0.3.0 Things To Add / Wishlist
 
-This file captures important improvements that should be considered for **SAIDA 0.2.0** and beyond.
+This file captures important improvements that should be considered for **SAIDA 0.3.0** and beyond.
 
 [`architecture.md`](../overview/architecture.md) remains the source of truth.
 
@@ -130,7 +130,7 @@ and toward:
 
 - capability-driven canonical analysis routing
 
-That is more consistent with the SAIDA 0.2.0 architecture direction:
+That is more consistent with the SAIDA 0.3.0 architecture direction:
 
 - contract-first
 - source-agnostic

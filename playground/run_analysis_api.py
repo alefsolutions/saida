@@ -56,7 +56,7 @@ class ErrorResponse(BaseModel):
 
 app = FastAPI(
     title="SAIDA Playground API",
-    version="0.2.0",
+    version="0.3.0",
     description="Small Postman-friendly API wrapper around the SAIDA analytics engine.",
 )
 
