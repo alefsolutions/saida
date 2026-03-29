@@ -9,6 +9,14 @@ from saida.core.analytics_registry import (
     build_default_analytics_registry,
     get_analytics_registry,
 )
+from saida.core.artifacts import (
+    FrameArtifact,
+    RuntimeArtifact,
+    ScalarArtifact,
+    SeriesArtifact,
+    VerificationArtifact,
+    artifact_from_value,
+)
 from saida.core.contracts import (
     AnalysisInterpretation,
     AnalysisPlan,
@@ -50,6 +58,7 @@ __all__ = [
     "AnalyticsRegistry",
     "ArtifactTypeSpec",
     "BackendRouter",
+    "artifact_from_value",
     "build_default_analytics_registry",
     "build_default_dag_execution_contract",
     "ColumnProfile",
@@ -58,6 +67,7 @@ __all__ = [
     "DatasetProfile",
     "ExecutionTraceEvent",
     "ExecutionArtifact",
+    "FrameArtifact",
     "ForecastAnalysisResult",
     "ForecastResult",
     "get_analytics_registry",
@@ -72,9 +82,13 @@ __all__ = [
     "PredictionResult",
     "ResultBuilder",
     "ResultCanonicalizer",
+    "RuntimeArtifact",
+    "ScalarArtifact",
+    "SeriesArtifact",
     "SourceContext",
     "StepInputRef",
     "StepOutputSpec",
     "TableArtifact",
     "TrainResult",
+    "VerificationArtifact",
 ]
