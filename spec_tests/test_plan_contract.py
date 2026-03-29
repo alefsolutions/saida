@@ -5,9 +5,9 @@ import pytest
 
 from saida import PromptAnalysisFrontend, Saida
 from saida.core import PlanValidator
-from saida.core.contracts import AnalysisPlan, Dataset, PlanInput, PlanStep
+from saida.core.contracts import AnalysisPlan, Dataset, PlanInput, PlanStep, StepInputRef, StepOutputSpec
 from saida.exceptions import PlanningError
-from .factories import build_support_dataset, json_safe
+from .factories import build_explicit_single_step_plan, build_support_dataset, json_safe
 
 
 def test_engine_plan_builds_bound_vnext_plan() -> None:
@@ -48,18 +48,16 @@ def test_engine_execute_plan_round_trip_matches_analyze_for_row_count() -> None:
 def test_engine_execute_plan_supports_user_authored_row_count_plan() -> None:
     engine = Saida()
     dataset = build_support_dataset()
-    plan = AnalysisPlan(
+    plan = build_explicit_single_step_plan(
+        dataset_name=dataset.name,
         task_type="descriptive",
         rationale="Count unresolved support tickets deterministically.",
-        steps=[
-            PlanStep(
-                step_id="row_count",
-                tool_family="duckdb",
-                action="row_count",
-                parameters={"filters": {"reopened_flag": "no"}},
-                description="Count rows where reopened_flag is no.",
-            )
-        ],
+        step_id="row_count",
+        tool_family="duckdb",
+        method_id="row_count",
+        family="aggregation_grouping",
+        parameters={"filters": {"reopened_flag": "no"}},
+        description="Count rows where reopened_flag is no.",
         expected_result_name="row_count",
         expected_result_shape="scalar",
     )
@@ -75,18 +73,16 @@ def test_engine_execute_plan_supports_user_authored_row_count_plan() -> None:
 def test_execute_plan_does_not_require_prompt_generation_path_for_authored_plan() -> None:
     engine = Saida()
     dataset = build_support_dataset()
-    plan = AnalysisPlan(
+    plan = build_explicit_single_step_plan(
+        dataset_name=dataset.name,
         task_type="descriptive",
         rationale="Count support rows without invoking prompt generation.",
-        steps=[
-            PlanStep(
-                step_id="row_count",
-                tool_family="duckdb",
-                action="row_count",
-                parameters={},
-                description="Count all support rows.",
-            )
-        ],
+        step_id="row_count",
+        tool_family="duckdb",
+        method_id="row_count",
+        family="aggregation_grouping",
+        parameters={},
+        description="Count all support rows.",
         expected_result_name="row_count",
         expected_result_shape="scalar",
     )
@@ -127,6 +123,9 @@ def test_plan_validator_rejects_duplicate_step_ids() -> None:
     plan = AnalysisPlan(
         task_type="descriptive",
         rationale="Invalid duplicate ids.",
+        dataset_refs=["support"],
+        inputs=[PlanInput(input_id="primary_dataset", kind="dataset", ref="support")],
+        final_output_ref="duplicate",
         steps=[
             PlanStep(
                 step_id="duplicate",
@@ -134,6 +133,12 @@ def test_plan_validator_rejects_duplicate_step_ids() -> None:
                 action="row_count",
                 parameters={},
                 description="First row count.",
+                family="aggregation_grouping",
+                method_id="row_count",
+                inputs=[StepInputRef(input_id="dataset_input", source_type="plan_input", ref="primary_dataset", expected_kind="dataset")],
+                output_refs=["duplicate"],
+                outputs=[StepOutputSpec(output_id="duplicate", kind="scalar", logical_shape="scalar", physical_shape="scalar")],
+                expected_output={"output_id": "duplicate", "logical_shape": "scalar", "physical_shape": "scalar"},
             ),
             PlanStep(
                 step_id="duplicate",
@@ -141,6 +146,12 @@ def test_plan_validator_rejects_duplicate_step_ids() -> None:
                 action="row_count",
                 parameters={},
                 description="Second row count.",
+                family="aggregation_grouping",
+                method_id="row_count",
+                inputs=[StepInputRef(input_id="dataset_input_2", source_type="plan_input", ref="primary_dataset", expected_kind="dataset")],
+                output_refs=["duplicate_2"],
+                outputs=[StepOutputSpec(output_id="duplicate_2", kind="scalar", logical_shape="scalar", physical_shape="scalar")],
+                expected_output={"output_id": "duplicate_2", "logical_shape": "scalar", "physical_shape": "scalar"},
             ),
         ],
     )
@@ -154,6 +165,9 @@ def test_plan_validator_rejects_out_of_order_dependencies() -> None:
     plan = AnalysisPlan(
         task_type="descriptive",
         rationale="Invalid dependency order.",
+        dataset_refs=["support"],
+        inputs=[PlanInput(input_id="primary_dataset", kind="dataset", ref="support")],
+        final_output_ref="row_count",
         steps=[
             PlanStep(
                 step_id="summary",
@@ -161,7 +175,13 @@ def test_plan_validator_rejects_out_of_order_dependencies() -> None:
                 action="numeric_summary",
                 parameters={},
                 description="Summarize numeric data.",
+                family="diagnostic_workflows",
+                method_id="numeric_summary",
                 depends_on=["row_count"],
+                inputs=[StepInputRef(input_id="row_count_input", source_type="step_output", ref="row_count")],
+                output_refs=["summary"],
+                outputs=[StepOutputSpec(output_id="summary", kind="frame", logical_shape="table", physical_shape="recordset")],
+                expected_output={"output_id": "summary", "logical_shape": "table", "physical_shape": "recordset"},
             ),
             PlanStep(
                 step_id="row_count",
@@ -169,6 +189,12 @@ def test_plan_validator_rejects_out_of_order_dependencies() -> None:
                 action="row_count",
                 parameters={},
                 description="Count rows.",
+                family="aggregation_grouping",
+                method_id="row_count",
+                inputs=[StepInputRef(input_id="dataset_input", source_type="plan_input", ref="primary_dataset", expected_kind="dataset")],
+                output_refs=["row_count"],
+                outputs=[StepOutputSpec(output_id="row_count", kind="scalar", logical_shape="scalar", physical_shape="scalar")],
+                expected_output={"output_id": "row_count", "logical_shape": "scalar", "physical_shape": "scalar"},
             ),
         ],
     )
@@ -181,6 +207,13 @@ def test_analysis_plan_to_dict_contains_vnext_contract_fields() -> None:
     plan = AnalysisPlan(
         task_type="descriptive",
         rationale="Count rows in the primary dataset.",
+        plan_id="support:row_count:row_count",
+        dataset_refs=["support"],
+        inputs=[PlanInput(input_id="primary_dataset", kind="dataset", ref="support")],
+        expected_result_name="row_count",
+        expected_result_shape="scalar",
+        final_output_ref="row_count",
+        metadata={"author": "spec"},
         steps=[
             PlanStep(
                 step_id="row_count",
@@ -190,15 +223,12 @@ def test_analysis_plan_to_dict_contains_vnext_contract_fields() -> None:
                 description="Count rows.",
                 family="aggregation_grouping",
                 method_id="row_count",
+                inputs=[StepInputRef(input_id="dataset_input", source_type="plan_input", ref="primary_dataset", expected_kind="dataset")],
                 output_refs=["row_count"],
+                outputs=[StepOutputSpec(output_id="row_count", kind="scalar", logical_shape="scalar", physical_shape="scalar")],
+                expected_output={"output_id": "row_count", "logical_shape": "scalar", "physical_shape": "scalar"},
             )
         ],
-        plan_id="support:row_count:row_count",
-        dataset_refs=["support"],
-        inputs=[PlanInput(input_id="primary_dataset", kind="dataset", ref="support")],
-        expected_result_name="row_count",
-        expected_result_shape="scalar",
-        metadata={"author": "spec"},
     )
 
     payload = plan.to_dict()

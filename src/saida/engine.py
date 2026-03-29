@@ -123,8 +123,20 @@ class Saida:
         profile = self.profile(dataset)
         trace.append(self._trace("profiling", "profile generated", {"row_count": profile.row_count}))
 
-        bound_plan = self._bind_plan_to_dataset(deepcopy(plan), dataset, profile)
-        interpretation = self._interpretation_from_plan(bound_plan, profile=profile, dataset_name=dataset.name)
+        executable_plan = deepcopy(plan)
+        executable_plan.metadata = deepcopy(executable_plan.metadata)
+        executable_plan.metadata["dataset_name"] = dataset.name
+        executable_plan.metadata["dataset_source_type"] = dataset.source_type
+        executable_plan.metadata.setdefault("execution_model", "dag-single-threaded")
+        executable_plan.metadata.setdefault(
+            "profile_summary",
+            {
+                "dataset_name": profile.dataset_name,
+                "row_count": profile.row_count,
+                "column_count": profile.column_count,
+            },
+        )
+        interpretation = self._interpretation_from_plan(executable_plan, profile=profile, dataset_name=dataset.name)
         trace.append(
             self._trace(
                 "contract",
@@ -136,7 +148,7 @@ class Saida:
             self._trace(
                 "planning",
                 "plan supplied for direct execution",
-                {"task_type": bound_plan.task_type, "step_count": len(bound_plan.steps)},
+                {"task_type": executable_plan.task_type, "step_count": len(executable_plan.steps)},
             )
         )
 
@@ -145,7 +157,7 @@ class Saida:
             question=interpretation.question,
             interpretation=interpretation,
             profile=profile,
-            plan=bound_plan,
+            plan=executable_plan,
             trace=trace,
             prompt_contract=None,
             warning_groups=(profile.warnings,),

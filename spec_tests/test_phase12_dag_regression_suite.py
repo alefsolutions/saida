@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import pytest
+
 from saida import PromptAnalysisFrontend, Saida
 from saida.core.contracts import AnalysisPlan, PlanStep, StepInputRef, StepOutputSpec
+from saida.exceptions import PlanningError
 
 from .factories import build_support_dataset
 
@@ -89,7 +92,7 @@ def test_engine_schedules_fan_out_and_fan_in_dependencies_deterministically() ->
     assert [step.step_id for step in scheduled] == ["source_count", "left_summary", "right_summary", "fan_in"]
 
 
-def test_engine_executes_legacy_plan_without_explicit_graph_contract_fields() -> None:
+def test_engine_rejects_authored_plan_without_explicit_graph_contract_fields() -> None:
     engine = Saida()
     dataset = build_support_dataset()
     plan = AnalysisPlan(
@@ -106,10 +109,5 @@ def test_engine_executes_legacy_plan_without_explicit_graph_contract_fields() ->
         ],
     )
 
-    result = engine.execute_plan(dataset, plan)
-
-    assert result.plan.steps[0].inputs[0].ref == "primary_dataset"
-    assert result.plan.steps[0].output_refs == ["row_count"]
-    assert result.plan.final_output_ref == "row_count"
-    assert "row_count" in result.artifact_index
-    assert result.response["execution"]["final_output_ref"] == "row_count"
+    with pytest.raises(PlanningError, match="must declare at least one dataset_ref"):
+        engine.execute_plan(dataset, plan)

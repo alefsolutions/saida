@@ -8,7 +8,7 @@ import pytest
 
 from saida import Saida
 from saida.core.contracts import AnalysisPlan, Dataset, PlanStep
-from .factories import build_sales_dataset, build_statistical_dataset, build_support_dataset
+from .factories import build_explicit_single_step_plan, build_sales_dataset, build_statistical_dataset, build_support_dataset
 
 
 @dataclass(frozen=True, slots=True)
@@ -21,234 +21,184 @@ class FamilyContractCase:
 
 
 def _plan_for_projection(dataset_name: str) -> AnalysisPlan:
-    return AnalysisPlan(
+    return build_explicit_single_step_plan(
+        dataset_name=dataset_name,
         task_type="descriptive",
         rationale="Return selected support fields.",
+        step_id="tabular_query",
+        tool_family="duckdb",
+        method_id="tabular_query",
+        family="projection_field_selection",
+        parameters={
+            "selected_columns": ["ticket_id", "team"],
+            "sort_by": "ticket_id",
+            "sort_direction": "asc",
+            "page": 1,
+            "page_size": 50,
+        },
+        description="Return selected support fields.",
         expected_result_name="tabular_query",
         expected_result_shape="table",
-        dataset_refs=[dataset_name],
-        steps=[
-            PlanStep(
-                step_id="tabular_query",
-                tool_family="duckdb",
-                action="tabular_query",
-                method_id="tabular_query",
-                family="projection_field_selection",
-                parameters={
-                    "selected_columns": ["ticket_id", "team"],
-                    "sort_by": "ticket_id",
-                    "sort_direction": "asc",
-                    "page": 1,
-                    "page_size": 50,
-                },
-                description="Return selected support fields.",
-            )
-        ],
     )
 
 
 def _plan_for_aggregation(dataset_name: str) -> AnalysisPlan:
-    return AnalysisPlan(
+    return build_explicit_single_step_plan(
+        dataset_name=dataset_name,
         task_type="descriptive",
         rationale="Count reopened support rows.",
+        step_id="row_count",
+        tool_family="duckdb",
+        method_id="row_count",
+        family="aggregation_grouping",
+        parameters={"filters": {"reopened_flag": "yes"}},
+        description="Count reopened support rows.",
         expected_result_name="row_count",
         expected_result_shape="scalar",
-        dataset_refs=[dataset_name],
-        steps=[
-            PlanStep(
-                step_id="row_count",
-                tool_family="duckdb",
-                action="row_count",
-                method_id="row_count",
-                family="aggregation_grouping",
-                parameters={"filters": {"reopened_flag": "yes"}},
-                description="Count reopened support rows.",
-            )
-        ],
     )
 
 
 def _plan_for_ranking(dataset_name: str) -> AnalysisPlan:
-    return AnalysisPlan(
+    return build_explicit_single_step_plan(
+        dataset_name=dataset_name,
         task_type="descriptive",
         rationale="Rank regions by summed revenue.",
+        step_id="ranked_breakdown",
+        tool_family="duckdb",
+        method_id="ranked_breakdown",
+        family="ranking",
+        parameters={
+            "target": "revenue",
+            "group_by": ["region"],
+            "aggregation": "sum",
+            "ascending": False,
+            "limit": 2,
+        },
+        description="Rank regions by summed revenue.",
         expected_result_name="ranked_breakdown",
         expected_result_shape="table",
-        dataset_refs=[dataset_name],
-        steps=[
-            PlanStep(
-                step_id="ranked_breakdown",
-                tool_family="duckdb",
-                action="ranked_breakdown",
-                method_id="ranked_breakdown",
-                family="ranking",
-                parameters={
-                    "target": "revenue",
-                    "group_by": ["region"],
-                    "aggregation": "sum",
-                    "ascending": False,
-                    "limit": 2,
-                },
-                description="Rank regions by summed revenue.",
-            )
-        ],
     )
 
 
 def _plan_for_verification(dataset_name: str) -> AnalysisPlan:
-    return AnalysisPlan(
+    return build_explicit_single_step_plan(
+        dataset_name=dataset_name,
         task_type="descriptive",
         rationale="Verify support rows exist for Platform.",
+        step_id="row_existence",
+        tool_family="duckdb",
+        method_id="row_existence",
+        family="validation_verification",
+        parameters={"filters": {"team": "Platform"}},
+        description="Verify support rows exist for Platform.",
         expected_result_name="row_existence",
         expected_result_shape="verification",
-        dataset_refs=[dataset_name],
-        steps=[
-            PlanStep(
-                step_id="row_existence",
-                tool_family="duckdb",
-                action="row_existence",
-                method_id="row_existence",
-                family="validation_verification",
-                parameters={"filters": {"team": "Platform"}},
-                description="Verify support rows exist for Platform.",
-            )
-        ],
     )
 
 
 def _plan_for_schema_metadata(dataset_name: str) -> AnalysisPlan:
-    return AnalysisPlan(
+    return build_explicit_single_step_plan(
+        dataset_name=dataset_name,
         task_type="descriptive",
         rationale="Count dataset columns.",
+        step_id="column_count",
+        tool_family="metadata",
+        method_id="column_count",
+        family="schema_metadata_inspection",
+        parameters={},
+        description="Count dataset columns.",
         expected_result_name="column_count",
         expected_result_shape="scalar",
-        dataset_refs=[dataset_name],
-        steps=[
-            PlanStep(
-                step_id="column_count",
-                tool_family="metadata",
-                action="column_count",
-                method_id="column_count",
-                family="schema_metadata_inspection",
-                parameters={},
-                description="Count dataset columns.",
-            )
-        ],
     )
 
 
 def _plan_for_distinct(dataset_name: str) -> AnalysisPlan:
-    return AnalysisPlan(
+    return build_explicit_single_step_plan(
+        dataset_name=dataset_name,
         task_type="descriptive",
         rationale="Count distinct teams.",
+        step_id="distinct_value_count",
+        tool_family="duckdb",
+        method_id="distinct_value_count",
+        family="distinct_cardinality_analysis",
+        parameters={"target": "team"},
+        description="Count distinct teams.",
         expected_result_name="team_distinct_count",
         expected_result_shape="scalar",
-        dataset_refs=[dataset_name],
-        steps=[
-            PlanStep(
-                step_id="distinct_value_count",
-                tool_family="duckdb",
-                action="distinct_value_count",
-                method_id="distinct_value_count",
-                family="distinct_cardinality_analysis",
-                parameters={"target": "team"},
-                description="Count distinct teams.",
-            )
-        ],
     )
 
 
 def _plan_for_time_series(dataset_name: str) -> AnalysisPlan:
-    return AnalysisPlan(
+    return build_explicit_single_step_plan(
+        dataset_name=dataset_name,
         task_type="descriptive",
         rationale="Break revenue down by month.",
+        step_id="time_bucket_breakdown",
+        tool_family="duckdb",
+        method_id="time_bucket_breakdown",
+        family="time_series_time_bucketing",
+        parameters={
+            "target": "revenue",
+            "time_column": "posted_at",
+            "bucket": "month",
+            "aggregation": "sum",
+        },
+        description="Break revenue down by month.",
         expected_result_name="time_bucket_breakdown",
         expected_result_shape="table",
-        dataset_refs=[dataset_name],
-        steps=[
-            PlanStep(
-                step_id="time_bucket_breakdown",
-                tool_family="duckdb",
-                action="time_bucket_breakdown",
-                method_id="time_bucket_breakdown",
-                family="time_series_time_bucketing",
-                parameters={
-                    "target": "revenue",
-                    "time_column": "posted_at",
-                    "bucket": "month",
-                    "aggregation": "sum",
-                },
-                description="Break revenue down by month.",
-            )
-        ],
     )
 
 
 def _plan_for_period_comparison(dataset_name: str) -> AnalysisPlan:
-    return AnalysisPlan(
+    return build_explicit_single_step_plan(
+        dataset_name=dataset_name,
         task_type="diagnostic",
         rationale="Compare March revenue to its prior period.",
+        step_id="period_comparison",
+        tool_family="duckdb",
+        method_id="period_comparison",
+        family="period_comparison",
+        parameters={
+            "target": "revenue",
+            "time_column": "posted_at",
+            "time_reference": {"type": "month_name", "value": "march", "month": "3"},
+            "aggregation": "sum",
+        },
+        description="Compare March revenue to its prior period.",
         expected_result_name="period_comparison",
         expected_result_shape="table",
-        dataset_refs=[dataset_name],
-        steps=[
-            PlanStep(
-                step_id="period_comparison",
-                tool_family="duckdb",
-                action="period_comparison",
-                method_id="period_comparison",
-                family="period_comparison",
-                parameters={
-                    "target": "revenue",
-                    "time_column": "posted_at",
-                    "time_reference": {"type": "month_name", "value": "march", "month": "3"},
-                    "aggregation": "sum",
-                },
-                description="Compare March revenue to its prior period.",
-            )
-        ],
     )
 
 
 def _plan_for_statistical(dataset_name: str) -> AnalysisPlan:
-    return AnalysisPlan(
+    return build_explicit_single_step_plan(
+        dataset_name=dataset_name,
         task_type="statistical",
         rationale="Compute a confidence interval for revenue.",
+        step_id="confidence_interval",
+        tool_family="stats",
+        method_id="confidence_interval",
+        family="statistical_inference",
+        parameters={"target": "revenue", "confidence_level": 0.95},
+        description="Compute a confidence interval for revenue.",
         expected_result_name="confidence_interval",
         expected_result_shape="table",
-        dataset_refs=[dataset_name],
-        steps=[
-            PlanStep(
-                step_id="confidence_interval",
-                tool_family="stats",
-                action="confidence_interval",
-                method_id="confidence_interval",
-                family="statistical_inference",
-                parameters={"target": "revenue", "confidence_level": 0.95},
-                description="Compute a confidence interval for revenue.",
-            )
-        ],
     )
 
 
 def _plan_for_diagnostic(dataset_name: str) -> AnalysisPlan:
-    return AnalysisPlan(
+    return build_explicit_single_step_plan(
+        dataset_name=dataset_name,
         task_type="diagnostic",
         rationale="Summarize support numeric columns.",
+        step_id="numeric_summary",
+        tool_family="stats",
+        method_id="numeric_summary",
+        family="diagnostic_workflows",
+        parameters={},
+        description="Summarize support numeric columns.",
         expected_result_name="numeric_summary",
         expected_result_shape="table",
-        dataset_refs=[dataset_name],
-        steps=[
-            PlanStep(
-                step_id="numeric_summary",
-                tool_family="stats",
-                action="numeric_summary",
-                method_id="numeric_summary",
-                family="diagnostic_workflows",
-                parameters={},
-                description="Summarize support numeric columns.",
-            )
-        ],
     )
 
 

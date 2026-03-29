@@ -2,18 +2,21 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from saida import Saida
 from saida.core.contracts import AnalysisPlan, PlanInput, PlanStep, StepInputRef, StepOutputSpec
+from saida.exceptions import PlanningError
 
 from .factories import build_support_dataset
 
 
-def test_legacy_plan_execution_exposes_contract_binding_metadata() -> None:
+def test_execute_plan_rejects_minimally_declared_authored_plan_under_strict_dag_contract() -> None:
     engine = Saida()
     dataset = build_support_dataset()
     plan = AnalysisPlan(
         task_type="descriptive",
-        rationale="Legacy single-step plan.",
+        rationale="Minimally declared single-step plan.",
         steps=[
             PlanStep(
                 step_id="row_count",
@@ -25,27 +28,20 @@ def test_legacy_plan_execution_exposes_contract_binding_metadata() -> None:
         ],
     )
 
-    result = engine.execute_plan(dataset, plan)
-
-    contract_binding = result.response["execution"]["contract_binding"]
-
-    assert result.response["schema_version"] == "saida.response.v2"
-    assert result.response["execution"]["execution_model"] == "dag-single-threaded"
-    assert contract_binding["binding_applied"] is True
-    assert contract_binding["fully_declared_dag"] is False
-    assert "plan_inputs" in contract_binding["applied_bindings"]
-    assert "row_count:step_inputs" in contract_binding["applied_bindings"]
-    assert "row_count:output_refs" in contract_binding["applied_bindings"]
-    assert "final_output_ref" in contract_binding["applied_bindings"]
+    with pytest.raises(PlanningError, match="must declare at least one dataset_ref"):
+        engine.execute_plan(dataset, plan)
 
 
-def test_explicit_dag_plan_execution_reports_no_legacy_shims() -> None:
+def test_explicit_dag_plan_execution_reports_no_runtime_binding_actions() -> None:
     engine = Saida()
     dataset = build_support_dataset()
     plan = AnalysisPlan(
         task_type="descriptive",
         rationale="Explicit DAG contract.",
+        dataset_refs=[dataset.name],
         inputs=[PlanInput(input_id="primary_dataset", kind="dataset", ref=dataset.name)],
+        expected_result_name="row_count",
+        expected_result_shape="scalar",
         final_output_ref="row_count",
         steps=[
             PlanStep(
@@ -73,12 +69,10 @@ def test_explicit_dag_plan_execution_reports_no_legacy_shims() -> None:
 
     result = engine.execute_plan(dataset, plan)
 
-    contract_binding = result.response["meta"]["contract_binding"]
+    contract_binding = result.response["meta"].get("contract_binding", {})
 
     assert result.response["execution"]["execution_model"] == "dag-single-threaded"
-    assert contract_binding["binding_applied"] is False
-    assert contract_binding["fully_declared_dag"] is True
-    assert contract_binding["applied_bindings"] == []
+    assert contract_binding == {}
 
 
 def test_changelog_documents_dag_release_hardening() -> None:

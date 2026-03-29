@@ -50,7 +50,10 @@ def test_engine_execute_plan_records_node_results_and_artifact_index_for_dag_sty
     plan = AnalysisPlan(
         task_type="descriptive",
         rationale="Count rows and summarize numeric fields with explicit graph metadata.",
+        dataset_refs=[dataset.name],
         inputs=[PlanInput(input_id="primary_dataset", kind="dataset", ref=dataset.name)],
+        expected_result_name="numeric_summary_table",
+        expected_result_shape="table",
         final_output_ref="numeric_summary_table",
         steps=[
             PlanStep(
@@ -63,7 +66,12 @@ def test_engine_execute_plan_records_node_results_and_artifact_index_for_dag_sty
                 description="Count all rows.",
                 inputs=[StepInputRef(input_id="dataset_input", source_type="plan_input", ref="primary_dataset", expected_kind="dataset")],
                 output_refs=["row_count_value"],
-                outputs=[StepOutputSpec(output_id="row_count_value", kind="scalar", logical_shape="count")],
+                outputs=[StepOutputSpec(output_id="row_count_value", kind="scalar", logical_shape="scalar", physical_shape="scalar")],
+                expected_output={
+                    "output_id": "row_count_value",
+                    "logical_shape": "scalar",
+                    "physical_shape": "scalar",
+                },
             ),
             PlanStep(
                 step_id="numeric_summary",
@@ -75,7 +83,19 @@ def test_engine_execute_plan_records_node_results_and_artifact_index_for_dag_sty
                 description="Summarize numeric columns.",
                 inputs=[StepInputRef(input_id="count_input", source_type="step_output", ref="row_count_value")],
                 output_refs=["numeric_summary_table"],
-                outputs=[StepOutputSpec(output_id="numeric_summary_table", kind="frame", logical_shape="table")],
+                outputs=[
+                    StepOutputSpec(
+                        output_id="numeric_summary_table",
+                        kind="frame",
+                        logical_shape="table",
+                        physical_shape="recordset",
+                    )
+                ],
+                expected_output={
+                    "output_id": "numeric_summary_table",
+                    "logical_shape": "table",
+                    "physical_shape": "recordset",
+                },
             ),
         ],
     )

@@ -9,7 +9,7 @@ import pytest
 from saida import Saida
 from saida.core.contracts import AnalysisPlan, AnalysisResult, PlanInput, PlanStep
 from saida.core.analytics_registry import get_analytics_registry
-from .factories import build_sales_dataset, build_statistical_dataset, build_support_dataset, json_safe
+from .factories import build_explicit_single_step_plan, build_sales_dataset, build_statistical_dataset, build_support_dataset, json_safe
 from .result_helpers import normalized_result_value
 
 
@@ -111,24 +111,18 @@ _ALL_METHOD_CASES: list[PlanMethodCase] = [
 
 
 def _build_plan(case: PlanMethodCase, dataset_name: str) -> AnalysisPlan:
-    return AnalysisPlan(
+    return build_explicit_single_step_plan(
+        dataset_name=dataset_name,
         task_type=case.task_type,
         rationale=f"Execute {case.method_id} deterministically for {case.case_id}.",
-        dataset_refs=[dataset_name],
-        inputs=[PlanInput(input_id="primary_dataset", kind="dataset", ref=dataset_name)],
+        step_id=case.method_id,
+        tool_family=case.tool_family,
+        method_id=case.method_id,
+        family=case.family_id,
+        parameters=deepcopy(case.parameters),
+        description=f"Execute {case.method_id}.",
+        expected_result_name=case.method_id,
         expected_result_shape=case.expected_result_shape,
-        steps=[
-            PlanStep(
-                step_id=case.method_id,
-                tool_family=case.tool_family,
-                action=case.method_id,
-                method_id=case.method_id,
-                family=case.family_id,
-                parameters=deepcopy(case.parameters),
-                description=f"Execute {case.method_id}.",
-                output_refs=[case.method_id],
-            )
-        ],
     )
 
 

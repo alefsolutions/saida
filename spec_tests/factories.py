@@ -5,7 +5,9 @@ from typing import Any
 
 import pandas as pd
 
+from saida.core.analytics_registry import get_analytics_registry
 from saida.core.contracts import AnalysisPlan, Dataset, PlanStep
+from saida.core.contracts import PlanInput, StepInputRef, StepOutputSpec
 
 
 def build_sales_dataset() -> Dataset:
@@ -140,21 +142,80 @@ def build_statistical_dataset() -> Dataset:
 
 
 def build_basic_row_count_plan(dataset_name: str = "support") -> AnalysisPlan:
-    return AnalysisPlan(
+    return build_explicit_single_step_plan(
+        dataset_name=dataset_name,
         task_type="descriptive",
         rationale="Count rows deterministically for core execution tests.",
+        step_id="row_count",
+        tool_family="duckdb",
+        method_id="row_count",
+        family="aggregation_grouping",
+        parameters={},
+        description="Count all rows.",
         expected_result_name="row_count",
         expected_result_shape="scalar",
+    )
+
+
+def build_explicit_single_step_plan(
+    *,
+    dataset_name: str,
+    task_type: str,
+    rationale: str,
+    step_id: str,
+    tool_family: str,
+    method_id: str,
+    family: str,
+    parameters: dict[str, Any],
+    description: str,
+    expected_result_name: str,
+    expected_result_shape: str,
+) -> AnalysisPlan:
+    method_spec = get_analytics_registry().get_method(method_id)
+    logical_shape = method_spec.output_shapes[0] if method_spec is not None and method_spec.output_shapes else expected_result_shape
+    default_output_kind = method_spec.default_output_kind if method_spec is not None else None
+    physical_shape = "scalar" if logical_shape in {"scalar", "count", "aggregate"} else "recordset"
+    output_kind = default_output_kind or ("scalar" if physical_shape == "scalar" else "frame")
+
+    return AnalysisPlan(
+        task_type=task_type,
+        rationale=rationale,
         dataset_refs=[dataset_name],
+        inputs=[PlanInput(input_id="primary_dataset", kind="dataset", ref=dataset_name)],
+        expected_result_name=expected_result_name,
+        expected_result_shape=expected_result_shape,
+        final_output_ref=expected_result_name,
         steps=[
             PlanStep(
-                step_id="row_count",
-                tool_family="duckdb",
-                action="row_count",
-                method_id="row_count",
-                family="aggregation_grouping",
-                parameters={},
-                description="Count all rows.",
+                step_id=step_id,
+                tool_family=tool_family,
+                action=method_id,
+                method_id=method_id,
+                family=family,
+                parameters=dict(parameters),
+                description=description,
+                inputs=[
+                    StepInputRef(
+                        input_id="dataset_input",
+                        source_type="plan_input",
+                        ref="primary_dataset",
+                        expected_kind="dataset",
+                    )
+                ],
+                output_refs=[expected_result_name],
+                outputs=[
+                    StepOutputSpec(
+                        output_id=expected_result_name,
+                        kind=output_kind,
+                        logical_shape=logical_shape,
+                        physical_shape=physical_shape,
+                    )
+                ],
+                expected_output={
+                    "output_id": expected_result_name,
+                    "logical_shape": logical_shape,
+                    "physical_shape": physical_shape,
+                },
             )
         ],
     )

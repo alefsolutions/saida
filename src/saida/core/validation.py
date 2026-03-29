@@ -47,6 +47,12 @@ class PlanValidator:
         """Validate that the plan contains executable and coherent steps."""
         if not plan.steps:
             raise PlanningError("Analysis plan contains no executable steps.")
+        if not plan.dataset_refs:
+            raise PlanningError("Analysis plan must declare at least one dataset_ref.")
+        if not plan.inputs:
+            raise PlanningError("Analysis plan must declare at least one plan input.")
+        if plan.final_output_ref is None:
+            raise PlanningError("Analysis plan must declare a final_output_ref.")
 
         analytics_registry = get_analytics_registry()
         resolved_methods: list[tuple[object, AnalyticsMethodSpec, str]] = []
@@ -72,12 +78,24 @@ class PlanValidator:
             method_spec = analytics_registry.get_method(method_id)
             if method_spec is None:
                 raise PlanningError(f"Plan step {step.step_id!r} references unknown analytics method {method_id!r}.")
+            if step.method_id is None:
+                raise PlanningError(f"Plan step {step.step_id!r} must declare method_id explicitly.")
+            if step.family is None:
+                raise PlanningError(f"Plan step {step.step_id!r} must declare family explicitly.")
             if step.family is not None and step.family != method_spec.family_id:
                 raise PlanningError(
                     f"Plan step {step.step_id!r} declares family {step.family!r}, expected {method_spec.family_id!r}."
                 )
             if len(step.output_refs) != len(set(step.output_refs)):
                 raise PlanningError(f"Plan step {step.step_id!r} contains duplicate output_refs.")
+            if not step.output_refs:
+                raise PlanningError(f"Plan step {step.step_id!r} must declare at least one output_ref.")
+            if not step.outputs:
+                raise PlanningError(f"Plan step {step.step_id!r} must declare at least one output spec.")
+            if step.expected_output is None:
+                raise PlanningError(f"Plan step {step.step_id!r} must declare expected_output explicitly.")
+            if method_spec.consumes and not step.inputs:
+                raise PlanningError(f"Plan step {step.step_id!r} must declare explicit step inputs.")
             if step.step_id in step.depends_on:
                 raise PlanningError(f"Plan step {step.step_id!r} cannot depend on itself.")
             self._validate_step_input_contract(step)

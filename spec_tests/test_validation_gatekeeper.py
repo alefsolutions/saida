@@ -4,35 +4,27 @@ import pytest
 
 from saida import Saida
 from saida.core import PlanValidator
-from saida.core.contracts import AnalysisPlan, PlanInput, PlanStep
+from saida.core.contracts import AnalysisPlan, PlanInput, PlanStep, StepInputRef, StepOutputSpec
 from saida.exceptions import PlanningError
-from .factories import build_sales_dataset, build_support_dataset
+from .factories import build_explicit_single_step_plan, build_sales_dataset, build_support_dataset
 
 
 def test_plan_validator_accepts_valid_row_count_plan_with_runtime_context() -> None:
     engine = Saida()
     dataset = build_support_dataset()
     profile = engine.profile(dataset)
-    plan = AnalysisPlan(
+    plan = build_explicit_single_step_plan(
+        dataset_name=dataset.name,
         task_type="descriptive",
         rationale="Count support rows.",
-        dataset_refs=[dataset.name],
-        inputs=[PlanInput(input_id="primary_dataset", kind="dataset", ref=dataset.name)],
+        step_id="row_count",
+        tool_family="duckdb",
+        method_id="row_count",
+        family="aggregation_grouping",
+        parameters={"filters": {"reopened_flag": "no"}},
+        description="Count support rows where reopened_flag is no.",
         expected_result_name="row_count",
         expected_result_shape="scalar",
-        steps=[
-            PlanStep(
-                step_id="row_count",
-                tool_family="duckdb",
-                action="row_count",
-                parameters={"filters": {"reopened_flag": "no"}},
-                description="Count support rows where reopened_flag is no.",
-                family="aggregation_grouping",
-                method_id="row_count",
-                output_refs=["row_count"],
-                expected_output={"logical_shape": "scalar"},
-            )
-        ],
     )
 
     engine.validator.validate_plan(plan, dataset=dataset, profile=profile, router=engine.router)
@@ -42,20 +34,18 @@ def test_plan_validator_rejects_unknown_target_column_with_profile_context() -> 
     engine = Saida()
     dataset = build_sales_dataset()
     profile = engine.profile(dataset)
-    plan = AnalysisPlan(
+    plan = build_explicit_single_step_plan(
+        dataset_name=dataset.name,
         task_type="descriptive",
         rationale="Aggregate a missing column.",
-        steps=[
-            PlanStep(
-                step_id="aggregate_value",
-                tool_family="duckdb",
-                action="aggregate_value",
-                parameters={"target": "missing_sales", "aggregation": "sum"},
-                description="Aggregate a missing metric.",
-                family="aggregation_grouping",
-                method_id="aggregate_value",
-            )
-        ],
+        step_id="aggregate_value",
+        tool_family="duckdb",
+        method_id="aggregate_value",
+        family="aggregation_grouping",
+        parameters={"target": "missing_sales", "aggregation": "sum"},
+        description="Aggregate a missing metric.",
+        expected_result_name="aggregate_value",
+        expected_result_shape="scalar",
     )
 
     with pytest.raises(PlanningError, match="unknown target column"):
@@ -67,20 +57,18 @@ def test_plan_validator_rejects_missing_required_aggregation_parameter() -> None
     dataset = build_sales_dataset()
     engine = Saida()
     profile = engine.profile(dataset)
-    plan = AnalysisPlan(
+    plan = build_explicit_single_step_plan(
+        dataset_name=dataset.name,
         task_type="descriptive",
         rationale="Aggregate revenue without an aggregation method.",
-        steps=[
-            PlanStep(
-                step_id="aggregate_value",
-                tool_family="duckdb",
-                action="aggregate_value",
-                parameters={"target": "revenue"},
-                description="Aggregate revenue.",
-                family="aggregation_grouping",
-                method_id="aggregate_value",
-            )
-        ],
+        step_id="aggregate_value",
+        tool_family="duckdb",
+        method_id="aggregate_value",
+        family="aggregation_grouping",
+        parameters={"target": "revenue"},
+        description="Aggregate revenue.",
+        expected_result_name="aggregate_value",
+        expected_result_shape="scalar",
     )
 
     with pytest.raises(PlanningError, match="requires an aggregation parameter"):
@@ -91,21 +79,18 @@ def test_plan_validator_rejects_unknown_selected_columns_with_profile_context() 
     engine = Saida()
     dataset = build_support_dataset()
     profile = engine.profile(dataset)
-    plan = AnalysisPlan(
+    plan = build_explicit_single_step_plan(
+        dataset_name=dataset.name,
         task_type="descriptive",
         rationale="Select a missing field.",
-        steps=[
-            PlanStep(
-                step_id="tabular_query",
-                tool_family="duckdb",
-                action="tabular_query",
-                parameters={"selected_columns": ["ticket_id", "missing_field"]},
-                description="Return explicit fields.",
-                family="projection_field_selection",
-                method_id="tabular_query",
-                expected_output={"logical_shape": "recordset"},
-            )
-        ],
+        step_id="tabular_query",
+        tool_family="duckdb",
+        method_id="tabular_query",
+        family="projection_field_selection",
+        parameters={"selected_columns": ["ticket_id", "missing_field"]},
+        description="Return explicit fields.",
+        expected_result_name="tabular_query",
+        expected_result_shape="table",
     )
 
     with pytest.raises(PlanningError, match="unknown selected columns"):
@@ -116,20 +101,18 @@ def test_plan_validator_rejects_backend_method_mismatch_before_execution() -> No
     engine = Saida()
     dataset = build_support_dataset()
     profile = engine.profile(dataset)
-    plan = AnalysisPlan(
+    plan = build_explicit_single_step_plan(
+        dataset_name=dataset.name,
         task_type="descriptive",
         rationale="Route a row count to the stats backend.",
-        steps=[
-            PlanStep(
-                step_id="row_count",
-                tool_family="stats",
-                action="row_count",
-                parameters={},
-                description="Incorrectly route row count to stats.",
-                family="aggregation_grouping",
-                method_id="row_count",
-            )
-        ],
+        step_id="row_count",
+        tool_family="stats",
+        method_id="row_count",
+        family="aggregation_grouping",
+        parameters={},
+        description="Incorrectly route row count to stats.",
+        expected_result_name="row_count",
+        expected_result_shape="scalar",
     )
 
     with pytest.raises(PlanningError, match="does not support method 'row_count'"):
@@ -141,22 +124,20 @@ def test_plan_validator_rejects_incompatible_step_expected_output() -> None:
     dataset = build_support_dataset()
     profile = engine.profile(dataset)
     validator = PlanValidator()
-    plan = AnalysisPlan(
+    plan = build_explicit_single_step_plan(
+        dataset_name=dataset.name,
         task_type="descriptive",
         rationale="Declare the wrong step output shape.",
-        steps=[
-            PlanStep(
-                step_id="row_count",
-                tool_family="duckdb",
-                action="row_count",
-                parameters={},
-                description="Count rows.",
-                family="aggregation_grouping",
-                method_id="row_count",
-                expected_output={"logical_shape": "table"},
-            )
-        ],
+        step_id="row_count",
+        tool_family="duckdb",
+        method_id="row_count",
+        family="aggregation_grouping",
+        parameters={},
+        description="Count rows.",
+        expected_result_name="row_count",
+        expected_result_shape="scalar",
     )
+    plan.steps[0].expected_output["logical_shape"] = "table"
 
     with pytest.raises(PlanningError, match="expects logical_shape 'table'"):
         validator.validate_plan(plan, dataset=dataset, profile=profile, router=engine.router)
@@ -171,6 +152,9 @@ def test_plan_validator_rejects_dataset_ref_mismatch() -> None:
         rationale="Use the wrong dataset ref.",
         dataset_refs=["sales"],
         inputs=[PlanInput(input_id="primary_dataset", kind="dataset", ref="sales")],
+        expected_result_name="row_count",
+        expected_result_shape="scalar",
+        final_output_ref="row_count",
         steps=[
             PlanStep(
                 step_id="row_count",
@@ -180,6 +164,10 @@ def test_plan_validator_rejects_dataset_ref_mismatch() -> None:
                 description="Count support rows.",
                 family="aggregation_grouping",
                 method_id="row_count",
+                inputs=[StepInputRef(input_id="dataset_input", source_type="plan_input", ref="primary_dataset", expected_kind="dataset")],
+                output_refs=["row_count"],
+                outputs=[StepOutputSpec(output_id="row_count", kind="scalar", logical_shape="scalar", physical_shape="scalar")],
+                expected_output={"output_id": "row_count", "logical_shape": "scalar", "physical_shape": "scalar"},
             )
         ],
     )
@@ -192,21 +180,18 @@ def test_plan_validator_rejects_incompatible_plan_result_shape() -> None:
     engine = Saida()
     dataset = build_support_dataset()
     profile = engine.profile(dataset)
-    plan = AnalysisPlan(
+    plan = build_explicit_single_step_plan(
+        dataset_name=dataset.name,
         task_type="descriptive",
         rationale="Expect a verification result from a row count.",
+        step_id="row_count",
+        tool_family="duckdb",
+        method_id="row_count",
+        family="aggregation_grouping",
+        parameters={},
+        description="Count rows.",
+        expected_result_name="row_count",
         expected_result_shape="verification",
-        steps=[
-            PlanStep(
-                step_id="row_count",
-                tool_family="duckdb",
-                action="row_count",
-                parameters={},
-                description="Count rows.",
-                family="aggregation_grouping",
-                method_id="row_count",
-            )
-        ],
     )
 
     with pytest.raises(PlanningError, match="expects result shape 'verification'"):
@@ -217,20 +202,18 @@ def test_plan_validator_rejects_unsupported_method_parameter() -> None:
     engine = Saida()
     dataset = build_support_dataset()
     profile = engine.profile(dataset)
-    plan = AnalysisPlan(
+    plan = build_explicit_single_step_plan(
+        dataset_name=dataset.name,
         task_type="descriptive",
         rationale="Attach a non-contract parameter to row_count.",
-        steps=[
-            PlanStep(
-                step_id="row_count",
-                tool_family="duckdb",
-                action="row_count",
-                parameters={"filters": {"reopened_flag": "no"}, "mystery_flag": True},
-                description="Count rows with an unsupported extra parameter.",
-                family="aggregation_grouping",
-                method_id="row_count",
-            )
-        ],
+        step_id="row_count",
+        tool_family="duckdb",
+        method_id="row_count",
+        family="aggregation_grouping",
+        parameters={"filters": {"reopened_flag": "no"}, "mystery_flag": True},
+        description="Count rows with an unsupported extra parameter.",
+        expected_result_name="row_count",
+        expected_result_shape="scalar",
     )
 
     with pytest.raises(PlanningError, match="unsupported parameters"):
@@ -241,20 +224,18 @@ def test_plan_validator_rejects_invalid_group_by_parameter_shape() -> None:
     engine = Saida()
     dataset = build_support_dataset()
     profile = engine.profile(dataset)
-    plan = AnalysisPlan(
+    plan = build_explicit_single_step_plan(
+        dataset_name=dataset.name,
         task_type="descriptive",
         rationale="Use a malformed group_by payload.",
-        steps=[
-            PlanStep(
-                step_id="group_breakdown",
-                tool_family="duckdb",
-                action="group_breakdown",
-                parameters={"target": "resolution_hours", "group_by": "priority", "aggregation": "mean"},
-                description="Aggregate by a malformed group_by parameter.",
-                family="aggregation_grouping",
-                method_id="group_breakdown",
-            )
-        ],
+        step_id="group_breakdown",
+        tool_family="duckdb",
+        method_id="group_breakdown",
+        family="aggregation_grouping",
+        parameters={"target": "resolution_hours", "group_by": "priority", "aggregation": "mean"},
+        description="Aggregate by a malformed group_by parameter.",
+        expected_result_name="group_breakdown",
+        expected_result_shape="table",
     )
 
     with pytest.raises(PlanningError, match="parameter 'group_by' must be a list of non-empty strings"):
@@ -265,20 +246,18 @@ def test_plan_validator_rejects_invalid_limit_parameter_value() -> None:
     engine = Saida()
     dataset = build_support_dataset()
     profile = engine.profile(dataset)
-    plan = AnalysisPlan(
+    plan = build_explicit_single_step_plan(
+        dataset_name=dataset.name,
         task_type="descriptive",
         rationale="Use an invalid pagination limit.",
-        steps=[
-            PlanStep(
-                step_id="ranked_rows",
-                tool_family="duckdb",
-                action="ranked_rows",
-                parameters={"target": "resolution_hours", "limit": 0},
-                description="Rank rows with an invalid limit.",
-                family="ranking",
-                method_id="ranked_rows",
-            )
-        ],
+        step_id="ranked_rows",
+        tool_family="duckdb",
+        method_id="ranked_rows",
+        family="ranking",
+        parameters={"target": "resolution_hours", "limit": 0},
+        description="Rank rows with an invalid limit.",
+        expected_result_name="ranked_rows",
+        expected_result_shape="table",
     )
 
     with pytest.raises(PlanningError, match="parameter 'limit' must be >= 1"):
