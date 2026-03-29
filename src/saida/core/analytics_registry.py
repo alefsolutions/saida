@@ -256,6 +256,27 @@ def build_default_analytics_registry() -> AnalyticsRegistry:
     )
     _register_methods(
         registry,
+        "selection_filtering",
+        (
+            ("filter_frame", "Filter Frame", "Return a filtered frame artifact for downstream DAG transforms.", ("dataset",), ("filters",), ("table",), "duckdb"),
+            ("select_columns", "Select Columns", "Project a frame down to explicit columns.", ("dataset", "selected_columns"), ("filters",), ("table",), "duckdb"),
+            ("sort_frame", "Sort Frame", "Sort a frame by one column with a deterministic order.", ("dataset", "sort_by"), ("filters", "sort_direction"), ("table",), "duckdb"),
+            ("limit_frame", "Limit Frame", "Limit a frame to the first N rows after optional sorting.", ("dataset", "limit"), ("filters", "sort_by", "sort_direction"), ("table",), "duckdb"),
+            ("distinct_frame", "Distinct Frame", "Return the distinct row combinations for explicit columns.", ("dataset", "selected_columns"), ("filters",), ("table",), "duckdb"),
+        ),
+    )
+    _register_methods(
+        registry,
+        "transformation",
+        (
+            ("derive_column", "Derive Column", "Create one derived column from an explicit expression contract.", ("dataset", "target", "expression"), ("filters",), ("table",), "duckdb"),
+            ("group_frame", "Group Frame", "Tag a frame for grouped downstream transforms while preserving rows.", ("dataset", "group_by"), ("filters",), ("table",), "duckdb"),
+            ("aggregate_frame", "Aggregate Frame", "Aggregate a frame to a one-row or grouped table artifact.", ("dataset", "aggregation"), ("filters", "group_by", "target"), ("table",), "duckdb"),
+            ("time_bucket_frame", "Time Bucket Frame", "Add time bucket labels to a frame for downstream transforms.", ("dataset", "time_column", "bucket"), ("filters",), ("table",), "duckdb"),
+        ),
+    )
+    _register_methods(
+        registry,
         "aggregation_grouping",
         (
             ("row_count", "Row Count", "Count rows in the dataset or a filtered slice.", ("dataset",), ("filters",), ("scalar",), "duckdb"),
@@ -269,6 +290,7 @@ def build_default_analytics_registry() -> AnalyticsRegistry:
         registry,
         "ranking",
         (
+            ("rank_frame", "Rank Frame", "Rank rows within a frame by a sort key.", ("dataset", "sort_by"), ("filters", "sort_direction", "limit", "rank_column"), ("table",), "duckdb"),
             ("ranked_rows", "Ranked Rows", "Rank individual rows by a metric.", ("dataset", "target"), ("filters", "ascending", "limit"), ("table",), "duckdb"),
             ("ranked_breakdown", "Ranked Breakdown", "Rank grouped metric aggregates.", ("dataset", "target", "group_by"), ("aggregation", "filters", "ascending", "limit"), ("table",), "duckdb"),
         ),

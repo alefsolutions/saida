@@ -189,14 +189,30 @@ class PlanValidator:
                 raise PlanningError(f"Plan step {step_id!r} requires a dataset input.")
             if required_input == "target" and not isinstance(parameters.get("target"), str):
                 raise PlanningError(f"Plan step {step_id!r} requires a target parameter.")
+            if required_input == "selected_columns":
+                selected_columns = parameters.get("selected_columns")
+                if not isinstance(selected_columns, list) or not selected_columns or not all(
+                    isinstance(column_name, str) and column_name for column_name in selected_columns
+                ):
+                    raise PlanningError(f"Plan step {step_id!r} requires a non-empty selected_columns parameter.")
             if required_input == "aggregation" and not isinstance(parameters.get("aggregation"), str):
                 raise PlanningError(f"Plan step {step_id!r} requires an aggregation parameter.")
+            if required_input == "expression" and not isinstance(parameters.get("expression"), dict):
+                raise PlanningError(f"Plan step {step_id!r} requires an expression parameter.")
             if required_input == "group_by" and not parameters.get("group_by"):
                 raise PlanningError(f"Plan step {step_id!r} requires at least one group_by column.")
+            if required_input == "sort_by" and not isinstance(parameters.get("sort_by"), str):
+                raise PlanningError(f"Plan step {step_id!r} requires a sort_by parameter.")
             if required_input == "time_column" and not isinstance(parameters.get("time_column"), str):
                 raise PlanningError(f"Plan step {step_id!r} requires a time_column parameter.")
             if required_input == "time_reference" and not isinstance(parameters.get("time_reference"), dict):
                 raise PlanningError(f"Plan step {step_id!r} requires a time_reference parameter.")
+            if required_input == "bucket" and not isinstance(parameters.get("bucket"), str):
+                raise PlanningError(f"Plan step {step_id!r} requires a bucket parameter.")
+            if required_input == "limit":
+                limit = parameters.get("limit")
+                if not isinstance(limit, int) or limit <= 0:
+                    raise PlanningError(f"Plan step {step_id!r} requires a positive integer limit parameter.")
 
     def _validate_step_input_contract(self, step: object) -> None:
         seen_input_ids: set[str] = set()
@@ -447,7 +463,7 @@ class PlanValidator:
         target = parameters.get("target")
         if (
             isinstance(target, str)
-            and method_spec.method_id not in {"column_property_check"}
+            and method_spec.method_id not in {"column_property_check", "derive_column"}
             and target not in profile_columns
         ):
             raise PlanningError(f"Plan step {step_id!r} references unknown target column {target!r}.")

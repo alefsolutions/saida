@@ -16,6 +16,16 @@ class DuckDBAdapter(ComputeInterface):
 
     SUPPORTED_METHODS = (
         "dataset_summary",
+        "filter_frame",
+        "select_columns",
+        "sort_frame",
+        "limit_frame",
+        "distinct_frame",
+        "derive_column",
+        "group_frame",
+        "aggregate_frame",
+        "rank_frame",
+        "time_bucket_frame",
         "row_count",
         "count_rows_by_group",
         "distinct_values",
@@ -63,6 +73,109 @@ class DuckDBAdapter(ComputeInterface):
         if method_id == "dataset_summary":
             metrics, tables = self.dataset_summary(dataframe, parameters.get("target"), parameters.get("filters"))
             return ComputeResponse(metrics=metrics, tables=tables)
+        if method_id == "filter_frame":
+            return ComputeResponse(tables=[self.filter_frame(dataframe, parameters.get("filters"))])
+        if method_id == "select_columns":
+            return ComputeResponse(
+                tables=[
+                    self.select_columns(
+                        dataframe,
+                        parameters["selected_columns"],
+                        parameters.get("filters"),
+                    )
+                ]
+            )
+        if method_id == "sort_frame":
+            return ComputeResponse(
+                tables=[
+                    self.sort_frame(
+                        dataframe,
+                        parameters["sort_by"],
+                        parameters.get("sort_direction", "asc"),
+                        parameters.get("filters"),
+                    )
+                ]
+            )
+        if method_id == "limit_frame":
+            return ComputeResponse(
+                tables=[
+                    self.limit_frame(
+                        dataframe,
+                        parameters["limit"],
+                        parameters.get("sort_by"),
+                        parameters.get("sort_direction", "asc"),
+                        parameters.get("filters"),
+                    )
+                ]
+            )
+        if method_id == "distinct_frame":
+            return ComputeResponse(
+                tables=[
+                    self.distinct_frame(
+                        dataframe,
+                        parameters["selected_columns"],
+                        parameters.get("filters"),
+                    )
+                ]
+            )
+        if method_id == "derive_column":
+            return ComputeResponse(
+                tables=[
+                    self.derive_column(
+                        dataframe,
+                        parameters["target"],
+                        parameters["expression"],
+                        parameters.get("filters"),
+                    )
+                ]
+            )
+        if method_id == "group_frame":
+            return ComputeResponse(
+                tables=[
+                    self.group_frame(
+                        dataframe,
+                        parameters["group_by"],
+                        parameters.get("filters"),
+                    )
+                ]
+            )
+        if method_id == "aggregate_frame":
+            return ComputeResponse(
+                tables=[
+                    self.aggregate_frame(
+                        dataframe,
+                        parameters.get("target"),
+                        parameters["aggregation"],
+                        parameters.get("group_by"),
+                        parameters.get("filters"),
+                        request,
+                    )
+                ]
+            )
+        if method_id == "rank_frame":
+            return ComputeResponse(
+                tables=[
+                    self.rank_frame(
+                        dataframe,
+                        parameters["sort_by"],
+                        parameters.get("sort_direction", "desc"),
+                        parameters.get("limit"),
+                        parameters.get("filters"),
+                        parameters.get("rank_column", "rank"),
+                    )
+                ]
+            )
+        if method_id == "time_bucket_frame":
+            return ComputeResponse(
+                tables=[
+                    self.time_bucket_frame(
+                        dataframe,
+                        parameters["time_column"],
+                        parameters["bucket"],
+                        parameters.get("filters"),
+                    )
+                ]
+            )
         if method_id == "row_count":
             return ComputeResponse(metrics=self.row_count(dataframe, parameters.get("filters")))
         if method_id == "count_rows_by_group":
@@ -310,12 +423,75 @@ class DuckDBAdapter(ComputeInterface):
         raise ComputeError(f"DuckDB adapter does not support method {method_id!r}.")
 
     def _resolve_dataframe(self, request: ComputeRequest) -> pd.DataFrame:
-        if request.dataset is not None:
-            return request.dataset.data
         for artifact in request.resolved_inputs.values():
             if artifact.kind in {"dataset", "frame"} and isinstance(artifact.value, pd.DataFrame):
                 return artifact.value
+        if request.dataset is not None:
+            return request.dataset.data
         raise ComputeError("DuckDB compute methods require a dataset or frame artifact input.")
+
+    def _group_by_from_request(self, request: ComputeRequest | None) -> list[str] | None:
+        if request is None:
+            return None
+        for artifact in request.resolved_inputs.values():
+            artifact_metadata = getattr(artifact, "metadata", None)
+            if artifact.kind in {"dataset", "frame"} and isinstance(artifact_metadata, dict):
+                group_by = artifact_metadata.get("group_by")
+                if isinstance(group_by, list) and group_by and all(isinstance(column_name, str) for column_name in group_by):
+                    return list(group_by)
+        return None
+
+    def _evaluate_derived_expression(self, dataframe: pd.DataFrame, expression: dict[str, object]) -> pd.Series:
+        operator = str(expression.get("op", "")).strip().lower()
+        if not operator:
+            raise ComputeError("derive_column requires expression.op.")
+
+        if operator == "literal":
+            return pd.Series([expression.get("value")] * len(dataframe), index=dataframe.index)
+
+        if operator == "copy":
+            source = expression.get("source")
+            if not isinstance(source, str):
+                raise ComputeError("derive_column copy expressions require a source column.")
+            self._require_columns(dataframe, [source])
+            return dataframe[source]
+
+        if operator == "coalesce":
+            sources = expression.get("sources")
+            if not isinstance(sources, list) or not sources or not all(isinstance(source, str) for source in sources):
+                raise ComputeError("derive_column coalesce expressions require a non-empty sources list.")
+            self._require_columns(dataframe, list(sources))
+            result = dataframe[sources[0]].copy()
+            for source in sources[1:]:
+                result = result.fillna(dataframe[source])
+            if "fill_value" in expression:
+                result = result.fillna(expression["fill_value"])
+            return result
+
+        source = expression.get("source")
+        if not isinstance(source, str):
+            raise ComputeError(f"derive_column {operator} expressions require a source column.")
+        self._require_columns(dataframe, [source])
+        left = pd.to_numeric(dataframe[source], errors="coerce")
+
+        other_column = expression.get("other")
+        if isinstance(other_column, str):
+            self._require_columns(dataframe, [other_column])
+            right = pd.to_numeric(dataframe[other_column], errors="coerce")
+        elif "value" in expression:
+            right = expression["value"]
+        else:
+            raise ComputeError(f"derive_column {operator} expressions require either 'other' or 'value'.")
+
+        if operator == "add":
+            return left + right
+        if operator == "subtract":
+            return left - right
+        if operator == "multiply":
+            return left * right
+        if operator == "divide":
+            return left / right
+        raise ComputeError(f"Unsupported derive_column expression op: {operator}")
 
     def dataset_summary(
         self,
@@ -344,6 +520,227 @@ class DuckDBAdapter(ComputeInterface):
         preview = prepared.head(10).copy()
         tables = [TableArtifact(name="dataset_preview", description="First 10 rows of the dataset.", dataframe=preview)]
         return metrics, tables
+
+    def filter_frame(
+        self,
+        dataframe: pd.DataFrame,
+        filters: dict[str, object] | None = None,
+    ) -> TableArtifact:
+        """Return a filtered frame artifact for downstream DAG chaining."""
+        prepared = self._filter_dataframe(dataframe, filters, allow_empty=True)
+        return TableArtifact(
+            name="filter_frame",
+            description="Filtered frame for downstream transforms.",
+            dataframe=prepared.reset_index(drop=True),
+            metadata={"filters": dict(filters or {})},
+        )
+
+    def select_columns(
+        self,
+        dataframe: pd.DataFrame,
+        selected_columns: list[str],
+        filters: dict[str, object] | None = None,
+    ) -> TableArtifact:
+        """Project a frame to explicit columns."""
+        prepared = self._filter_dataframe(dataframe, filters, allow_empty=True)
+        self._require_columns(prepared, list(selected_columns))
+        selected = prepared.loc[:, selected_columns].copy().reset_index(drop=True)
+        return TableArtifact(
+            name="select_columns",
+            description="Projected frame with explicit columns.",
+            dataframe=selected,
+            metadata={"selected_columns": list(selected_columns)},
+        )
+
+    def sort_frame(
+        self,
+        dataframe: pd.DataFrame,
+        sort_by: str,
+        sort_direction: str = "asc",
+        filters: dict[str, object] | None = None,
+    ) -> TableArtifact:
+        """Sort a frame by one column with stable ordering."""
+        prepared = self._filter_dataframe(dataframe, filters, allow_empty=True)
+        self._require_columns(prepared, [sort_by])
+        sorted_frame = self._sort_dataframe(prepared, sort_by, sort_direction).reset_index(drop=True)
+        return TableArtifact(
+            name="sort_frame",
+            description="Sorted frame artifact.",
+            dataframe=sorted_frame,
+            metadata={"sort_by": sort_by, "sort_direction": sort_direction},
+        )
+
+    def limit_frame(
+        self,
+        dataframe: pd.DataFrame,
+        limit: int,
+        sort_by: str | None = None,
+        sort_direction: str = "asc",
+        filters: dict[str, object] | None = None,
+    ) -> TableArtifact:
+        """Limit a frame to the first N rows after optional sorting."""
+        if limit <= 0:
+            raise ComputeError("limit_frame requires a positive limit.")
+        prepared = self._filter_dataframe(dataframe, filters, allow_empty=True)
+        if sort_by is not None:
+            self._require_columns(prepared, [sort_by])
+            prepared = self._sort_dataframe(prepared, sort_by, sort_direction)
+        limited = prepared.head(limit).reset_index(drop=True)
+        return TableArtifact(
+            name="limit_frame",
+            description="Limited frame artifact.",
+            dataframe=limited,
+            metadata={"limit": int(limit), "sort_by": sort_by, "sort_direction": sort_direction},
+        )
+
+    def distinct_frame(
+        self,
+        dataframe: pd.DataFrame,
+        selected_columns: list[str],
+        filters: dict[str, object] | None = None,
+    ) -> TableArtifact:
+        """Return distinct row combinations for explicit columns."""
+        prepared = self._filter_dataframe(dataframe, filters, allow_empty=True)
+        self._require_columns(prepared, list(selected_columns))
+        distinct = prepared.loc[:, selected_columns].drop_duplicates().reset_index(drop=True)
+        return TableArtifact(
+            name="distinct_frame",
+            description="Distinct row combinations for selected columns.",
+            dataframe=distinct,
+            metadata={"selected_columns": list(selected_columns)},
+        )
+
+    def derive_column(
+        self,
+        dataframe: pd.DataFrame,
+        target: str,
+        expression: dict[str, object],
+        filters: dict[str, object] | None = None,
+    ) -> TableArtifact:
+        """Create a derived column from an explicit expression contract."""
+        prepared = self._filter_dataframe(dataframe, filters, allow_empty=True).copy()
+        prepared[target] = self._evaluate_derived_expression(prepared, expression)
+        return TableArtifact(
+            name="derive_column",
+            description=f"Frame with derived column {target}.",
+            dataframe=prepared.reset_index(drop=True),
+            metadata={"target": target, "expression": dict(expression)},
+        )
+
+    def group_frame(
+        self,
+        dataframe: pd.DataFrame,
+        group_by: list[str],
+        filters: dict[str, object] | None = None,
+    ) -> TableArtifact:
+        """Tag a frame for grouped downstream transforms while preserving rows."""
+        prepared = self._filter_dataframe(dataframe, filters, allow_empty=True)
+        self._require_columns(prepared, list(group_by))
+        return TableArtifact(
+            name="group_frame",
+            description="Grouped frame artifact for downstream aggregation.",
+            dataframe=prepared.reset_index(drop=True),
+            metadata={"group_by": list(group_by)},
+        )
+
+    def aggregate_frame(
+        self,
+        dataframe: pd.DataFrame,
+        target: str | None,
+        aggregation: str,
+        group_by: list[str] | None = None,
+        filters: dict[str, object] | None = None,
+        request: ComputeRequest | None = None,
+    ) -> TableArtifact:
+        """Aggregate a frame into a grouped or reduced table artifact."""
+        prepared = self._filter_dataframe(dataframe, filters, allow_empty=True)
+        resolved_group_by = list(group_by or self._group_by_from_request(request) or [])
+        if resolved_group_by:
+            self._require_columns(prepared, resolved_group_by)
+
+        if aggregation == "count":
+            if resolved_group_by:
+                aggregated = prepared.groupby(resolved_group_by, dropna=False).size().reset_index(name="aggregate_value")
+            else:
+                aggregated = pd.DataFrame([{"aggregate_value": int(len(prepared))}])
+        else:
+            if target is None:
+                raise ComputeError("aggregate_frame requires a target column unless aggregation is 'count'.")
+            self._require_columns(prepared, [target])
+            numeric_series = pd.to_numeric(prepared[target], errors="coerce")
+            working = prepared.assign(target_value=numeric_series)
+            if resolved_group_by:
+                grouped = working.groupby(resolved_group_by, dropna=False)["target_value"]
+                if aggregation == "sum":
+                    aggregated = grouped.sum().reset_index(name="aggregate_value")
+                elif aggregation == "mean":
+                    aggregated = grouped.mean().reset_index(name="aggregate_value")
+                elif aggregation == "max":
+                    aggregated = grouped.max().reset_index(name="aggregate_value")
+                elif aggregation == "min":
+                    aggregated = grouped.min().reset_index(name="aggregate_value")
+                else:
+                    raise ComputeError(f"Unsupported aggregation: {aggregation}")
+            else:
+                aggregate_value = self._aggregate_series(working["target_value"], aggregation)
+                aggregated = pd.DataFrame([{"aggregate_value": aggregate_value}])
+
+        return TableArtifact(
+            name="aggregate_frame",
+            description="Aggregated frame artifact.",
+            dataframe=aggregated.reset_index(drop=True),
+            metadata={"group_by": resolved_group_by, "aggregation": aggregation, "target": target},
+        )
+
+    def rank_frame(
+        self,
+        dataframe: pd.DataFrame,
+        sort_by: str,
+        sort_direction: str = "desc",
+        limit: int | None = None,
+        filters: dict[str, object] | None = None,
+        rank_column: str = "rank",
+    ) -> TableArtifact:
+        """Rank rows in a frame by one sort key."""
+        prepared = self._filter_dataframe(dataframe, filters, allow_empty=True)
+        self._require_columns(prepared, [sort_by])
+        ranked = self._sort_dataframe(prepared, sort_by, sort_direction).reset_index(drop=True)
+        ranked[rank_column] = range(1, len(ranked) + 1)
+        if limit is not None:
+            if limit <= 0:
+                raise ComputeError("rank_frame requires a positive limit when provided.")
+            ranked = ranked.head(limit).reset_index(drop=True)
+        ordered_columns = [rank_column, *[column_name for column_name in ranked.columns if column_name != rank_column]]
+        ranked = ranked.loc[:, ordered_columns]
+        return TableArtifact(
+            name="rank_frame",
+            description="Ranked frame artifact.",
+            dataframe=ranked,
+            metadata={"sort_by": sort_by, "sort_direction": sort_direction, "limit": limit, "rank_column": rank_column},
+        )
+
+    def time_bucket_frame(
+        self,
+        dataframe: pd.DataFrame,
+        time_column: str,
+        bucket: str,
+        filters: dict[str, object] | None = None,
+    ) -> TableArtifact:
+        """Add time bucket labels to a frame for downstream transforms."""
+        prepared = self._filter_dataframe(dataframe, filters, allow_empty=True)
+        self._require_columns(prepared, [time_column])
+        bucketed = self._prepare_time_bucket_frame(prepared, time_column, bucket).copy()
+        bucketed = bucketed.drop(columns=["_period_bucket"], errors="ignore").reset_index(drop=True)
+        return TableArtifact(
+            name="time_bucket_frame",
+            description="Frame with derived time bucket labels.",
+            dataframe=bucketed,
+            metadata={
+                "time_column": time_column,
+                "bucket": bucket,
+                "bucket_column": self._bucket_label_column(bucket),
+            },
+        )
 
     def row_count(
         self,
