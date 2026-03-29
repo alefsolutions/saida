@@ -329,10 +329,19 @@ class AnalysisResult:
     node_results: list[NodeExecutionResult] = field(default_factory=list)
     artifact_index: dict[str, ExecutionArtifact] = field(default_factory=dict)
     artifacts: dict[str, Any] = field(default_factory=dict)
+    public_response: dict[str, Any] = field(default_factory=dict)
     response: dict[str, Any] = field(default_factory=dict)
 
     def to_response_dict(self) -> dict[str, Any]:
-        """Return a JSON-safe analytical response contract."""
+        """Return the compact public analytical response contract."""
+        return deepcopy(self.public_response or self.response)
+
+    def to_public_response_dict(self) -> dict[str, Any]:
+        """Return the compact public analytical response contract."""
+        return self.to_response_dict()
+
+    def to_debug_response_dict(self) -> dict[str, Any]:
+        """Return the full debug analytical response contract."""
         return deepcopy(self.response)
 
 

@@ -30,6 +30,11 @@ def build_parser() -> argparse.ArgumentParser:
     analyze_parser.add_argument("--question", required=True, help="Question to analyze.")
     analyze_parser.add_argument("--context", help="Optional path to a markdown context file.")
     analyze_parser.add_argument("--json", action="store_true", help="Print the analysis result as JSON.")
+    analyze_parser.add_argument(
+        "--debug-json",
+        action="store_true",
+        help="Print the full verbose debug analysis payload as JSON.",
+    )
     analyze_parser.add_argument("--show-plan", action="store_true", help="Print plan steps after the summary.")
     analyze_parser.add_argument("--show-trace", action="store_true", help="Print execution trace events after the summary.")
     analyze_parser.add_argument("--llm-provider", help="Optional LLM provider name, for example 'ollama'.")
@@ -65,8 +70,8 @@ def main() -> int:
         dataset = _load_csv_dataset(args.csv, args.context)
         engine = PromptAnalysisFrontend(config=_build_cli_config(args.llm_provider, args.llm_model, args.llm_base_url))
         result = engine.analyze(dataset, args.question)
-        if args.json:
-            print(json.dumps(_analysis_payload(result), indent=2, allow_nan=False))
+        if args.json or args.debug_json:
+            print(json.dumps(_analysis_payload(result, debug=args.debug_json), indent=2, allow_nan=False))
         else:
             print(result.summary)
             print("Tables:", ", ".join(table.name for table in result.tables))
@@ -106,8 +111,10 @@ def _profile_payload(profile: DatasetProfile) -> dict[str, object]:
     }
 
 
-def _analysis_payload(result: AnalysisResult) -> dict[str, object]:
-    """Convert an analysis result into a small JSON-safe payload."""
+def _analysis_payload(result: AnalysisResult, *, debug: bool = False) -> dict[str, object]:
+    """Convert an analysis result into a JSON-safe payload."""
+    if debug:
+        return result.to_debug_response_dict()
     return result.to_response_dict()
 
 

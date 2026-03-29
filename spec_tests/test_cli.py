@@ -51,7 +51,7 @@ def test_cli_profile_supports_json_output(monkeypatch: object, tmp_path: Path, c
     assert "revenue" in payload["measure_columns"]
 
 
-def test_cli_analyze_supports_json_plan_and_trace_output(monkeypatch: object, tmp_path: Path, capsys: object) -> None:
+def test_cli_analyze_supports_compact_json_output(monkeypatch: object, tmp_path: Path, capsys: object) -> None:
     csv_path = tmp_path / "sales.csv"
     csv_path.write_text(
         "posted_at,revenue,region\n"
@@ -64,6 +64,45 @@ def test_cli_analyze_supports_json_plan_and_trace_output(monkeypatch: object, tm
     monkeypatch.setattr(
         "sys.argv",
         ["saida", "analyze", "--csv", str(csv_path), "--question", "Why did revenue drop in March?", "--json"],
+    )
+
+    exit_code = main()
+    output = capsys.readouterr().out
+    payload = json.loads(output)
+
+    assert exit_code == 0
+    assert payload["schema_version"] == "saida.response.v2"
+    assert payload["status"] == "ok"
+    assert payload["interpretation"]["task_type"] == "diagnostic"
+    assert payload["request"]["question"] == "Why did revenue drop in March?"
+    assert payload["execution"]["step_count"] >= 1
+    assert payload["execution"]["steps"][0]["method_id"] == "filter_frame"
+    assert payload["result"]["shape"]["logical"] == payload["result"]["logical_shape"]
+    assert "history" not in payload
+    assert "tables" not in payload
+
+
+def test_cli_analyze_supports_debug_json_output(monkeypatch: object, tmp_path: Path, capsys: object) -> None:
+    csv_path = tmp_path / "sales.csv"
+    csv_path.write_text(
+        "posted_at,revenue,region\n"
+        "2026-01-01,100,West\n"
+        "2026-02-01,90,West\n"
+        "2026-03-01,80,East\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "saida",
+            "analyze",
+            "--csv",
+            str(csv_path),
+            "--question",
+            "Why did revenue drop in March?",
+            "--debug-json",
+        ],
     )
 
     exit_code = main()

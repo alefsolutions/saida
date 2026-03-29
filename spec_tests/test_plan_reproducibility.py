@@ -85,7 +85,7 @@ def _plan_signature(plan: AnalysisPlan) -> dict[str, Any]:
 
 
 def _result_signature(result: Any) -> dict[str, Any]:
-    payload = result.to_response_dict()
+    payload = result.to_debug_response_dict()
     return {
         "status": payload["status"],
         "result": payload["result"],

@@ -130,6 +130,8 @@ def test_build_analysis_result_populates_artifacts() -> None:
     assert result.response["tables"][0]["name"] == "dataset_preview"
     assert result.response["result"]["name"] == "dataset_preview"
     assert result.to_response_dict()["summary"]["summary"] == "Test summary."
+    assert result.to_response_dict()["request"]["question"] == "Why did revenue drop?"
+    assert result.to_response_dict()["execution"]["steps"][0]["action"] == "dataset_summary"
     assert result.response["summary"]["deterministic_summary"] == "Deterministic summary."
     assert result.response["summary"]["llm_summary"] == "LLM summary."
     assert result.response["summary"]["summary_source"] == "llm"
@@ -176,8 +178,8 @@ def test_build_analysis_result_handles_empty_metrics_and_tables() -> None:
     assert result.artifacts["trace_stages"] == []
     assert result.response["meta"]["metrics"] == []
     assert result.response["tables"] == []
-    assert result.response["summary"]["summary_source"] == "deterministic"
-    assert result.response["result"]["logical_shape"] == "empty"
+    assert result.to_response_dict()["summary"]["summary_source"] == "deterministic"
+    assert result.to_response_dict()["result"]["logical_shape"] == "empty"
 
 
 def test_build_analysis_result_uses_last_metric_value_for_lookup() -> None:

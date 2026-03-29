@@ -71,7 +71,7 @@ def _assert_option_subset(options: dict[str, Any], expected_option_subset: dict[
 
 
 def _response_payload_signature(result: Any) -> dict[str, Any]:
-    payload = result.to_response_dict()
+    payload = result.to_debug_response_dict()
     return {
         "status": payload["status"],
         "result": payload["result"],
@@ -214,7 +214,7 @@ def test_prompt_acceptance_matrix_engine_response(case: PromptAcceptanceCase) ->
     dataset = case.dataset_factory()
 
     result = engine.analyze(dataset, case.question)
-    payload = result.to_response_dict()
+    payload = result.to_debug_response_dict()
 
     assert payload["status"] == case.expected_status
     assert payload["interpretation"]["prompt_family"] == case.expected_prompt_family
