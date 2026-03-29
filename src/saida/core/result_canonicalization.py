@@ -200,12 +200,17 @@ class ResultCanonicalizer:
             for step in plan.steps
         ]
         metric_lookup = {metric.name: metric.value for metric in metrics}
-        primary_result = self._select_primary_result(plan, request, metrics, tables, artifact_index)
+        output_declarations = self._output_declaration_map(plan)
+        primary_result = self._select_primary_result(plan, request, metrics, tables, artifact_index, output_declarations)
         table_entries = [self._table_entry(table) for table in tables]
         serialized_artifact_index = {
-            artifact_id: self._execution_artifact_payload(artifact)
+            artifact_id: self._execution_artifact_payload(artifact, declaration=output_declarations.get(artifact_id))
             for artifact_id, artifact in artifact_index.items()
         }
+        terminal_ref = self._resolve_terminal_output_ref(plan, artifact_index)
+        secondary_outputs = self._secondary_terminal_outputs(plan, artifact_index, output_declarations)
+        terminal_lineage = self._terminal_lineage(plan, terminal_ref)
+        graph_summary = self._graph_execution_summary(plan, artifact_index, secondary_outputs, terminal_ref)
         execution_model = plan.metadata.get("execution_model") if isinstance(plan.metadata, dict) else None
         contract_binding = dict(plan.metadata.get("contract_binding") or {}) if isinstance(plan.metadata, dict) else {}
 
@@ -247,6 +252,11 @@ class ResultCanonicalizer:
                 "steps": operations,
                 "node_results": [result.to_dict() for result in node_results],
                 "final_output_ref": plan.final_output_ref,
+                "terminal_output_ref": terminal_ref,
+                "terminal_output": primary_result,
+                "secondary_outputs": secondary_outputs,
+                "terminal_lineage": terminal_lineage,
+                "graph_summary": graph_summary,
                 "artifact_index": serialized_artifact_index,
                 "execution_model": execution_model,
                 "contract_binding": contract_binding,
@@ -283,6 +293,10 @@ class ResultCanonicalizer:
                 "metric_lookup": metric_lookup,
                 "artifact_ids": list(artifact_index),
                 "artifact_index": serialized_artifact_index,
+                "terminal_output_ref": terminal_ref,
+                "secondary_output_refs": [output.get("name") for output in secondary_outputs],
+                "terminal_lineage": terminal_lineage,
+                "graph_summary": graph_summary,
                 "execution_model": execution_model,
                 "contract_binding": contract_binding,
                 "table_names": [table.name for table in tables],
@@ -304,9 +318,11 @@ class ResultCanonicalizer:
         metrics: list[Metric],
         tables: list[TableArtifact],
         artifact_index: dict[str, ExecutionArtifact],
+        output_declarations: dict[str, dict[str, Any]] | None = None,
     ) -> dict[str, object]:
         if plan.final_output_ref and plan.final_output_ref in artifact_index:
-            return self._execution_artifact_payload(artifact_index[plan.final_output_ref])
+            declaration = (output_declarations or {}).get(plan.final_output_ref)
+            return self._execution_artifact_payload(artifact_index[plan.final_output_ref], declaration=declaration)
 
         candidate_keys = self._plan_result_candidate_keys(plan)
 
@@ -544,6 +560,145 @@ class ResultCanonicalizer:
             )
         )
 
+    def _output_declaration_map(self, plan: AnalysisPlan) -> dict[str, dict[str, Any]]:
+        declarations: dict[str, dict[str, Any]] = {}
+        for step in plan.steps:
+            for output in step.outputs:
+                declarations[output.output_id] = {
+                    "output_id": output.output_id,
+                    "kind": output.kind,
+                    "logical_shape": output.logical_shape,
+                    "physical_shape": output.physical_shape,
+                    "semantic_kind": output.semantic_kind,
+                    "is_primary": output.is_primary,
+                    "step_id": step.step_id,
+                    "metadata": dict(output.metadata),
+                }
+        return declarations
+
+    def _declared_output_label(self, declaration: dict[str, Any] | None) -> str | None:
+        if declaration is None:
+            return None
+        metadata = declaration.get("metadata")
+        if not isinstance(metadata, dict):
+            return None
+        label = metadata.get("output_label") or metadata.get("display_name") or metadata.get("terminal_name")
+        return str(label) if isinstance(label, str) and label else None
+
+    def _resolve_terminal_output_ref(
+        self,
+        plan: AnalysisPlan,
+        artifact_index: dict[str, ExecutionArtifact],
+    ) -> str | None:
+        if plan.final_output_ref and plan.final_output_ref in artifact_index:
+            return plan.final_output_ref
+        leaf_refs = self._leaf_output_refs(plan, artifact_index)
+        return leaf_refs[0] if leaf_refs else None
+
+    def _leaf_output_refs(
+        self,
+        plan: AnalysisPlan,
+        artifact_index: dict[str, ExecutionArtifact],
+    ) -> list[str]:
+        produced_refs = [
+            output_ref
+            for step in plan.steps
+            for output_ref in (*step.output_refs, *(output.output_id for output in step.outputs))
+            if output_ref in artifact_index
+        ]
+        consumed_refs = {
+            step_input.ref
+            for step in plan.steps
+            for step_input in step.inputs
+            if step_input.source_type in {"step_output", "artifact"}
+        }
+        deduped_produced_refs: list[str] = []
+        for output_ref in produced_refs:
+            if output_ref not in deduped_produced_refs:
+                deduped_produced_refs.append(output_ref)
+        return [output_ref for output_ref in deduped_produced_refs if output_ref not in consumed_refs]
+
+    def _secondary_terminal_outputs(
+        self,
+        plan: AnalysisPlan,
+        artifact_index: dict[str, ExecutionArtifact],
+        output_declarations: dict[str, dict[str, Any]],
+    ) -> list[dict[str, object]]:
+        terminal_ref = self._resolve_terminal_output_ref(plan, artifact_index)
+        secondary_refs = [
+            output_ref
+            for output_ref in self._leaf_output_refs(plan, artifact_index)
+            if output_ref != terminal_ref
+        ]
+        return [
+            self._execution_artifact_payload(artifact_index[output_ref], declaration=output_declarations.get(output_ref))
+            for output_ref in secondary_refs
+        ]
+
+    def _terminal_lineage(self, plan: AnalysisPlan, terminal_ref: str | None) -> dict[str, object] | None:
+        if terminal_ref is None:
+            return None
+        step_by_output: dict[str, str] = {}
+        step_lookup = {step.step_id: step for step in plan.steps}
+        for step in plan.steps:
+            for output_ref in (*step.output_refs, *(output.output_id for output in step.outputs)):
+                step_by_output.setdefault(output_ref, step.step_id)
+
+        producer_step_id = step_by_output.get(terminal_ref)
+        if producer_step_id is None:
+            return None
+
+        visited_steps: set[str] = set()
+        upstream_output_refs: list[str] = []
+
+        def visit(step_id: str) -> None:
+            if step_id in visited_steps:
+                return
+            visited_steps.add(step_id)
+            step = step_lookup[step_id]
+            for step_input in step.inputs:
+                if step_input.source_type in {"step_output", "artifact"}:
+                    upstream_output_refs.append(step_input.ref)
+                    parent_step_id = step_by_output.get(step_input.ref)
+                    if parent_step_id is not None:
+                        visit(parent_step_id)
+            for dependency_step_id in step.depends_on:
+                if dependency_step_id in step_lookup:
+                    visit(dependency_step_id)
+
+        visit(producer_step_id)
+        ordered_upstream_steps = [
+            step.step_id
+            for step in plan.steps
+            if step.step_id in visited_steps and step.step_id != producer_step_id
+        ]
+        path_step_ids = [*ordered_upstream_steps, producer_step_id]
+
+        return {
+            "terminal_output_ref": terminal_ref,
+            "producer_step_id": producer_step_id,
+            "upstream_step_ids": ordered_upstream_steps,
+            "upstream_output_refs": upstream_output_refs,
+            "path_step_ids": path_step_ids,
+        }
+
+    def _graph_execution_summary(
+        self,
+        plan: AnalysisPlan,
+        artifact_index: dict[str, ExecutionArtifact],
+        secondary_outputs: list[dict[str, object]],
+        terminal_ref: str | None,
+    ) -> dict[str, object]:
+        leaf_output_refs = self._leaf_output_refs(plan, artifact_index)
+        return {
+            "step_count": len(plan.steps),
+            "artifact_count": len(artifact_index),
+            "leaf_output_count": len(leaf_output_refs),
+            "leaf_output_refs": leaf_output_refs,
+            "terminal_output_ref": terminal_ref,
+            "secondary_output_count": len(secondary_outputs),
+        }
+
     def _logical_shape_for_metric(self, metric_name: str) -> str:
         if metric_name == "row_count" or metric_name.endswith("_count"):
             return "count"
@@ -665,9 +820,16 @@ class ResultCanonicalizer:
             "value": self._json_safe(metric.value),
         }
 
-    def _execution_artifact_payload(self, artifact: ExecutionArtifact) -> dict[str, object]:
-        return {
+    def _execution_artifact_payload(
+        self,
+        artifact: ExecutionArtifact,
+        *,
+        declaration: dict[str, Any] | None = None,
+    ) -> dict[str, object]:
+        display_name = self._declared_output_label(declaration) or artifact.artifact_id
+        payload = {
             "name": artifact.artifact_id,
+            "display_name": display_name,
             "description": None,
             "physical_shape": artifact.physical_shape or "object",
             "logical_shape": artifact.logical_shape or artifact.kind,
@@ -686,6 +848,9 @@ class ResultCanonicalizer:
             "metadata": self._json_safe(dict(artifact.metadata)),
             "value": self._json_safe(artifact.value),
         }
+        if declaration is not None:
+            payload["declared_output"] = self._json_safe(dict(declaration))
+        return payload
 
     def _table_entry(self, table: TableArtifact) -> dict[str, object]:
         return {
