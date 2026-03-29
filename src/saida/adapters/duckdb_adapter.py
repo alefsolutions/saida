@@ -7,6 +7,7 @@ import pandas as pd
 import warnings
 
 from saida.adapters.interfaces import ComputeInterface, ComputeRequest, ComputeResponse
+from saida.core.artifacts import RuntimeArtifact, artifact_from_value
 from saida.exceptions import ComputeError
 from saida.core.contracts import Metric, TableArtifact
 
@@ -26,6 +27,8 @@ class DuckDBAdapter(ComputeInterface):
         "aggregate_frame",
         "rank_frame",
         "time_bucket_frame",
+        "join_frame",
+        "union_frame",
         "row_count",
         "count_rows_by_group",
         "distinct_values",
@@ -74,167 +77,191 @@ class DuckDBAdapter(ComputeInterface):
             metrics, tables = self.dataset_summary(dataframe, parameters.get("target"), parameters.get("filters"))
             return ComputeResponse(metrics=metrics, tables=tables)
         if method_id == "filter_frame":
-            return ComputeResponse(tables=[self.filter_frame(dataframe, parameters.get("filters"), parameters.get("table_name"))])
+            return self._frame_response(
+                self.filter_frame(dataframe, parameters.get("filters"), parameters.get("table_name")),
+                request,
+            )
         if method_id == "select_columns":
-            return ComputeResponse(
-                tables=[
-                    self.select_columns(
-                        dataframe,
-                        parameters["selected_columns"],
-                        parameters.get("filters"),
-                        parameters.get("table_name"),
-                    )
-                ]
+            return self._frame_response(
+                self.select_columns(
+                    dataframe,
+                    parameters["selected_columns"],
+                    parameters.get("filters"),
+                    parameters.get("table_name"),
+                ),
+                request,
             )
         if method_id == "sort_frame":
-            return ComputeResponse(
-                tables=[
-                    self.sort_frame(
-                        dataframe,
-                        parameters["sort_by"],
-                        parameters.get("sort_direction", "asc"),
-                        parameters.get("filters"),
-                        parameters.get("table_name"),
-                    )
-                ]
+            return self._frame_response(
+                self.sort_frame(
+                    dataframe,
+                    parameters["sort_by"],
+                    parameters.get("sort_direction", "asc"),
+                    parameters.get("filters"),
+                    parameters.get("table_name"),
+                ),
+                request,
             )
         if method_id == "limit_frame":
-            return ComputeResponse(
-                tables=[
-                    self.limit_frame(
-                        dataframe,
-                        parameters["limit"],
-                        parameters.get("sort_by"),
-                        parameters.get("sort_direction", "asc"),
-                        parameters.get("filters"),
-                        parameters.get("table_name"),
-                    )
-                ]
+            return self._frame_response(
+                self.limit_frame(
+                    dataframe,
+                    parameters["limit"],
+                    parameters.get("sort_by"),
+                    parameters.get("sort_direction", "asc"),
+                    parameters.get("filters"),
+                    parameters.get("table_name"),
+                ),
+                request,
             )
         if method_id == "distinct_frame":
-            return ComputeResponse(
-                tables=[
-                    self.distinct_frame(
-                        dataframe,
-                        parameters["selected_columns"],
-                        parameters.get("filters"),
-                        parameters.get("table_name"),
-                    )
-                ]
+            return self._frame_response(
+                self.distinct_frame(
+                    dataframe,
+                    parameters["selected_columns"],
+                    parameters.get("filters"),
+                    parameters.get("table_name"),
+                ),
+                request,
             )
         if method_id == "derive_column":
-            return ComputeResponse(
-                tables=[
-                    self.derive_column(
-                        dataframe,
-                        parameters["target"],
-                        parameters["expression"],
-                        parameters.get("filters"),
-                        parameters.get("table_name"),
-                    )
-                ]
+            return self._frame_response(
+                self.derive_column(
+                    dataframe,
+                    parameters["target"],
+                    parameters["expression"],
+                    parameters.get("filters"),
+                    parameters.get("table_name"),
+                ),
+                request,
             )
         if method_id == "group_frame":
-            return ComputeResponse(
-                tables=[
-                    self.group_frame(
-                        dataframe,
-                        parameters["group_by"],
-                        parameters.get("filters"),
-                        parameters.get("table_name"),
-                    )
-                ]
+            return self._frame_response(
+                self.group_frame(
+                    dataframe,
+                    parameters["group_by"],
+                    parameters.get("filters"),
+                    parameters.get("table_name"),
+                ),
+                request,
             )
         if method_id == "aggregate_frame":
-            return ComputeResponse(
-                tables=[
-                    self.aggregate_frame(
-                        dataframe,
-                        parameters.get("target"),
-                        parameters["aggregation"],
-                        parameters.get("group_by"),
-                        parameters.get("filters"),
-                        request,
-                        parameters.get("table_name"),
-                        parameters.get("value_label"),
-                    )
-                ]
+            return self._frame_response(
+                self.aggregate_frame(
+                    dataframe,
+                    parameters.get("target"),
+                    parameters["aggregation"],
+                    parameters.get("group_by"),
+                    parameters.get("filters"),
+                    request,
+                    parameters.get("table_name"),
+                    parameters.get("value_label"),
+                ),
+                request,
             )
         if method_id == "rank_frame":
-            return ComputeResponse(
-                tables=[
-                    self.rank_frame(
-                        dataframe,
-                        parameters["sort_by"],
-                        parameters.get("sort_direction", "desc"),
-                        parameters.get("limit"),
-                        parameters.get("filters"),
-                        parameters.get("rank_column", "rank"),
-                        parameters.get("table_name"),
-                    )
-                ]
+            return self._frame_response(
+                self.rank_frame(
+                    dataframe,
+                    parameters["sort_by"],
+                    parameters.get("sort_direction", "desc"),
+                    parameters.get("limit"),
+                    parameters.get("filters"),
+                    parameters.get("rank_column", "rank"),
+                    parameters.get("table_name"),
+                ),
+                request,
             )
         if method_id == "time_bucket_frame":
-            return ComputeResponse(
-                tables=[
-                    self.time_bucket_frame(
-                        dataframe,
-                        parameters["time_column"],
-                        parameters["bucket"],
-                        parameters.get("filters"),
-                        parameters.get("table_name"),
-                    )
-                ]
+            return self._frame_response(
+                self.time_bucket_frame(
+                    dataframe,
+                    parameters["time_column"],
+                    parameters["bucket"],
+                    parameters.get("filters"),
+                    parameters.get("table_name"),
+                ),
+                request,
+            )
+        if method_id == "join_frame":
+            left_frame, right_frame = self._resolve_join_frames(request)
+            return self._frame_response(
+                self.join_frame(
+                    left_frame,
+                    right_frame,
+                    parameters.get("on"),
+                    parameters.get("left_on"),
+                    parameters.get("right_on"),
+                    parameters.get("how", "inner"),
+                    parameters.get("suffixes"),
+                    parameters.get("table_name"),
+                ),
+                request,
+            )
+        if method_id == "union_frame":
+            return self._frame_response(
+                self.union_frame(
+                    self._resolve_union_frames(request),
+                    parameters.get("distinct", False),
+                    parameters.get("table_name"),
+                ),
+                request,
             )
         if method_id == "row_count":
-            return ComputeResponse(metrics=self.row_count(dataframe, parameters.get("filters")))
+            metrics = self.row_count(dataframe, parameters.get("filters"))
+            return self._scalar_response(metrics[0], request)
         if method_id == "count_rows_by_group":
-            return ComputeResponse(
-                tables=[
-                    self.count_rows_by_group(
-                        dataframe,
-                        parameters["group_by"],
-                        parameters.get("filters"),
-                        parameters.get("ascending", False),
-                        parameters.get("limit"),
-                    )
-                ]
+            return self._frame_response(
+                self.count_rows_by_group(
+                    dataframe,
+                    parameters["group_by"],
+                    parameters.get("filters"),
+                    parameters.get("ascending", False),
+                    parameters.get("limit"),
+                ),
+                request,
             )
         if method_id == "distinct_values":
-            return ComputeResponse(tables=[self.distinct_values(dataframe, parameters["target"], parameters.get("filters"))])
+            return self._frame_response(
+                self.distinct_values(dataframe, parameters["target"], parameters.get("filters")),
+                request,
+            )
         if method_id == "distinct_value_count":
-            return ComputeResponse(tables=[self.distinct_value_count(dataframe, parameters["target"], parameters.get("filters"))])
+            return self._scalar_from_table_response(
+                self.distinct_value_count(dataframe, parameters["target"], parameters.get("filters")),
+                request,
+                field_name="distinct_count",
+            )
         if method_id == "tabular_query":
-            return ComputeResponse(
-                tables=[
-                    self.tabular_query(
-                        dataframe,
-                        parameters.get("selected_columns"),
-                        parameters.get("filters"),
-                        parameters.get("sort_by"),
-                        parameters.get("sort_direction", "asc"),
-                        parameters.get("limit"),
-                        parameters.get("page", 1),
-                        parameters.get("page_size", 50),
-                    )
-                ]
+            return self._frame_response(
+                self.tabular_query(
+                    dataframe,
+                    parameters.get("selected_columns"),
+                    parameters.get("filters"),
+                    parameters.get("sort_by"),
+                    parameters.get("sort_direction", "asc"),
+                    parameters.get("limit"),
+                    parameters.get("page", 1),
+                    parameters.get("page_size", 50),
+                ),
+                request,
+                logical_shape="recordset",
             )
         if method_id == "grouped_tabular_query":
-            return ComputeResponse(
-                tables=[
-                    self.grouped_tabular_query(
-                        dataframe,
-                        parameters["group_by"],
-                        parameters.get("target"),
-                        parameters.get("aggregation", "count"),
-                        parameters.get("filters"),
-                        parameters.get("sort_by"),
-                        parameters.get("sort_direction", "desc"),
-                        parameters.get("limit"),
-                        parameters.get("page", 1),
-                        parameters.get("page_size", 50),
-                    )
-                ]
+            return self._frame_response(
+                self.grouped_tabular_query(
+                    dataframe,
+                    parameters["group_by"],
+                    parameters.get("target"),
+                    parameters.get("aggregation", "count"),
+                    parameters.get("filters"),
+                    parameters.get("sort_by"),
+                    parameters.get("sort_direction", "desc"),
+                    parameters.get("limit"),
+                    parameters.get("page", 1),
+                    parameters.get("page_size", 50),
+                ),
+                request,
             )
         if method_id == "time_coverage":
             return ComputeResponse(
@@ -439,6 +466,92 @@ class DuckDBAdapter(ComputeInterface):
         if request.dataset is not None:
             return request.dataset.data
         raise ComputeError("DuckDB compute methods require a dataset or frame artifact input.")
+
+    def _resolved_frame_inputs(self, request: ComputeRequest) -> list[tuple[str, pd.DataFrame]]:
+        resolved: list[tuple[str, pd.DataFrame]] = []
+        for input_id, artifact in request.resolved_inputs.items():
+            if artifact.kind in {"dataset", "frame"} and isinstance(artifact.value, pd.DataFrame):
+                resolved.append((input_id, artifact.value))
+        if not resolved and request.dataset is not None:
+            resolved.append(("primary_dataset", request.dataset.data))
+        return resolved
+
+    def _resolve_join_frames(self, request: ComputeRequest) -> tuple[pd.DataFrame, pd.DataFrame]:
+        frames = self._resolved_frame_inputs(request)
+        if len(frames) < 2:
+            raise ComputeError("join_frame requires two resolved frame inputs.")
+        return frames[0][1], frames[1][1]
+
+    def _resolve_union_frames(self, request: ComputeRequest) -> list[pd.DataFrame]:
+        frames = [frame for _, frame in self._resolved_frame_inputs(request)]
+        if len(frames) < 2:
+            raise ComputeError("union_frame requires at least two resolved frame inputs.")
+        return frames
+
+    def _frame_response(
+        self,
+        table: TableArtifact,
+        request: ComputeRequest,
+        *,
+        logical_shape: str = "table",
+        physical_shape: str = "recordset",
+    ) -> ComputeResponse:
+        artifact_id = request.primary_output_ref() or table.name
+        artifact = self._artifact_from_table(
+            table,
+            artifact_id=artifact_id,
+            logical_shape=logical_shape,
+            physical_shape=physical_shape,
+        )
+        return ComputeResponse(tables=[table], produced_artifacts=[artifact])
+
+    def _scalar_response(self, metric: Metric, request: ComputeRequest) -> ComputeResponse:
+        artifact_id = request.primary_output_ref() or metric.name
+        artifact = artifact_from_value(
+            artifact_id,
+            metric.value,
+            role="final",
+            metadata={"metric_name": metric.name, "description": metric.description, "unit": metric.unit},
+        )
+        return ComputeResponse(metrics=[metric], produced_artifacts=[artifact])
+
+    def _artifact_from_table(
+        self,
+        table: TableArtifact,
+        *,
+        artifact_id: str,
+        logical_shape: str = "table",
+        physical_shape: str = "recordset",
+    ) -> RuntimeArtifact:
+        return artifact_from_value(
+            artifact_id,
+            table.dataframe,
+            role="final",
+            logical_shape=logical_shape,
+            physical_shape=physical_shape,
+            metadata={"table_name": table.name, **dict(table.metadata)},
+        )
+
+    def _scalar_from_table_response(
+        self,
+        table: TableArtifact,
+        request: ComputeRequest,
+        *,
+        field_name: str,
+    ) -> ComputeResponse:
+        if table.dataframe.empty or field_name not in table.dataframe.columns:
+            raise ComputeError(f"Expected scalar field {field_name!r} was not present in table {table.name!r}.")
+        scalar_value = table.dataframe.iloc[0][field_name]
+        artifact_id = request.primary_output_ref() or table.name
+        artifact = artifact_from_value(
+            artifact_id,
+            scalar_value,
+            role="final",
+            logical_shape="scalar",
+            physical_shape="scalar",
+            metadata={"table_name": table.name, "field_name": field_name, **dict(table.metadata)},
+        )
+        return ComputeResponse(tables=[table], produced_artifacts=[artifact])
 
     def _group_by_from_request(self, request: ComputeRequest | None) -> list[str] | None:
         if request is None:
@@ -761,6 +874,81 @@ class DuckDBAdapter(ComputeInterface):
                 "bucket": bucket,
                 "bucket_column": self._bucket_label_column(bucket),
             },
+        )
+
+    def join_frame(
+        self,
+        left_dataframe: pd.DataFrame,
+        right_dataframe: pd.DataFrame,
+        on: str | list[str] | None = None,
+        left_on: str | list[str] | None = None,
+        right_on: str | list[str] | None = None,
+        how: str = "inner",
+        suffixes: list[str] | tuple[str, str] | None = None,
+        table_name: str | None = None,
+    ) -> TableArtifact:
+        """Join two frame artifacts into one downstream frame."""
+        merge_kwargs: dict[str, object] = {"how": how}
+        if on is not None:
+            join_columns = [on] if isinstance(on, str) else list(on)
+            self._require_columns(left_dataframe, join_columns)
+            self._require_columns(right_dataframe, join_columns)
+            merge_kwargs["on"] = join_columns[0] if isinstance(on, str) else join_columns
+        else:
+            if left_on is None or right_on is None:
+                raise ComputeError("join_frame requires either 'on' or both 'left_on' and 'right_on'.")
+            left_columns = [left_on] if isinstance(left_on, str) else list(left_on)
+            right_columns = [right_on] if isinstance(right_on, str) else list(right_on)
+            self._require_columns(left_dataframe, left_columns)
+            self._require_columns(right_dataframe, right_columns)
+            merge_kwargs["left_on"] = left_on
+            merge_kwargs["right_on"] = right_on
+
+        if suffixes is not None:
+            if not isinstance(suffixes, (list, tuple)) or len(suffixes) != 2:
+                raise ComputeError("join_frame suffixes must contain exactly two values when provided.")
+            merge_kwargs["suffixes"] = tuple(str(value) for value in suffixes)
+
+        try:
+            joined = left_dataframe.merge(right_dataframe, **merge_kwargs).reset_index(drop=True)
+        except Exception as exc:  # pragma: no cover
+            raise ComputeError("Failed to join resolved frame artifacts.") from exc
+
+        return TableArtifact(
+            name=table_name or "join_frame",
+            description=f"{how.title()} join between resolved frame artifacts.",
+            dataframe=joined,
+            metadata={
+                "how": how,
+                "on": on,
+                "left_on": left_on,
+                "right_on": right_on,
+            },
+        )
+
+    def union_frame(
+        self,
+        dataframes: list[pd.DataFrame],
+        distinct: bool = False,
+        table_name: str | None = None,
+    ) -> TableArtifact:
+        """Union two or more frame artifacts into one downstream frame."""
+        if len(dataframes) < 2:
+            raise ComputeError("union_frame requires at least two input frames.")
+        base_columns = list(dataframes[0].columns)
+        for dataframe in dataframes[1:]:
+            if list(dataframe.columns) != base_columns:
+                raise ComputeError("union_frame requires all input frames to share identical column order.")
+        combined = pd.concat(dataframes, ignore_index=True)
+        if distinct:
+            combined = combined.drop_duplicates(ignore_index=True)
+        else:
+            combined = combined.reset_index(drop=True)
+        return TableArtifact(
+            name=table_name or "union_frame",
+            description="Unioned frame artifact.",
+            dataframe=combined,
+            metadata={"distinct": bool(distinct), "input_count": len(dataframes)},
         )
 
     def row_count(

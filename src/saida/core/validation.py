@@ -170,6 +170,7 @@ class PlanValidator:
             self._validate_supported_parameters(step.step_id, step.parameters, method_spec)
             self._validate_parameter_shapes(step.step_id, step.parameters)
             self._validate_expected_output(step.step_id, step.expected_output, method_spec)
+            self._validate_graph_input_arity(step, method_id)
             if profile is not None:
                 self._validate_parameter_fields(step.step_id, step.parameters, method_spec, profile)
             if router is not None:
@@ -209,6 +210,23 @@ class PlanValidator:
                 raise PlanningError(f"Plan step {step_id!r} requires a time_reference parameter.")
             if required_input == "bucket" and not isinstance(parameters.get("bucket"), str):
                 raise PlanningError(f"Plan step {step_id!r} requires a bucket parameter.")
+            if required_input == "join_keys":
+                on = parameters.get("on")
+                left_on = parameters.get("left_on")
+                right_on = parameters.get("right_on")
+                has_shared_on = isinstance(on, str) or (
+                    isinstance(on, list) and on and all(isinstance(column_name, str) and column_name for column_name in on)
+                )
+                has_split_keys = (
+                    (isinstance(left_on, str) or (isinstance(left_on, list) and left_on))
+                    and (isinstance(right_on, str) or (isinstance(right_on, list) and right_on))
+                )
+                if not has_shared_on and not has_split_keys:
+                    raise PlanningError(
+                        f"Plan step {step_id!r} requires either an 'on' join key or both 'left_on' and 'right_on'."
+                    )
+            if required_input == "union_inputs":
+                continue
             if required_input == "limit":
                 limit = parameters.get("limit")
                 if not isinstance(limit, int) or limit <= 0:
@@ -247,6 +265,12 @@ class PlanValidator:
                 raise PlanningError(
                     f"Plan step {step.step_id!r} declares output_refs without matching output specs: {joined}."
                 )
+
+    def _validate_graph_input_arity(self, step: object, method_id: str) -> None:
+        if method_id == "join_frame" and len(step.inputs) != 2:
+            raise PlanningError(f"Plan step {step.step_id!r} using join_frame must declare exactly two step inputs.")
+        if method_id == "union_frame" and len(step.inputs) < 2:
+            raise PlanningError(f"Plan step {step.step_id!r} using union_frame must declare at least two step inputs.")
 
     def _validate_step_input_references(
         self,
@@ -355,6 +379,10 @@ class PlanValidator:
         self._validate_string_list_parameter(step_id, parameters, "selected_columns")
         self._validate_string_list_parameter(step_id, parameters, "feature_columns")
         self._validate_string_list_parameter(step_id, parameters, "comparison_columns")
+        self._validate_join_key_parameter(step_id, parameters, "on")
+        self._validate_join_key_parameter(step_id, parameters, "left_on")
+        self._validate_join_key_parameter(step_id, parameters, "right_on")
+        self._validate_string_pair_parameter(step_id, parameters, "suffixes")
 
         self._validate_integer_parameter(step_id, parameters, "limit", minimum=1)
         self._validate_integer_parameter(step_id, parameters, "page", minimum=1)
@@ -368,6 +396,7 @@ class PlanValidator:
         self._validate_numeric_parameter(step_id, parameters, "threshold_value")
         self._validate_numeric_parameter(step_id, parameters, "lower_bound")
         self._validate_numeric_parameter(step_id, parameters, "upper_bound")
+        self._validate_boolean_parameter(step_id, parameters, "distinct")
 
     def _validate_string_parameter(
         self,
@@ -420,6 +449,47 @@ class PlanValidator:
             raise PlanningError(f"Plan step {step_id!r} parameter {name!r} must be an integer.")
         if minimum is not None and value < minimum:
             raise PlanningError(f"Plan step {step_id!r} parameter {name!r} must be >= {minimum}.")
+
+    def _validate_boolean_parameter(
+        self,
+        step_id: str,
+        parameters: dict[str, object],
+        name: str,
+    ) -> None:
+        value = parameters.get(name)
+        if value is None:
+            return
+        if not isinstance(value, bool):
+            raise PlanningError(f"Plan step {step_id!r} parameter {name!r} must be a boolean.")
+
+    def _validate_join_key_parameter(
+        self,
+        step_id: str,
+        parameters: dict[str, object],
+        name: str,
+    ) -> None:
+        value = parameters.get(name)
+        if value is None:
+            return
+        if isinstance(value, str) and value.strip():
+            return
+        if isinstance(value, list) and value and all(isinstance(item, str) and item.strip() for item in value):
+            return
+        raise PlanningError(
+            f"Plan step {step_id!r} parameter {name!r} must be a non-empty string or list of non-empty strings."
+        )
+
+    def _validate_string_pair_parameter(
+        self,
+        step_id: str,
+        parameters: dict[str, object],
+        name: str,
+    ) -> None:
+        value = parameters.get(name)
+        if value is None:
+            return
+        if not isinstance(value, list) or len(value) != 2 or not all(isinstance(item, str) and item for item in value):
+            raise PlanningError(f"Plan step {step_id!r} parameter {name!r} must be a list of exactly two strings.")
 
     def _validate_numeric_parameter(
         self,

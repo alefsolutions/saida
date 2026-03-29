@@ -20,6 +20,7 @@ class ComputeRequest:
     profile: DatasetProfile | None = None
     parameters: dict[str, Any] = field(default_factory=dict)
     resolved_inputs: dict[str, RuntimeArtifact] = field(default_factory=dict)
+    declared_output_refs: list[str] = field(default_factory=list)
     artifact_store: object | None = None
 
     def has_resolved_input(self, input_id: str) -> bool:
@@ -36,6 +37,10 @@ class ComputeRequest:
     def get_resolved_value(self, input_id: str) -> Any:
         """Return the raw value for a resolved runtime artifact."""
         return self.get_resolved_input(input_id).value
+
+    def primary_output_ref(self) -> str | None:
+        """Return the primary declared output ref for this request when available."""
+        return self.declared_output_refs[0] if self.declared_output_refs else None
 
 
 @dataclass(slots=True)

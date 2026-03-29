@@ -245,6 +245,7 @@ class Saida:
                 profile=profile,
                 parameters=step.parameters,
                 resolved_inputs=resolved_inputs,
+                declared_output_refs=list(step.output_refs),
                 artifact_store=artifact_store,
             )
         )

@@ -232,7 +232,7 @@ def build_default_analytics_registry() -> AnalyticsRegistry:
         AnalyticsFamilySpec("selection_filtering", "Selection / Filtering", "Dataset subset selection and row scoping.", availability="planned"),
         AnalyticsFamilySpec("projection_field_selection", "Projection / Field Selection", "Row retrieval with explicit field selection."),
         AnalyticsFamilySpec("transformation", "Transformation", "Value or schema transformation workflows.", availability="planned"),
-        AnalyticsFamilySpec("joining", "Joining", "Join-based analytical workflows across datasets.", availability="planned"),
+        AnalyticsFamilySpec("joining", "Joining", "Join-based analytical workflows across datasets."),
         AnalyticsFamilySpec("aggregation_grouping", "Aggregation / Grouping", "Counts, aggregates, grouped tables, and grouped metric summaries."),
         AnalyticsFamilySpec("ranking", "Ranking", "Top-N, bottom-N, and ordered leaderboard workflows."),
         AnalyticsFamilySpec("validation_verification", "Validation / Verification", "Verification checks against rows, columns, thresholds, and time values."),
@@ -273,6 +273,14 @@ def build_default_analytics_registry() -> AnalyticsRegistry:
             ("group_frame", "Group Frame", "Tag a frame for grouped downstream transforms while preserving rows.", ("dataset", "group_by"), ("filters", "table_name"), ("table",), "duckdb"),
             ("aggregate_frame", "Aggregate Frame", "Aggregate a frame to a one-row or grouped table artifact.", ("dataset", "aggregation"), ("filters", "group_by", "target", "table_name", "value_label"), ("table",), "duckdb"),
             ("time_bucket_frame", "Time Bucket Frame", "Add time bucket labels to a frame for downstream transforms.", ("dataset", "time_column", "bucket"), ("filters", "table_name"), ("table",), "duckdb"),
+        ),
+    )
+    _register_methods(
+        registry,
+        "joining",
+        (
+            ("join_frame", "Join Frame", "Join two resolved frame artifacts into one downstream frame.", ("join_keys",), ("on", "left_on", "right_on", "how", "suffixes", "table_name"), ("table",), "duckdb"),
+            ("union_frame", "Union Frame", "Union two or more resolved frame artifacts into one downstream frame.", ("union_inputs",), ("distinct", "table_name"), ("table",), "duckdb"),
         ),
     )
     _register_methods(

@@ -7,7 +7,7 @@ from typing import Callable
 import pytest
 
 from saida import Saida
-from saida.core.contracts import AnalysisPlan, AnalysisResult, PlanInput, PlanStep
+from saida.core.contracts import AnalysisPlan, AnalysisResult, Dataset, PlanInput, PlanStep, StepInputRef, StepOutputSpec
 from saida.core.analytics_registry import get_analytics_registry
 from .factories import build_explicit_single_step_plan, build_sales_dataset, build_statistical_dataset, build_support_dataset, json_safe
 from .result_helpers import normalized_result_value
@@ -23,6 +23,7 @@ class PlanMethodCase:
     parameters: dict[str, object]
     expected_result_shape: str
     task_type: str = "descriptive"
+    plan_builder: Callable[[Dataset], AnalysisPlan] | None = None
 
 
 def _case(
@@ -34,6 +35,7 @@ def _case(
     parameters: dict[str, object],
     expected_result_shape: str,
     task_type: str = "descriptive",
+    plan_builder: Callable[[Dataset], AnalysisPlan] | None = None,
 ) -> PlanMethodCase:
     return PlanMethodCase(
         case_id=case_id,
@@ -44,6 +46,162 @@ def _case(
         parameters=parameters,
         expected_result_shape=expected_result_shape,
         task_type=task_type,
+        plan_builder=plan_builder,
+    )
+
+
+def _build_join_dataset() -> Dataset:
+    import pandas as pd
+
+    return Dataset(
+        name="joinable_support",
+        source_type="pandas",
+        data=pd.DataFrame(
+            {
+                "ticket_id": ["T1", "T2", "T3"],
+                "team": ["Support", "Platform", "Support"],
+                "priority": ["Low", "High", "Medium"],
+                "channel": ["Email", "Phone", "Chat"],
+            }
+        ),
+    )
+
+
+def _build_join_plan(dataset: Dataset) -> AnalysisPlan:
+    return AnalysisPlan(
+        task_type="descriptive",
+        rationale="Join two projected frames by ticket id.",
+        dataset_refs=[dataset.name],
+        inputs=[PlanInput(input_id="primary_dataset", kind="dataset", ref=dataset.name)],
+        expected_result_name="joined_rows",
+        expected_result_shape="table",
+        final_output_ref="joined_rows",
+        steps=[
+            PlanStep(
+                step_id="left_projection",
+                tool_family="duckdb",
+                action="select_columns",
+                method_id="select_columns",
+                family="selection_filtering",
+                parameters={"selected_columns": ["ticket_id", "team"]},
+                description="Project ticket ids and teams.",
+                inputs=[StepInputRef(input_id="dataset_input", source_type="plan_input", ref="primary_dataset", expected_kind="dataset")],
+                output_refs=["left_rows"],
+                outputs=[StepOutputSpec(output_id="left_rows", kind="frame", logical_shape="table", physical_shape="recordset")],
+                expected_output={"output_id": "left_rows", "logical_shape": "table", "physical_shape": "recordset"},
+            ),
+            PlanStep(
+                step_id="right_projection",
+                tool_family="duckdb",
+                action="select_columns",
+                method_id="select_columns",
+                family="selection_filtering",
+                parameters={"selected_columns": ["ticket_id", "channel"]},
+                description="Project ticket ids and channels.",
+                inputs=[StepInputRef(input_id="dataset_input", source_type="plan_input", ref="primary_dataset", expected_kind="dataset")],
+                output_refs=["right_rows"],
+                outputs=[StepOutputSpec(output_id="right_rows", kind="frame", logical_shape="table", physical_shape="recordset")],
+                expected_output={"output_id": "right_rows", "logical_shape": "table", "physical_shape": "recordset"},
+            ),
+            PlanStep(
+                step_id="join_frame",
+                tool_family="duckdb",
+                action="join_frame",
+                method_id="join_frame",
+                family="joining",
+                parameters={"on": "ticket_id", "how": "inner"},
+                description="Join the projected frames.",
+                inputs=[
+                    StepInputRef(input_id="left_frame", source_type="step_output", ref="left_rows", expected_kind="frame"),
+                    StepInputRef(input_id="right_frame", source_type="step_output", ref="right_rows", expected_kind="frame"),
+                ],
+                output_refs=["joined_rows"],
+                outputs=[StepOutputSpec(output_id="joined_rows", kind="frame", logical_shape="table", physical_shape="recordset")],
+                expected_output={"output_id": "joined_rows", "logical_shape": "table", "physical_shape": "recordset"},
+            ),
+        ],
+    )
+
+
+def _build_union_plan(dataset: Dataset) -> AnalysisPlan:
+    return AnalysisPlan(
+        task_type="descriptive",
+        rationale="Union two filtered frame slices.",
+        dataset_refs=[dataset.name],
+        inputs=[PlanInput(input_id="primary_dataset", kind="dataset", ref=dataset.name)],
+        expected_result_name="unioned_rows",
+        expected_result_shape="table",
+        final_output_ref="unioned_rows",
+        steps=[
+            PlanStep(
+                step_id="support_slice",
+                tool_family="duckdb",
+                action="filter_frame",
+                method_id="filter_frame",
+                family="selection_filtering",
+                parameters={"filters": {"team": "Support"}},
+                description="Filter support rows.",
+                inputs=[StepInputRef(input_id="dataset_input", source_type="plan_input", ref="primary_dataset", expected_kind="dataset")],
+                output_refs=["support_rows"],
+                outputs=[StepOutputSpec(output_id="support_rows", kind="frame", logical_shape="table", physical_shape="recordset")],
+                expected_output={"output_id": "support_rows", "logical_shape": "table", "physical_shape": "recordset"},
+            ),
+            PlanStep(
+                step_id="platform_slice",
+                tool_family="duckdb",
+                action="filter_frame",
+                method_id="filter_frame",
+                family="selection_filtering",
+                parameters={"filters": {"team": "Platform"}},
+                description="Filter platform rows.",
+                inputs=[StepInputRef(input_id="dataset_input", source_type="plan_input", ref="primary_dataset", expected_kind="dataset")],
+                output_refs=["platform_rows"],
+                outputs=[StepOutputSpec(output_id="platform_rows", kind="frame", logical_shape="table", physical_shape="recordset")],
+                expected_output={"output_id": "platform_rows", "logical_shape": "table", "physical_shape": "recordset"},
+            ),
+            PlanStep(
+                step_id="support_projection",
+                tool_family="duckdb",
+                action="select_columns",
+                method_id="select_columns",
+                family="selection_filtering",
+                parameters={"selected_columns": ["ticket_id", "team"]},
+                description="Project support slice columns.",
+                inputs=[StepInputRef(input_id="source_frame", source_type="step_output", ref="support_rows", expected_kind="frame")],
+                output_refs=["support_projected"],
+                outputs=[StepOutputSpec(output_id="support_projected", kind="frame", logical_shape="table", physical_shape="recordset")],
+                expected_output={"output_id": "support_projected", "logical_shape": "table", "physical_shape": "recordset"},
+            ),
+            PlanStep(
+                step_id="platform_projection",
+                tool_family="duckdb",
+                action="select_columns",
+                method_id="select_columns",
+                family="selection_filtering",
+                parameters={"selected_columns": ["ticket_id", "team"]},
+                description="Project platform slice columns.",
+                inputs=[StepInputRef(input_id="source_frame", source_type="step_output", ref="platform_rows", expected_kind="frame")],
+                output_refs=["platform_projected"],
+                outputs=[StepOutputSpec(output_id="platform_projected", kind="frame", logical_shape="table", physical_shape="recordset")],
+                expected_output={"output_id": "platform_projected", "logical_shape": "table", "physical_shape": "recordset"},
+            ),
+            PlanStep(
+                step_id="union_frame",
+                tool_family="duckdb",
+                action="union_frame",
+                method_id="union_frame",
+                family="joining",
+                parameters={"distinct": False},
+                description="Union the projected slices.",
+                inputs=[
+                    StepInputRef(input_id="left_frame", source_type="step_output", ref="support_projected", expected_kind="frame"),
+                    StepInputRef(input_id="right_frame", source_type="step_output", ref="platform_projected", expected_kind="frame"),
+                ],
+                output_refs=["unioned_rows"],
+                outputs=[StepOutputSpec(output_id="unioned_rows", kind="frame", logical_shape="table", physical_shape="recordset")],
+                expected_output={"output_id": "unioned_rows", "logical_shape": "table", "physical_shape": "recordset"},
+            ),
+        ],
     )
 
 
@@ -58,6 +216,8 @@ _ALL_METHOD_CASES: list[PlanMethodCase] = [
     _case("group_frame", "group_frame", "duckdb", "transformation", build_sales_dataset, {"group_by": ["region"]}, "table"),
     _case("aggregate_frame", "aggregate_frame", "duckdb", "transformation", build_sales_dataset, {"target": "revenue", "aggregation": "sum", "group_by": ["region"]}, "table"),
     _case("time_bucket_frame", "time_bucket_frame", "duckdb", "transformation", build_sales_dataset, {"time_column": "posted_at", "bucket": "quarter"}, "table"),
+    _case("join_frame", "join_frame", "duckdb", "joining", _build_join_dataset, {}, "table", plan_builder=_build_join_plan),
+    _case("union_frame", "union_frame", "duckdb", "joining", _build_join_dataset, {}, "table", plan_builder=_build_union_plan),
     _case("row_count", "row_count", "duckdb", "aggregation_grouping", build_support_dataset, {"filters": {"reopened_flag": "no"}}, "scalar"),
     _case("count_rows_by_group", "count_rows_by_group", "duckdb", "aggregation_grouping", build_support_dataset, {"group_by": ["team"]}, "table"),
     _case("aggregate_value", "aggregate_value", "duckdb", "aggregation_grouping", build_sales_dataset, {"target": "revenue", "aggregation": "sum"}, "scalar"),
@@ -120,9 +280,11 @@ _ALL_METHOD_CASES: list[PlanMethodCase] = [
 ]
 
 
-def _build_plan(case: PlanMethodCase, dataset_name: str) -> AnalysisPlan:
+def _build_plan(case: PlanMethodCase, dataset: Dataset) -> AnalysisPlan:
+    if case.plan_builder is not None:
+        return case.plan_builder(dataset)
     return build_explicit_single_step_plan(
-        dataset_name=dataset_name,
+        dataset_name=dataset.name,
         task_type=case.task_type,
         rationale=f"Execute {case.method_id} deterministically for {case.case_id}.",
         step_id=case.method_id,
@@ -139,7 +301,7 @@ def _build_plan(case: PlanMethodCase, dataset_name: str) -> AnalysisPlan:
 def _execute_case(case: PlanMethodCase) -> AnalysisResult:
     engine = Saida()
     dataset = case.dataset_builder()
-    plan = _build_plan(case, dataset.name)
+    plan = _build_plan(case, dataset)
     return engine.execute_plan(dataset, deepcopy(plan))
 
 
@@ -172,7 +334,7 @@ def test_plan_method_matrix_validation_accepts_authored_plan(case: PlanMethodCas
     engine = Saida()
     dataset = case.dataset_builder()
     profile = engine.profile(dataset)
-    plan = _build_plan(case, dataset.name)
+    plan = _build_plan(case, dataset)
 
     engine.validator.validate_plan(plan, dataset=dataset, profile=profile, router=engine.router)
 
@@ -183,8 +345,8 @@ def test_plan_method_matrix_execute_plan_returns_analysis_result(case: PlanMetho
 
     assert isinstance(result, AnalysisResult)
     assert result.response["status"] == "ok"
-    assert result.plan.steps[0].method_id == case.method_id
-    assert result.plan.steps[0].family == case.family_id
+    assert any(step.method_id == case.method_id for step in result.plan.steps)
+    assert any(step.family == case.family_id for step in result.plan.steps)
 
 
 @pytest.mark.parametrize("case", _ALL_METHOD_CASES, ids=[case.case_id for case in _ALL_METHOD_CASES])
@@ -206,7 +368,7 @@ def test_plan_method_matrix_execute_plan_honors_expected_result_shape(case: Plan
 def test_plan_method_matrix_execute_plan_is_deterministic(case: PlanMethodCase) -> None:
     engine = Saida()
     dataset = case.dataset_builder()
-    plan = _build_plan(case, dataset.name)
+    plan = _build_plan(case, dataset)
 
     first = engine.execute_plan(dataset, deepcopy(plan))
     second = engine.execute_plan(dataset, deepcopy(plan))
