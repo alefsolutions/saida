@@ -513,11 +513,21 @@ class PlanValidator:
             return
         logical_shape = expected_output.get("logical_shape")
         if logical_shape is None or not method_spec.output_shapes:
-            return
-        if logical_shape not in set(method_spec.output_shapes):
+            logical_shape_valid = True
+        else:
+            logical_shape_valid = logical_shape in set(method_spec.output_shapes)
+        if not logical_shape_valid:
             raise PlanningError(
                 f"Plan step {step_id!r} expects logical_shape {logical_shape!r}, "
                 f"but method {method_spec.method_id!r} supports {list(method_spec.output_shapes)!r}."
+            )
+        semantic_kind = expected_output.get("semantic_kind")
+        if semantic_kind is None or not method_spec.semantic_output_kinds:
+            return
+        if semantic_kind not in set(method_spec.semantic_output_kinds):
+            raise PlanningError(
+                f"Plan step {step_id!r} expects semantic_kind {semantic_kind!r}, "
+                f"but method {method_spec.method_id!r} supports {list(method_spec.semantic_output_kinds)!r}."
             )
 
     def _validate_parameter_fields(

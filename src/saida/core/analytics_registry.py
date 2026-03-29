@@ -32,9 +32,12 @@ class AnalyticsMethodSpec:
     dependency_rules: tuple[str, ...] = ()
     input_artifact_kinds: tuple[str, ...] = ()
     output_artifact_kinds: tuple[str, ...] = ()
+    semantic_input_kinds: tuple[str, ...] = ()
+    semantic_output_kinds: tuple[str, ...] = ()
     consumes: tuple[str, ...] = ()
     node_kind: AnalyticsNodeKind = "source"
     default_output_kind: str | None = None
+    default_semantic_kind: str | None = None
     default_tool_family: str | None = None
     availability: AnalyticsAvailability = "implemented"
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -51,9 +54,12 @@ class AnalyticsMethodSpec:
             "dependency_rules": list(self.dependency_rules),
             "input_artifact_kinds": list(self.input_artifact_kinds),
             "output_artifact_kinds": list(self.output_artifact_kinds),
+            "semantic_input_kinds": list(self.semantic_input_kinds),
+            "semantic_output_kinds": list(self.semantic_output_kinds),
             "consumes": list(self.consumes),
             "node_kind": self.node_kind,
             "default_output_kind": self.default_output_kind,
+            "default_semantic_kind": self.default_semantic_kind,
             "default_tool_family": self.default_tool_family,
             "availability": self.availability,
             "metadata": dict(self.metadata),
@@ -415,10 +421,16 @@ def _register_methods(
     definitions: tuple[tuple[str, str, str, tuple[str, ...], tuple[str, ...], tuple[str, ...], str | None], ...],
 ) -> None:
     for method_id, label, description, required_inputs, allowed_configs, output_shapes, tool_family in definitions:
-        input_artifact_kinds, output_artifact_kinds, consumes, node_kind, default_output_kind = _derive_method_artifact_contract(
-            required_inputs,
-            output_shapes,
-        )
+        (
+            input_artifact_kinds,
+            output_artifact_kinds,
+            semantic_input_kinds,
+            semantic_output_kinds,
+            consumes,
+            node_kind,
+            default_output_kind,
+            default_semantic_kind,
+        ) = _derive_method_artifact_contract(method_id, required_inputs, output_shapes)
         registry.add_method(
             AnalyticsMethodSpec(
                 method_id=method_id,
@@ -430,18 +442,31 @@ def _register_methods(
                 output_shapes=output_shapes,
                 input_artifact_kinds=input_artifact_kinds,
                 output_artifact_kinds=output_artifact_kinds,
+                semantic_input_kinds=semantic_input_kinds,
+                semantic_output_kinds=semantic_output_kinds,
                 consumes=consumes,
                 node_kind=node_kind,
                 default_output_kind=default_output_kind,
+                default_semantic_kind=default_semantic_kind,
                 default_tool_family=tool_family,
             )
         )
 
 
 def _derive_method_artifact_contract(
+    method_id: str,
     required_inputs: tuple[str, ...],
     output_shapes: tuple[str, ...],
-) -> tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...], AnalyticsNodeKind, str | None]:
+) -> tuple[
+    tuple[str, ...],
+    tuple[str, ...],
+    tuple[str, ...],
+    tuple[str, ...],
+    tuple[str, ...],
+    AnalyticsNodeKind,
+    str | None,
+    str | None,
+]:
     input_artifact_kinds: list[str] = []
     consumes: list[str] = []
     if "dataset" in required_inputs:
@@ -450,18 +475,33 @@ def _derive_method_artifact_contract(
     else:
         input_artifact_kinds.append("artifact")
         consumes.append("artifact")
+    semantic_input_kinds = list(_semantic_input_kinds_for_method(method_id))
 
     output_artifact_kinds: list[str] = []
+    semantic_output_kinds: list[str] = []
     for output_shape in output_shapes:
         output_kind = _artifact_kind_for_output_shape(output_shape)
         if output_kind not in output_artifact_kinds:
             output_artifact_kinds.append(output_kind)
+        semantic_kind = _semantic_kind_for_method_output(method_id, output_shape)
+        if semantic_kind not in semantic_output_kinds:
+            semantic_output_kinds.append(semantic_kind)
 
     node_kind: AnalyticsNodeKind = "source" if "dataset" in consumes else "transform"
     default_output_kind = output_artifact_kinds[0] if output_artifact_kinds else None
+    default_semantic_kind = semantic_output_kinds[0] if semantic_output_kinds else None
     if not output_artifact_kinds:
         node_kind = "terminal"
-    return tuple(input_artifact_kinds), tuple(output_artifact_kinds), tuple(consumes), node_kind, default_output_kind
+    return (
+        tuple(input_artifact_kinds),
+        tuple(output_artifact_kinds),
+        tuple(semantic_input_kinds),
+        tuple(semantic_output_kinds),
+        tuple(consumes),
+        node_kind,
+        default_output_kind,
+        default_semantic_kind,
+    )
 
 
 def _artifact_kind_for_output_shape(output_shape: str) -> str:
@@ -472,6 +512,40 @@ def _artifact_kind_for_output_shape(output_shape: str) -> str:
     if output_shape == "forecast_result":
         return "forecast"
     return "frame"
+
+
+def _semantic_input_kinds_for_method(method_id: str) -> tuple[str, ...]:
+    if method_id in {"join_frame", "union_frame"}:
+        return ("table",)
+    return ("dataset_or_frame",)
+
+
+def _semantic_kind_for_method_output(method_id: str, output_shape: str) -> str:
+    if output_shape == "verification":
+        return "verification_result"
+    if output_shape == "statistical_test":
+        return "statistical_test"
+    if output_shape in {"scalar", "count", "aggregate"}:
+        return "scalar"
+    if method_id in {"group_frame", "aggregate_frame", "group_breakdown", "grouped_tabular_query", "count_rows_by_group"}:
+        return "grouped_table"
+    if method_id in {"rank_frame", "ranked_rows", "ranked_breakdown"}:
+        return "ranked_table"
+    if method_id in {
+        "time_bucket_frame",
+        "time_bucket_counts",
+        "time_bucket_breakdown",
+        "time_trend",
+        "time_coverage",
+        "period_comparison",
+        "grouped_period_comparison",
+        "top_movers",
+        "contribution_breakdown",
+    }:
+        return "time_series"
+    if method_id == "forecast":
+        return "prediction_series"
+    return "table"
 
 
 def _register_primitive_concepts(registry: AnalyticsRegistry) -> None:

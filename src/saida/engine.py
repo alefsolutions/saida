@@ -475,6 +475,7 @@ class Saida:
                 value=artifact.serialize_value(),
                 logical_shape=artifact.logical_shape,
                 physical_shape=artifact.physical_shape,
+                semantic_kind=artifact.semantic_kind,
                 producer_step_id=artifact.producer_step_id,
                 metadata=dict(artifact.metadata),
             )

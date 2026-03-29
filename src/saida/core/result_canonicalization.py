@@ -8,6 +8,7 @@ from typing import Any
 
 import pandas as pd
 
+from saida.core.artifacts import infer_semantic_kind
 from saida.core.contracts import (
     AnalysisInterpretation,
     AnalysisPlan,
@@ -655,6 +656,7 @@ class ResultCanonicalizer:
             "description": metric.description,
             "physical_shape": "scalar",
             "logical_shape": logical_shape,
+            "semantic_kind": infer_semantic_kind(kind="scalar", logical_shape=logical_shape, metadata={"metric_name": metric.name}),
             "dtype": self._dtype_from_value(metric.value),
             "schema": [],
             "dimensions": [],
@@ -669,6 +671,12 @@ class ResultCanonicalizer:
             "description": None,
             "physical_shape": artifact.physical_shape or "object",
             "logical_shape": artifact.logical_shape or artifact.kind,
+            "semantic_kind": artifact.semantic_kind or infer_semantic_kind(
+                kind=artifact.kind,
+                logical_shape=artifact.logical_shape,
+                metadata=dict(artifact.metadata),
+                value=artifact.value,
+            ),
             "dtype": artifact.kind,
             "schema": [],
             "dimensions": [],
@@ -695,6 +703,12 @@ class ResultCanonicalizer:
             "description": table.description,
             "physical_shape": physical_shape,
             "logical_shape": self._logical_shape_for_table(table.name),
+            "semantic_kind": infer_semantic_kind(
+                kind="frame",
+                logical_shape=self._logical_shape_for_table(table.name),
+                metadata={"table_name": table.name, **dict(table.metadata)},
+                value=dataframe,
+            ),
             "dtype": self._dtype_for_table_result(dataframe, physical_shape),
             "schema": self._schema_for_dataframe(dataframe),
             "dimensions": dimensions,

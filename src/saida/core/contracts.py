@@ -181,6 +181,7 @@ class StepOutputSpec:
     kind: str
     logical_shape: str | None = None
     physical_shape: str | None = None
+    semantic_kind: str | None = None
     is_primary: bool = True
     metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -251,6 +252,7 @@ class ExecutionArtifact:
     value: Any
     logical_shape: str | None = None
     physical_shape: str | None = None
+    semantic_kind: str | None = None
     producer_step_id: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
