@@ -52,6 +52,21 @@ Quick links:
 - Rewrote the main docs around the cleaned plan-first framework model.
 - Shortened README to focus on adoption, core usage, and next docs to read.
 - Updated architecture, API, schema, and file-structure docs to consistently position prompt and LLM features as optional frontend layers.
+- Added DAG execution and plan-authoring guidance, including explicit step input/output contracts and `final_output_ref`.
+
+### DAG Execution
+
+- Added typed runtime artifacts and an execution-scoped artifact store for graph-aware plan execution.
+- Upgraded validation to check graph references, output ref uniqueness, cycle safety, and `final_output_ref`.
+- Added deterministic DAG scheduling so step dependencies can be resolved from both `depends_on` edges and step-output bindings.
+- Extended prompt-generated plans so they emit DAG-ready `inputs`, `outputs`, `output_refs`, and `final_output_ref`.
+
+### Compatibility And Release Hardening
+
+- Preserved `saida.response.v2` as the public response schema while surfacing DAG execution details under `execution` and `meta`.
+- Preserved compatibility for legacy authored single-step plans by binding missing dataset inputs, output refs, expected outputs, and `final_output_ref`.
+- Added compatibility metadata to execution results so callers can see when legacy plan shims were applied.
+- Kept execution deterministic and single-threaded for the current release scope.
 
 ### Still Present But Optional
 

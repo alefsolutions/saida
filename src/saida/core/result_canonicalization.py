@@ -205,6 +205,8 @@ class ResultCanonicalizer:
             artifact_id: self._execution_artifact_payload(artifact)
             for artifact_id, artifact in artifact_index.items()
         }
+        execution_model = plan.metadata.get("execution_model") if isinstance(plan.metadata, dict) else None
+        compatibility = dict(plan.metadata.get("compatibility") or {}) if isinstance(plan.metadata, dict) else {}
 
         return self._json_safe(
             {
@@ -245,6 +247,8 @@ class ResultCanonicalizer:
                 "node_results": [result.to_dict() for result in node_results],
                 "final_output_ref": plan.final_output_ref,
                 "artifact_index": serialized_artifact_index,
+                "execution_model": execution_model,
+                "compatibility": compatibility,
             },
             "result": primary_result,
             "tables": table_entries,
@@ -278,6 +282,8 @@ class ResultCanonicalizer:
                 "metric_lookup": metric_lookup,
                 "artifact_ids": list(artifact_index),
                 "artifact_index": serialized_artifact_index,
+                "execution_model": execution_model,
+                "compatibility": compatibility,
                 "table_names": [table.name for table in tables],
             },
             }
