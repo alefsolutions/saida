@@ -203,11 +203,19 @@ class ResultCanonicalizer:
         output_declarations = self._output_declaration_map(plan)
         primary_result = self._select_primary_result(plan, request, metrics, tables, artifact_index, output_declarations)
         table_entries = [self._table_entry(table) for table in tables]
+        terminal_ref = self._resolve_terminal_output_ref(plan, artifact_index)
+        secondary_output_refs = self._secondary_output_refs(plan, artifact_index)
         serialized_artifact_index = {
-            artifact_id: self._execution_artifact_payload(artifact, declaration=output_declarations.get(artifact_id))
+            artifact_id: self._serialized_artifact_payload(
+                artifact_id,
+                artifact,
+                plan,
+                declaration=output_declarations.get(artifact_id),
+                terminal_ref=terminal_ref,
+                secondary_output_refs=secondary_output_refs,
+            )
             for artifact_id, artifact in artifact_index.items()
         }
-        terminal_ref = self._resolve_terminal_output_ref(plan, artifact_index)
         secondary_outputs = self._secondary_terminal_outputs(plan, artifact_index, output_declarations)
         terminal_lineage = self._terminal_lineage(plan, terminal_ref)
         graph_summary = self._graph_execution_summary(plan, artifact_index, secondary_outputs, terminal_ref)
@@ -621,15 +629,22 @@ class ResultCanonicalizer:
         artifact_index: dict[str, ExecutionArtifact],
         output_declarations: dict[str, dict[str, Any]],
     ) -> list[dict[str, object]]:
-        terminal_ref = self._resolve_terminal_output_ref(plan, artifact_index)
-        secondary_refs = [
-            output_ref
-            for output_ref in self._leaf_output_refs(plan, artifact_index)
-            if output_ref != terminal_ref
-        ]
+        secondary_refs = self._secondary_output_refs(plan, artifact_index)
         return [
             self._execution_artifact_payload(artifact_index[output_ref], declaration=output_declarations.get(output_ref))
             for output_ref in secondary_refs
+        ]
+
+    def _secondary_output_refs(
+        self,
+        plan: AnalysisPlan,
+        artifact_index: dict[str, ExecutionArtifact],
+    ) -> list[str]:
+        terminal_ref = self._resolve_terminal_output_ref(plan, artifact_index)
+        return [
+            output_ref
+            for output_ref in self._leaf_output_refs(plan, artifact_index)
+            if output_ref != terminal_ref
         ]
 
     def _terminal_lineage(self, plan: AnalysisPlan, terminal_ref: str | None) -> dict[str, object] | None:
@@ -695,6 +710,68 @@ class ResultCanonicalizer:
             "terminal_output_ref": terminal_ref,
             "secondary_output_count": len(secondary_outputs),
         }
+
+    def _serialized_artifact_payload(
+        self,
+        artifact_id: str,
+        artifact: ExecutionArtifact,
+        plan: AnalysisPlan,
+        *,
+        declaration: dict[str, Any] | None,
+        terminal_ref: str | None,
+        secondary_output_refs: list[str],
+    ) -> dict[str, object]:
+        if self._should_expose_artifact_fully(artifact_id, plan, terminal_ref, secondary_output_refs):
+            return self._execution_artifact_payload(artifact, declaration=declaration)
+        return self._execution_artifact_summary_payload(artifact, declaration=declaration)
+
+    def _should_expose_artifact_fully(
+        self,
+        artifact_id: str,
+        plan: AnalysisPlan,
+        terminal_ref: str | None,
+        secondary_output_refs: list[str],
+    ) -> bool:
+        if artifact_id == terminal_ref:
+            return True
+        if artifact_id in set(secondary_output_refs):
+            return True
+        plan_input_ids = {plan_input.input_id for plan_input in plan.inputs}
+        if artifact_id in plan_input_ids:
+            return False
+        return True
+
+    def _execution_artifact_summary_payload(
+        self,
+        artifact: ExecutionArtifact,
+        *,
+        declaration: dict[str, Any] | None = None,
+    ) -> dict[str, object]:
+        payload = self._execution_artifact_payload(artifact, declaration=declaration)
+        payload["value"] = self._artifact_value_summary(artifact)
+        payload["summarized"] = True
+        return payload
+
+    def _artifact_value_summary(self, artifact: ExecutionArtifact) -> dict[str, object] | object:
+        value = artifact.value
+        if artifact.kind == "scalar":
+            return self._json_safe(value)
+        if isinstance(value, list):
+            row_count = len(value)
+            columns: list[str] = []
+            if value and isinstance(value[0], dict):
+                columns = [str(column) for column in value[0].keys()]
+            return {
+                "row_count": row_count,
+                "column_count": len(columns),
+                "columns": columns,
+            }
+        if isinstance(value, dict):
+            return {
+                "field_count": len(value),
+                "fields": [str(field_name) for field_name in value.keys()],
+            }
+        return {"kind": artifact.kind}
 
     def _logical_shape_for_metric(self, metric_name: str) -> str:
         if metric_name == "row_count" or metric_name.endswith("_count"):

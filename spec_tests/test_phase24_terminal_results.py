@@ -3,6 +3,7 @@ from __future__ import annotations
 from saida.core import ResultBuilder
 from saida.core.contracts import (
     AnalysisPlan,
+    PlanInput,
     AnalysisRequest,
     ExecutionArtifact,
     PlanStep,
@@ -202,3 +203,85 @@ def test_phase24_result_builder_uses_leaf_output_when_final_output_ref_missing_f
     assert result.response["execution"]["terminal_output_ref"] == "average_resolution"
     assert result.response["execution"]["terminal_lineage"]["producer_step_id"] == "aggregate_value"
     assert result.response["execution"]["graph_summary"]["secondary_output_count"] == 0
+
+
+def test_phase24_result_builder_summarizes_primary_dataset_artifact_but_keeps_terminal_records() -> None:
+    builder = ResultBuilder()
+    plan = AnalysisPlan(
+        task_type="descriptive",
+        rationale="Keep explicit record results while summarizing source artifacts.",
+        inputs=[PlanInput(input_id="primary_dataset", kind="dataset", ref="support")],
+        final_output_ref="tabular_query",
+        steps=[
+            PlanStep(
+                step_id="tabular_query",
+                tool_family="duckdb",
+                action="tabular_query",
+                method_id="tabular_query",
+                family="projection_field_selection",
+                parameters={},
+                description="Return requested records.",
+                output_refs=["tabular_query"],
+                outputs=[
+                    StepOutputSpec(
+                        output_id="tabular_query",
+                        kind="frame",
+                        logical_shape="recordset",
+                        physical_shape="recordset",
+                    )
+                ],
+            )
+        ],
+    )
+
+    result = builder.build_analysis_result(
+        summary="Tabular output.",
+        deterministic_summary="Tabular output.",
+        llm_summary=None,
+        summary_source="deterministic",
+        metrics=[],
+        tables=[],
+        warnings=[],
+        plan=plan,
+        request=AnalysisRequest(question="Show me the rows"),
+        profile=build_profile(),
+        trace=[],
+        artifact_index={
+            "primary_dataset": ExecutionArtifact(
+                artifact_id="primary_dataset",
+                kind="frame",
+                value=[
+                    {"ticket_id": "T1", "team": "Support", "resolution_hours": 4.0},
+                    {"ticket_id": "T2", "team": "Billing", "resolution_hours": 7.0},
+                ],
+                logical_shape="table",
+                physical_shape="recordset",
+                producer_step_id=None,
+            ),
+            "tabular_query": ExecutionArtifact(
+                artifact_id="tabular_query",
+                kind="frame",
+                value=[
+                    {"ticket_id": "T1", "team": "Support", "resolution_hours": 4.0},
+                    {"ticket_id": "T2", "team": "Billing", "resolution_hours": 7.0},
+                ],
+                logical_shape="recordset",
+                physical_shape="recordset",
+                producer_step_id="tabular_query",
+            ),
+        },
+    )
+
+    primary_dataset_payload = result.response["execution"]["artifact_index"]["primary_dataset"]
+
+    assert primary_dataset_payload["summarized"] is True
+    assert primary_dataset_payload["value"] == {
+        "row_count": 2,
+        "column_count": 3,
+        "columns": ["ticket_id", "team", "resolution_hours"],
+    }
+    assert result.response["result"]["name"] == "tabular_query"
+    assert result.response["result"]["value"] == [
+        {"ticket_id": "T1", "team": "Support", "resolution_hours": 4.0},
+        {"ticket_id": "T2", "team": "Billing", "resolution_hours": 7.0},
+    ]
