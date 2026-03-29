@@ -7,6 +7,7 @@ from typing import Any, Literal
 
 AnalyticsAvailability = Literal["implemented", "partial", "planned"]
 AnalyticsConceptCategory = Literal["domain", "pattern", "constraint", "primitive"]
+AnalyticsNodeKind = Literal["source", "transform", "terminal"]
 AnalyticsRelation = Literal[
     "specializes",
     "requires",
@@ -29,6 +30,11 @@ class AnalyticsMethodSpec:
     allowed_configs: tuple[str, ...] = ()
     output_shapes: tuple[str, ...] = ()
     dependency_rules: tuple[str, ...] = ()
+    input_artifact_kinds: tuple[str, ...] = ()
+    output_artifact_kinds: tuple[str, ...] = ()
+    consumes: tuple[str, ...] = ()
+    node_kind: AnalyticsNodeKind = "source"
+    default_output_kind: str | None = None
     default_tool_family: str | None = None
     availability: AnalyticsAvailability = "implemented"
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -43,6 +49,11 @@ class AnalyticsMethodSpec:
             "allowed_configs": list(self.allowed_configs),
             "output_shapes": list(self.output_shapes),
             "dependency_rules": list(self.dependency_rules),
+            "input_artifact_kinds": list(self.input_artifact_kinds),
+            "output_artifact_kinds": list(self.output_artifact_kinds),
+            "consumes": list(self.consumes),
+            "node_kind": self.node_kind,
+            "default_output_kind": self.default_output_kind,
             "default_tool_family": self.default_tool_family,
             "availability": self.availability,
             "metadata": dict(self.metadata),
@@ -374,6 +385,10 @@ def _register_methods(
     definitions: tuple[tuple[str, str, str, tuple[str, ...], tuple[str, ...], tuple[str, ...], str | None], ...],
 ) -> None:
     for method_id, label, description, required_inputs, allowed_configs, output_shapes, tool_family in definitions:
+        input_artifact_kinds, output_artifact_kinds, consumes, node_kind, default_output_kind = _derive_method_artifact_contract(
+            required_inputs,
+            output_shapes,
+        )
         registry.add_method(
             AnalyticsMethodSpec(
                 method_id=method_id,
@@ -383,9 +398,50 @@ def _register_methods(
                 required_inputs=required_inputs,
                 allowed_configs=allowed_configs,
                 output_shapes=output_shapes,
+                input_artifact_kinds=input_artifact_kinds,
+                output_artifact_kinds=output_artifact_kinds,
+                consumes=consumes,
+                node_kind=node_kind,
+                default_output_kind=default_output_kind,
                 default_tool_family=tool_family,
             )
         )
+
+
+def _derive_method_artifact_contract(
+    required_inputs: tuple[str, ...],
+    output_shapes: tuple[str, ...],
+) -> tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...], AnalyticsNodeKind, str | None]:
+    input_artifact_kinds: list[str] = []
+    consumes: list[str] = []
+    if "dataset" in required_inputs:
+        input_artifact_kinds.append("dataset")
+        consumes.append("dataset")
+    else:
+        input_artifact_kinds.append("artifact")
+        consumes.append("artifact")
+
+    output_artifact_kinds: list[str] = []
+    for output_shape in output_shapes:
+        output_kind = _artifact_kind_for_output_shape(output_shape)
+        if output_kind not in output_artifact_kinds:
+            output_artifact_kinds.append(output_kind)
+
+    node_kind: AnalyticsNodeKind = "source" if "dataset" in consumes else "transform"
+    default_output_kind = output_artifact_kinds[0] if output_artifact_kinds else None
+    if not output_artifact_kinds:
+        node_kind = "terminal"
+    return tuple(input_artifact_kinds), tuple(output_artifact_kinds), tuple(consumes), node_kind, default_output_kind
+
+
+def _artifact_kind_for_output_shape(output_shape: str) -> str:
+    if output_shape in {"scalar", "count", "aggregate"}:
+        return "scalar"
+    if output_shape == "verification":
+        return "verification"
+    if output_shape == "forecast_result":
+        return "forecast"
+    return "frame"
 
 
 def _register_primitive_concepts(registry: AnalyticsRegistry) -> None:
