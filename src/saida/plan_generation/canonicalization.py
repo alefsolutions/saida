@@ -385,6 +385,48 @@ PROPERTY_KEYWORD_GROUPS = {
     "numeric": NUMERIC_PROPERTY_KEYWORDS,
     "categorical": CATEGORICAL_PROPERTY_KEYWORDS,
 }
+TIME_BUCKET_KEYWORD_GROUPS = {
+    "year": TIME_BUCKET_COUNT_YEAR_KEYWORDS | TIME_BUCKET_BREAKDOWN_YEAR_KEYWORDS | {"yearly"},
+    "month": TIME_BUCKET_COUNT_MONTH_KEYWORDS | TIME_BUCKET_BREAKDOWN_MONTH_KEYWORDS | {"monthly", "month over month"},
+    "quarter": TIME_BUCKET_COUNT_QUARTER_KEYWORDS | TIME_BUCKET_BREAKDOWN_QUARTER_KEYWORDS | {"quarterly"},
+}
+RESERVED_FLAG_ALIAS_KEYWORDS = {
+    "avg",
+    "average",
+    "bottom",
+    "column",
+    "columns",
+    "compare",
+    "count",
+    "counts",
+    "dimension",
+    "dimensions",
+    "display",
+    "field",
+    "fields",
+    "highest",
+    "list",
+    "max",
+    "mean",
+    "measure",
+    "measures",
+    "metric",
+    "metrics",
+    "min",
+    "month",
+    "quarter",
+    "record",
+    "records",
+    "row",
+    "rows",
+    "show",
+    "sum",
+    "table",
+    "top",
+    "total",
+    "trend",
+    "year",
+}
 
 
 class InputCanonicalizer:
@@ -399,6 +441,7 @@ class InputCanonicalizer:
             distinct_count_keywords=DISTINCT_COUNT_KEYWORDS,
             row_count_phrases=ROW_COUNT_PHRASES,
             property_keywords=PROPERTY_KEYWORD_GROUPS,
+            time_bucket_keywords=TIME_BUCKET_KEYWORD_GROUPS,
         )
         self._entity_cache: dict[tuple[str, tuple[str, ...], tuple[str, ...], tuple[str, ...]], EntityExtractionResult] = {}
 
@@ -468,21 +511,16 @@ class InputCanonicalizer:
         intent_name = self._resolve_ranking_intent(question, intent_name, target, group_by, profile, options)
         if intent_name in {"row_ranking", "group_ranking"}:
             aggregation = None
-        intent_name = self._resolve_tabular_intent(
+        intent_name, target, aggregation, group_by = self._finalize_frontend_intent(
             question,
+            profile,
+            surface,
             intent_name,
             target,
-            group_by,
-            selected_columns,
-            filters,
             aggregation,
+            group_by,
+            options,
         )
-        if intent_name == "grouped_tabular_query" and target in set(group_by or []) and target not in set(profile.measure_columns):
-            target = None
-        if self._looks_like_grouped_entity_count_request(question, target, group_by, profile):
-            intent_name = "grouped_tabular_query"
-            target = None
-            aggregation = "count"
         if intent_name == "existence_check":
             target, aggregation, group_by = self._configure_existence_request(
                 question,
@@ -728,21 +766,16 @@ class InputCanonicalizer:
         rule_intent_name = self._resolve_ranking_intent(rule_question, rule_intent_name, target or rule_target, group_by or rule_group_by, profile, options)
         if rule_intent_name in {"row_ranking", "group_ranking"}:
             aggregation = None
-        rule_intent_name = self._resolve_tabular_intent(
+        rule_intent_name, target, aggregation, group_by = self._finalize_frontend_intent(
             rule_question,
+            profile,
+            surface,
             rule_intent_name,
             target or rule_target,
-            group_by or rule_group_by,
-            rule_selected_columns,
-            filters or rule_filters,
             aggregation or rule_aggregation,
+            group_by or rule_group_by,
+            options,
         )
-        if rule_intent_name == "grouped_tabular_query" and target in set(group_by or []) and target not in set(profile.measure_columns):
-            target = None
-        if self._looks_like_grouped_entity_count_request(rule_question, target, group_by, profile):
-            rule_intent_name = "grouped_tabular_query"
-            target = None
-            aggregation = "count"
         if rule_intent_name == "existence_check":
             target, aggregation, group_by = self._configure_existence_request(
                 rule_question,
@@ -1364,6 +1397,8 @@ class InputCanonicalizer:
     def _extract_group_by(self, question: str, profile: DatasetProfile) -> list[str] | None:
         lowered = question.lower()
         matches: list[str] = []
+        named_columns = self._extract_named_columns(question, profile)
+        named_dimensions = [column for column in named_columns if column in set(profile.dimension_columns)]
 
         if " by " in lowered:
             _, suffix = lowered.split(" by ", 1)
@@ -1375,6 +1410,8 @@ class InputCanonicalizer:
                 matches.extend(column for column in profile.dimension_columns if column.lower() in suffix)
 
         matches = list(dict.fromkeys(matches))
+        if not matches and self._extract_ranking_request(question) is not None:
+            matches.extend(named_dimensions)
         return matches or None
 
     def _extract_selected_columns(
@@ -1773,6 +1810,9 @@ class InputCanonicalizer:
             if column.name.lower().endswith("_flag"):
                 sample_values = {str(value).lower() for value in column.sample_values if isinstance(value, str)}
                 if {"yes", "no"}.issubset(sample_values):
+                    alias = column.name[:-5].lower()
+                    if alias in RESERVED_FLAG_ALIAS_KEYWORDS:
+                        continue
                     aliases[column.name[:-5]] = "yes"
         return aliases
 
@@ -1894,6 +1934,7 @@ class InputCanonicalizer:
             aggregation=aggregation,
             group_by=group_by,
             statistical_test=statistical_test,
+            ranking_requested=self._extract_ranking_request(question) is not None or intent_name in {"row_ranking", "group_ranking"},
         )
         if frontend_intent is None:
             return None
@@ -1935,13 +1976,6 @@ class InputCanonicalizer:
         object_kind = semantic_intent.get("object_kind")
         object_ref = semantic_intent.get("object_ref")
 
-        if operation == "count" and object_kind == "rows":
-            self._clear_existence_options(options)
-            return "row_count", None, "count", None, filters, time_reference
-        if operation == "list" and object_kind == "rows":
-            self._clear_existence_options(options)
-            return "tabular_query", None, None, group_by, filters, time_reference
-
         metadata_count_mapping = {
             "columns": "column_count",
             "numeric_columns": "numeric_column_count",
@@ -1965,6 +1999,8 @@ class InputCanonicalizer:
 
         if object_kind == "measure" and isinstance(object_ref, str) and operation in {"sum", "mean", "max", "min"}:
             self._clear_existence_options(options)
+            if intent_name in {"row_ranking", "group_ranking", "time_bucket_breakdown", "time_period_comparison"}:
+                return intent_name, object_ref, aggregation, group_by, filters, time_reference
             return intent_name, object_ref, operation, group_by, filters, time_reference
 
         return intent_name, target, aggregation, group_by, filters, time_reference
@@ -2601,45 +2637,66 @@ class InputCanonicalizer:
             return "row_ranking"
         return intent_name
 
-    def _resolve_tabular_intent(
+    def _finalize_frontend_intent(
         self,
         question: str,
+        profile: DatasetProfile,
+        surface: EntityExtractionResult,
         intent_name: str | None,
         target: str | None,
-        group_by: list[str] | None,
-        selected_columns: list[str] | None,
-        filters: dict[str, object] | None,
         aggregation: str | None,
-    ) -> str | None:
-        if intent_name in {"row_ranking", "group_ranking", "time_bucket_counts", "time_bucket_breakdown", "time_period_comparison"}:
-            return intent_name
-        if intent_name != "tabular_query":
-            return intent_name
-        lowered = question.lower()
-        if group_by and ("table" in lowered or "tabular" in lowered or aggregation or target):
-            return "grouped_tabular_query"
-        if group_by and not any(keyword in lowered for keyword in TABULAR_ROW_KEYWORDS | TABULAR_SURFACE_KEYWORDS):
-            return intent_name
-        if selected_columns or filters or any(keyword in lowered for keyword in TABULAR_ROW_KEYWORDS | TABULAR_SURFACE_KEYWORDS):
-            return "tabular_query"
-        return intent_name
-
-    def _looks_like_grouped_entity_count_request(
-        self,
-        question: str,
-        target: str | None,
         group_by: list[str] | None,
-        profile: DatasetProfile,
-    ) -> bool:
-        if not group_by or not target:
-            return False
-        if target not in set(group_by):
-            return False
-        if target in set(profile.measure_columns):
-            return False
+        options: dict[str, object],
+    ) -> tuple[str | None, str | None, str | None, list[str] | None]:
+        frontend_intent = self.intent_resolver.derive_semantic_intent(
+            surface=surface,
+            profile=profile,
+            intent_name=intent_name,
+            target=target,
+            aggregation=aggregation,
+            group_by=group_by,
+            statistical_test=options.get("statistical_test") if isinstance(options.get("statistical_test"), str) else None,
+            ranking_requested=self._extract_ranking_request(question) is not None or intent_name in {"row_ranking", "group_ranking"},
+        )
+        if frontend_intent is None:
+            return intent_name, target, aggregation, group_by
 
-        surface = self.extract_prompt_entities(question, profile)
-        return self.intent_resolver.contains_any(surface, {"count", "how many", "number of", "total"})
+        resolved_intent = frontend_intent.intent_name or intent_name
+        resolved_target = frontend_intent.object_ref or target
+        resolved_group_by = list(frontend_intent.group_refs or group_by or []) or None
+        resolved_aggregation = aggregation
+
+        if frontend_intent.time_bucket is not None:
+            options["time_bucket"] = frontend_intent.time_bucket
+
+        if resolved_intent == "tabular_query":
+            resolved_target = None
+            resolved_group_by = None
+            resolved_aggregation = None
+        if resolved_intent == "time_bucket_breakdown":
+            resolved_aggregation = None
+        elif resolved_intent == "time_bucket_counts":
+            resolved_target = None
+            resolved_group_by = None
+            resolved_aggregation = "count"
+        elif resolved_intent == "grouped_tabular_query":
+            if frontend_intent.operation == "count":
+                resolved_target = None
+                resolved_aggregation = "count"
+            else:
+                resolved_aggregation = frontend_intent.operation or aggregation or "sum"
+            if resolved_group_by and resolved_target in set(resolved_group_by) and resolved_target not in set(profile.measure_columns):
+                resolved_target = None
+        elif resolved_intent == "group_ranking":
+            resolved_aggregation = None
+        elif resolved_intent == "row_ranking":
+            resolved_aggregation = None
+        elif resolved_intent == "row_count":
+            resolved_target = None
+            resolved_group_by = None
+            resolved_aggregation = "count"
+
+        return resolved_intent, resolved_target, resolved_aggregation, resolved_group_by
 
     def _resolve_candidate_column(
         self,

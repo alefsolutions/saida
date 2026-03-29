@@ -206,8 +206,23 @@ class PromptEntityExtractor:
         spaced = lowered.replace("_", " ")
         if spaced != lowered:
             aliases.append(spaced)
-        if "_" not in lowered and not lowered.endswith("s"):
-            aliases.append(f"{lowered}s")
-        if " " in spaced and not spaced.endswith("s"):
-            aliases.append(f"{spaced}s")
+        pluralized_lowered = self._pluralize(lowered)
+        if pluralized_lowered is not None:
+            aliases.append(pluralized_lowered)
+        pluralized_spaced = self._pluralize(spaced)
+        if pluralized_spaced is not None:
+            aliases.append(pluralized_spaced)
         return list(dict.fromkeys(alias for alias in aliases if alias))
+
+    def _pluralize(self, value: str) -> str | None:
+        if not value or value.endswith("s"):
+            return None
+        if " " in value:
+            parts = value.split(" ")
+            plural_tail = self._pluralize(parts[-1])
+            if plural_tail is None:
+                return None
+            return " ".join([*parts[:-1], plural_tail])
+        if value.endswith("y") and len(value) > 1 and value[-2] not in "aeiou":
+            return f"{value[:-1]}ies"
+        return f"{value}s"

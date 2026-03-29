@@ -3,6 +3,7 @@ from __future__ import annotations
 import pandas as pd
 
 from saida.core.contracts import ColumnProfile, Dataset, DatasetProfile
+from saida.llm import IntentProposal
 from saida.plan_generation import PromptEntityExtractor, RequestNormalizer
 
 
@@ -172,3 +173,137 @@ def test_normalizer_keeps_property_keywords_inside_field_names_from_becoming_pro
     assert request.intent_name == "existence_check"
     assert request.options["existence_mode"] == "column_presence_check"
     assert request.options["requested_column"] == "measure_score"
+
+
+def test_normalizer_routes_grouped_metric_prompt_to_grouped_tabular_query() -> None:
+    normalizer = RequestNormalizer()
+
+    request, warnings = normalizer.normalize(
+        "Show total total_sales by country as table.",
+        build_collision_dataset(),
+        build_collision_profile(),
+        None,
+    )
+
+    assert warnings == []
+    assert request.intent_name == "grouped_tabular_query"
+    assert request.prompt_family == "grouped_metric_table"
+    assert request.target == "total_sales"
+    assert request.aggregation == "sum"
+    assert request.group_by == ["country"]
+
+
+def test_normalizer_routes_grouped_row_count_prompt_to_grouped_entity_count() -> None:
+    normalizer = RequestNormalizer()
+
+    request, warnings = normalizer.normalize(
+        "Count rows by country.",
+        build_collision_dataset(),
+        build_collision_profile(),
+        None,
+    )
+
+    assert warnings == []
+    assert request.intent_name == "grouped_tabular_query"
+    assert request.prompt_family == "grouped_entity_count"
+    assert request.target is None
+    assert request.aggregation == "count"
+    assert request.group_by == ["country"]
+
+
+def test_normalizer_routes_time_bucket_row_count_prompt_to_time_bucket_counts() -> None:
+    normalizer = RequestNormalizer()
+
+    request, warnings = normalizer.normalize(
+        "Count rows by month.",
+        build_collision_dataset(),
+        build_collision_profile(),
+        None,
+    )
+
+    assert warnings == []
+    assert request.intent_name == "time_bucket_counts"
+    assert request.prompt_family == "time_bucket_counts"
+    assert request.target is None
+    assert request.aggregation is None
+    assert request.options["time_bucket"] == "month"
+
+
+def test_normalizer_routes_plural_dimension_group_ranking_prompt() -> None:
+    normalizer = RequestNormalizer()
+
+    request, warnings = normalizer.normalize(
+        "Show the top 3 countries by total total_sales.",
+        build_collision_dataset(),
+        build_collision_profile(),
+        None,
+    )
+
+    assert warnings == []
+    assert request.intent_name == "group_ranking"
+    assert request.target == "total_sales"
+    assert request.group_by == ["country"]
+    assert request.options["ranking_direction"] == "desc"
+    assert request.options["ranking_limit"] == 3
+
+
+def test_normalizer_with_llm_rewrite_preserves_time_bucket_breakdown() -> None:
+    normalizer = RequestNormalizer()
+    proposal = IntentProposal(
+        status="ready",
+        canonical_question="Show total total_sales grouped by month from order_date.",
+        confidence=1.0,
+        target="total_sales",
+        aggregation="sum",
+        operation="sum",
+        object_kind="measure",
+        object_ref="total_sales",
+        expected_result_shape="table",
+        candidate_capabilities=["aggregation", "time_buckets", "trend", "tabular"],
+    )
+
+    request, warnings = normalizer.normalize_with_proposal(
+        "Show total total_sales by month.",
+        build_collision_dataset(),
+        build_collision_profile(),
+        proposal,
+        None,
+    )
+
+    assert warnings == []
+    assert request.intent_name == "time_bucket_breakdown"
+    assert request.prompt_family == "time_bucket_breakdown"
+    assert request.target == "total_sales"
+    assert request.aggregation is None
+    assert request.options["time_bucket"] == "month"
+
+
+def test_normalizer_with_llm_rewrite_preserves_grouped_metric_intent() -> None:
+    normalizer = RequestNormalizer()
+    proposal = IntentProposal(
+        status="ready",
+        canonical_question="Show total total_sales grouped by country in a table.",
+        confidence=1.0,
+        target="total_sales",
+        aggregation="sum",
+        operation="sum",
+        object_kind="measure",
+        object_ref="total_sales",
+        expected_result_shape="table",
+        candidate_capabilities=["aggregation", "segmentation", "tabular"],
+    )
+
+    request, warnings = normalizer.normalize_with_proposal(
+        "Show total total_sales by country as table.",
+        build_collision_dataset(),
+        build_collision_profile(),
+        proposal,
+        None,
+    )
+
+    assert warnings == []
+    assert request.intent_name == "grouped_tabular_query"
+    assert request.prompt_family == "grouped_metric_table"
+    assert request.target == "total_sales"
+    assert request.aggregation == "sum"
+    assert request.group_by == ["country"]

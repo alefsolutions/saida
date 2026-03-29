@@ -55,6 +55,36 @@ class GroundedEntityProvider(BaseLlmProvider):
         return SummaryProposal(status="ready", summary=summary_context.deterministic_summary)
 
 
+class TimeBucketRewriteProvider(BaseLlmProvider):
+    provider_name = "openai"
+
+    def interpret_prompt(
+        self,
+        question: str,
+        dataset_name: str,
+        profile_summary: str,
+        context_summary: str | None,
+    ) -> IntentProposal | None:
+        _ = question
+        _ = dataset_name
+        _ = profile_summary
+        _ = context_summary
+        return IntentProposal(
+            status="ready",
+            canonical_question="Show total total_sales grouped by month from order_date.",
+            target="total_sales",
+            aggregation="sum",
+            operation="sum",
+            object_kind="measure",
+            object_ref="total_sales",
+            expected_result_shape="table",
+            confidence=1.0,
+        )
+
+    def generate_summary(self, summary_context: SummaryContext) -> SummaryProposal | None:
+        return SummaryProposal(status="ready", summary=summary_context.deterministic_summary)
+
+
 def test_rule_based_plan_generator_produces_row_count_plan() -> None:
     engine = PromptAnalysisFrontend()
     dataset = build_support_dataset()
@@ -107,3 +137,19 @@ def test_llm_assisted_plan_generator_passes_grounded_entity_summary_to_provider(
     assert provider.last_context_summary is not None
     assert "Resolved fields: total_sales." in provider.last_context_summary
     assert "Masked question: Does the dataset contain a [ENTITY] column?." in provider.last_context_summary
+
+
+def test_llm_assisted_plan_generator_keeps_time_bucket_breakdown_for_grouped_month_rewrite() -> None:
+    provider = TimeBucketRewriteProvider()
+    engine = PromptAnalysisFrontend(llm_provider=provider)
+    dataset = build_support_dataset()
+    dataset.data = dataset.data.rename(columns={"resolution_hours": "total_sales", "created_at": "order_date"})
+    profile = engine.profile(dataset)
+    generator = LlmAssistedPlanGenerator(engine.canonicalizer, engine.plan_builder, provider)
+
+    generation = generator.generate("Show total total_sales by month.", dataset, profile, dataset.context)
+
+    assert generation.request.intent_name == "time_bucket_breakdown"
+    assert generation.request.prompt_family == "time_bucket_breakdown"
+    assert generation.request.options["time_bucket"] == "month"
+    assert generation.plan.steps[0].action == "time_bucket_breakdown"
