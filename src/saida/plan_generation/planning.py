@@ -7,7 +7,15 @@ from typing import Any, Literal
 
 from saida.core.analytics_registry import get_analytics_registry
 from saida.exceptions import PlanningError
-from saida.core.contracts import AnalysisPlan, AnalysisRequest, DatasetProfile, PlanStep, SourceContext
+from saida.core.contracts import (
+    AnalysisPlan,
+    AnalysisRequest,
+    DatasetProfile,
+    PlanStep,
+    SourceContext,
+    StepInputRef,
+    StepOutputSpec,
+)
 from saida.plan_generation.prompt_family_catalog import derive_prompt_family, get_prompt_family_catalog
 
 
@@ -771,8 +779,7 @@ class PlanBuilder:
                     description="Generate a forecast for the requested target.",
                 )
             ]
-            rationale = self._build_rationale(task_type, request, context)
-            return AnalysisPlan(task_type=task_type, rationale=rationale, steps=steps, warnings=warnings)
+            return self._finalize_plan(task_type, request, context, steps, warnings)
 
         if task_type == "predictive":
             warnings.append("Predictive model training is not implemented yet.")
@@ -1354,9 +1361,15 @@ class PlanBuilder:
         steps: list[PlanStep],
         warnings: list[str],
     ) -> AnalysisPlan:
-        normalized_steps = [self._normalize_step_parameters(step) for step in steps]
+        normalized_steps = [self._normalize_step_graph_contract(self._normalize_step_parameters(step)) for step in steps]
         rationale = self._build_rationale(task_type, request, context)
-        plan = AnalysisPlan(task_type=task_type, rationale=rationale, steps=normalized_steps, warnings=list(warnings))
+        plan = AnalysisPlan(
+            task_type=task_type,
+            rationale=rationale,
+            steps=normalized_steps,
+            warnings=list(warnings),
+            final_output_ref=self._infer_plan_final_output_ref(normalized_steps),
+        )
         if request.prompt_family:
             self._validate_family_plan(request.prompt_family, plan)
         return plan
@@ -1377,6 +1390,78 @@ class PlanBuilder:
             if name in supported_parameters and value is not None
         }
         return step
+
+    def _normalize_step_graph_contract(self, step: PlanStep) -> PlanStep:
+        method_id = step.method_id or step.action
+        method_spec = get_analytics_registry().get_method(method_id)
+
+        if step.method_id is None:
+            step.method_id = method_id
+        if step.family is None and method_spec is not None:
+            step.family = method_spec.family_id
+        if not step.inputs and method_spec is not None and "dataset" in method_spec.consumes:
+            step.inputs = [
+                StepInputRef(
+                    input_id="dataset_input",
+                    source_type="plan_input",
+                    ref="primary_dataset",
+                    expected_kind="dataset",
+                )
+            ]
+        if not step.output_refs and step.outputs:
+            primary_outputs = [output.output_id for output in step.outputs if output.is_primary]
+            step.output_refs = primary_outputs or [output.output_id for output in step.outputs]
+        if not step.output_refs:
+            step.output_refs = [step.step_id]
+        if not step.outputs:
+            inferred_output_spec = self._infer_step_output_spec(step, method_spec)
+            if inferred_output_spec is not None:
+                step.outputs = [inferred_output_spec]
+        if step.expected_output is None and step.outputs:
+            primary_output = next((output for output in step.outputs if output.is_primary), step.outputs[0])
+            step.expected_output = {
+                "output_id": primary_output.output_id,
+                "logical_shape": primary_output.logical_shape,
+                "physical_shape": primary_output.physical_shape,
+            }
+        return step
+
+    def _infer_step_output_spec(self, step: PlanStep, method_spec: object | None) -> StepOutputSpec | None:
+        output_ref = step.output_refs[0] if step.output_refs else step.step_id
+        expected_output = step.expected_output if isinstance(step.expected_output, dict) else {}
+        logical_shape = expected_output.get("logical_shape")
+        physical_shape = expected_output.get("physical_shape")
+        kind = None
+
+        if method_spec is not None:
+            if logical_shape is None and getattr(method_spec, "output_shapes", ()):
+                logical_shape = method_spec.output_shapes[0]
+            kind = getattr(method_spec, "default_output_kind", None)
+
+        if physical_shape is None and isinstance(logical_shape, str):
+            physical_shape = "scalar" if logical_shape in {"scalar", "count", "aggregate"} else "recordset"
+        if kind is None and isinstance(physical_shape, str):
+            kind = "scalar" if physical_shape == "scalar" else "frame"
+        if kind is None:
+            kind = "frame"
+
+        return StepOutputSpec(
+            output_id=output_ref,
+            kind=kind,
+            logical_shape=logical_shape if isinstance(logical_shape, str) else None,
+            physical_shape=physical_shape if isinstance(physical_shape, str) else None,
+        )
+
+    def _infer_plan_final_output_ref(self, steps: list[PlanStep]) -> str | None:
+        if not steps:
+            return None
+        first_step = steps[0]
+        if first_step.output_refs:
+            return first_step.output_refs[0]
+        if first_step.outputs:
+            primary_output = next((output for output in first_step.outputs if output.is_primary), first_step.outputs[0])
+            return primary_output.output_id
+        return first_step.step_id
 
     def _validate_family_plan(self, prompt_family: str, plan: AnalysisPlan) -> None:
         family_spec = get_prompt_family_catalog().get(prompt_family)
