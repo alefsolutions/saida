@@ -11,6 +11,8 @@ from saida.core.contracts import Dataset
 from saida.exceptions import AdapterError
 from saida.sources._helpers import build_dataset, load_context
 from saida.sources.interfaces import SQLSourceInterface
+from saida.sources.relational_schema import RelationalSchemaModel
+from saida.sources.sql_introspection import discover_relational_schema
 
 
 class SQLiteSource(SQLSourceInterface):
@@ -28,6 +30,7 @@ class SQLiteSource(SQLSourceInterface):
         self._query = query
         self.name = name
         self.context_path = Path(context_path) if context_path else None
+        self._schema_model: RelationalSchemaModel | None = None
 
     @property
     def source_type(self) -> str:
@@ -46,6 +49,19 @@ class SQLiteSource(SQLSourceInterface):
 
     def load_context(self) -> object:
         return load_context(self.context_path)
+
+    def discover_schema(self) -> RelationalSchemaModel:
+        """Inspect the SQLite database and return a canonical relational schema model."""
+        if self._schema_model is None:
+            if not self.database_path.exists():
+                raise AdapterError(f"SQLite database not found: {self.database_path}")
+            self._schema_model = discover_relational_schema(
+                source_type=self.source_type,
+                source_name=self.name,
+                connection_factory=self._build_engine,
+                metadata={"database_path": str(self.database_path)},
+            )
+        return self._schema_model
 
     def load(self) -> Dataset:
         """Execute the SQL query and return a normalized dataset."""
@@ -70,6 +86,14 @@ class SQLiteSource(SQLSourceInterface):
             context=self.load_context(),
         )
 
+    def _build_engine(self):
+        try:
+            from sqlalchemy import create_engine
+            from sqlalchemy.engine import URL
+        except Exception as exc:  # pragma: no cover
+            raise AdapterError("SQLAlchemy is required for SQLite relational schema discovery.") from exc
+        return create_engine(URL.create("sqlite", database=str(self.database_path)))
+
 
 class SQLQuerySource(SQLSourceInterface):
     """Load SQL query results through a SQLAlchemy-compatible connection URI."""
@@ -88,6 +112,7 @@ class SQLQuerySource(SQLSourceInterface):
         self._query = query
         self.name = name
         self.context_path = Path(context_path) if context_path else None
+        self._schema_model: RelationalSchemaModel | None = None
 
     @property
     def source_type(self) -> str:
@@ -106,6 +131,17 @@ class SQLQuerySource(SQLSourceInterface):
 
     def load_context(self) -> object:
         return load_context(self.context_path)
+
+    def discover_schema(self) -> RelationalSchemaModel:
+        """Inspect the SQL source and return a canonical relational schema model."""
+        if self._schema_model is None:
+            self._schema_model = discover_relational_schema(
+                source_type=self.source_type,
+                source_name=self.name,
+                connection_factory=self._build_engine,
+                metadata={"connection_uri": self._masked_connection_uri()},
+            )
+        return self._schema_model
 
     def load(self) -> Dataset:
         """Execute the SQL query through SQLAlchemy and return a normalized dataset."""
@@ -137,6 +173,15 @@ class SQLQuerySource(SQLSourceInterface):
             metadata=self.describe_source(),
             context=self.load_context(),
         )
+
+    def _build_engine(self):
+        try:
+            from sqlalchemy import create_engine
+        except Exception as exc:  # pragma: no cover
+            raise AdapterError(
+                "SQLAlchemy is required for SQLQuerySource, PostgreSQLSource, and MySQLSource."
+            ) from exc
+        return create_engine(self.connection_uri)
 
     def _masked_connection_uri(self) -> str:
         if "://" not in self.connection_uri or "@" not in self.connection_uri:

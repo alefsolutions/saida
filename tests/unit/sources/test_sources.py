@@ -10,6 +10,7 @@ from saida.sources import (
     MySQLSource,
     PandasSource,
     PostgreSQLSource,
+    RelationalSchemaModel,
     SQLSourceInterface,
     SourceInterface,
     SQLiteSource,
@@ -86,6 +87,69 @@ def test_sqlite_source_implements_sql_interface_and_loads_dataset(tmp_path) -> N
     assert dataset.data["total_sales"].tolist() == [100.5, 80.0]
 
 
+def test_sqlite_source_can_discover_relational_schema_with_foreign_keys(tmp_path) -> None:
+    database_path = tmp_path / "warehouse.sqlite"
+    connection = sqlite3.connect(database_path)
+    try:
+        connection.execute("pragma foreign_keys = on")
+        connection.execute("create table customers (customer_id text primary key, country text)")
+        connection.execute(
+            "create table orders ("
+            "order_id text primary key, "
+            "customer_id text not null, "
+            "total_sales real, "
+            "foreign key(customer_id) references customers(customer_id)"
+            ")"
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+    source = SQLiteSource(database_path, "select * from orders", name="warehouse_sales")
+
+    schema = source.discover_schema()
+
+    assert isinstance(schema, RelationalSchemaModel)
+    assert schema.source_type == "sqlite"
+    assert schema.source_name == "warehouse_sales"
+    assert schema.metadata["table_count"] == 2
+    assert schema.metadata["relationship_count"] == 1
+
+    tables_by_name = {table.name: table for table in schema.tables}
+    assert sorted(tables_by_name) == ["customers", "orders"]
+    assert tables_by_name["customers"].primary_key == ["customer_id"]
+    assert tables_by_name["orders"].primary_key == ["order_id"]
+
+    order_columns = {column.name: column for column in tables_by_name["orders"].columns}
+    assert order_columns["order_id"].is_primary_key is True
+    assert order_columns["customer_id"].nullable is False
+    assert "real" in order_columns["total_sales"].data_type
+
+    relationship = schema.relationships[0]
+    assert relationship.left_table == "orders"
+    assert relationship.left_columns == ["customer_id"]
+    assert relationship.right_table == "customers"
+    assert relationship.right_columns == ["customer_id"]
+    assert relationship.relationship_type == "many_to_one"
+
+
+def test_sqlite_source_schema_discovery_is_cached(tmp_path) -> None:
+    database_path = tmp_path / "warehouse.sqlite"
+    connection = sqlite3.connect(database_path)
+    try:
+        connection.execute("create table sales (order_id text primary key, total_sales real)")
+        connection.commit()
+    finally:
+        connection.close()
+
+    source = SQLiteSource(database_path, "select * from sales")
+
+    schema_first = source.discover_schema()
+    schema_second = source.discover_schema()
+
+    assert schema_first is schema_second
+
+
 def test_remote_sql_sources_expose_masked_metadata_without_loading() -> None:
     postgres_source = PostgreSQLSource(
         "postgresql://reporter:secret@db.example.com:5432/warehouse",
@@ -102,4 +166,26 @@ def test_remote_sql_sources_expose_masked_metadata_without_loading() -> None:
     assert isinstance(mysql_source, SQLSourceInterface)
     assert postgres_source.describe_source()["connection_uri"] == "postgresql://reporter:***@db.example.com:5432/warehouse"
     assert mysql_source.describe_source()["connection_uri"] == "mysql://reporter:***@db.example.com:3306/warehouse"
+
+
+def test_sql_query_sources_can_discover_schema_from_sqlalchemy_uri(tmp_path) -> None:
+    database_path = tmp_path / "warehouse.sqlite"
+    connection = sqlite3.connect(database_path)
+    try:
+        connection.execute("create table sales (order_id text primary key, total_sales real)")
+        connection.commit()
+    finally:
+        connection.close()
+
+    postgres_like_source = PostgreSQLSource(
+        f"sqlite:///{database_path}",
+        "select * from sales",
+        name="warehouse_sales",
+    )
+
+    schema = postgres_like_source.discover_schema()
+
+    assert schema.source_type == "postgresql"
+    assert [table.name for table in schema.tables] == ["sales"]
+    assert schema.metadata["introspection_backend"] == "sqlalchemy"
 

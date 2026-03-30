@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 from saida.core.contracts import Dataset, SourceContext
+from saida.sources.relational_schema import RelationalSchemaModel
 
 
 class SourceInterface(ABC):
@@ -41,3 +42,7 @@ class SQLSourceInterface(SourceInterface):
     @abstractmethod
     def query(self) -> str:
         """Return the SQL query associated with this source."""
+
+    @abstractmethod
+    def discover_schema(self) -> RelationalSchemaModel:
+        """Return the canonical relational schema discovered for this SQL source."""

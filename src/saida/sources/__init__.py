@@ -7,6 +7,12 @@ from saida.sources.excel_source import ExcelAdapter, ExcelSource
 from saida.sources.interfaces import SQLSourceInterface, SourceInterface
 from saida.sources.json_source import JSONAdapter, JSONSource
 from saida.sources.pandas_source import PandasAdapter, PandasSource
+from saida.sources.relational_schema import (
+    RelationalColumnModel,
+    RelationalRelationshipModel,
+    RelationalSchemaModel,
+    RelationalTableModel,
+)
 from saida.sources.sql_source import (
     MySQLAdapter,
     MySQLSource,
@@ -34,6 +40,10 @@ __all__ = [
     "PandasSource",
     "PostgreSQLAdapter",
     "PostgreSQLSource",
+    "RelationalColumnModel",
+    "RelationalRelationshipModel",
+    "RelationalSchemaModel",
+    "RelationalTableModel",
     "SQLAdapter",
     "SQLQueryAdapter",
     "SQLQuerySource",
