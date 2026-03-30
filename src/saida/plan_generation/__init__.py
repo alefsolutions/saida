@@ -30,6 +30,7 @@ __all__ = [
     "PromptAnalysisFrontend",
     "RequestNormalizer",
     "RuleBasedPlanGenerator",
+    "SourceMaterializationRequest",
     "build_default_graph_template_catalog",
 ]
 
@@ -47,6 +48,7 @@ _EXPORT_TO_MODULE = {
     "LlmAssistedPlanGenerator": "saida.plan_generation.generators",
     "OpenAIPlanGenerator": "saida.plan_generation.generators",
     "RuleBasedPlanGenerator": "saida.plan_generation.generators",
+    "SourceMaterializationRequest": "saida.plan_generation.source_materialization",
     "AnalysisPlanGeneratorInterface": "saida.plan_generation.interfaces",
     "PlanGenerationResult": "saida.plan_generation.interfaces",
     "GraphTemplatePlan": "saida.plan_generation.graph_templates",

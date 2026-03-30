@@ -13,6 +13,7 @@ from saida.core.contracts import AnalysisRequest, Dataset, DatasetProfile, Sourc
 from saida.plan_generation.entities import EntityExtractionResult, PromptEntityExtractor
 from saida.plan_generation.intent import PromptIntentResolver
 from saida.plan_generation.prompt_family_catalog import derive_prompt_family, get_prompt_family_catalog
+from saida.plan_generation.source_materialization import build_source_materialization_request
 from saida.plan_generation.threshold_filters import extract_numeric_threshold_filters
 
 TASK_LABELS = ["descriptive", "diagnostic", "statistical", "predictive", "forecasting"]
@@ -669,6 +670,7 @@ class InputCanonicalizer:
             },
         )
         request.prompt_family = derive_prompt_family(request)
+        self._attach_source_materialization_request(request, dataset, profile)
         return request, warnings
 
     def _configure_existence_request(
@@ -951,7 +953,19 @@ class InputCanonicalizer:
             },
         )
         request.prompt_family = derive_prompt_family(request)
+        self._attach_source_materialization_request(request, dataset, profile)
         return request, warnings
+
+    def _attach_source_materialization_request(
+        self,
+        request: AnalysisRequest,
+        dataset: Dataset,
+        profile: DatasetProfile,
+    ) -> None:
+        source_materialization_request = build_source_materialization_request(request, dataset, profile)
+        if source_materialization_request is None:
+            return
+        request.options["source_materialization_request"] = source_materialization_request.to_dict()
 
     def _resolve_candidate_canonical_question(
         self,

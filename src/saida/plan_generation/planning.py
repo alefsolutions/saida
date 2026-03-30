@@ -245,6 +245,7 @@ class PromptPlanContract:
     data_feasibility: list[DataFeasibilityCheck] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
+    source_materialization_request: dict[str, Any] | None = None
 
     def parameter_map(self) -> dict[str, Any]:
         return {parameter.name: parameter.value for parameter in self.resolved_parameters}
@@ -313,6 +314,9 @@ class PromptPlanContract:
             ],
             "warnings": list(self.warnings),
             "notes": list(self.notes),
+            "source_materialization_request": (
+                dict(self.source_materialization_request) if self.source_materialization_request is not None else None
+            ),
         }
 
 
@@ -398,6 +402,11 @@ def build_prompt_plan_contract(
         data_feasibility=data_feasibility,
         warnings=warnings,
         notes=notes,
+        source_materialization_request=(
+            dict(request.options.get("source_materialization_request"))
+            if isinstance(request.options.get("source_materialization_request"), dict)
+            else None
+        ),
     )
     prompt_contract.refresh_status()
     return prompt_contract
@@ -843,6 +852,11 @@ class PlanBuilder:
             plan.metadata.setdefault("prompt_family", request.prompt_family)
         if request.intent_name is not None:
             plan.metadata.setdefault("intent_name", request.intent_name)
+        if isinstance(request.options.get("source_materialization_request"), dict):
+            plan.metadata.setdefault(
+                "source_materialization_request",
+                dict(request.options["source_materialization_request"]),
+            )
         return plan
 
     def _output_spec_for_ref(self, steps: list[PlanStep], output_ref: str) -> StepOutputSpec | None:

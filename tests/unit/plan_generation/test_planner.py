@@ -226,6 +226,32 @@ def test_planner_builds_grouped_descriptive_plan() -> None:
     assert "rank_frame" in actions
 
 
+def test_planner_carries_source_materialization_request_into_plan_metadata() -> None:
+    planner = AnalysisPlanner()
+    request = AnalysisRequest(
+        question="Show revenue by region",
+        task_type_hint="descriptive",
+        target="revenue",
+        group_by=["region"],
+        options={
+            "source_materialization_request": {
+                "source_type": "sqlite",
+                "mode": "analysis_frame",
+                "required_columns": ["revenue", "region"],
+                "preferred_base_table": None,
+                "candidate_measure_columns": ["revenue"],
+                "candidate_dimension_columns": ["region"],
+                "candidate_time_columns": [],
+                "reasons": ["target", "group_by"],
+            }
+        },
+    )
+
+    plan = planner.build_plan(request, build_profile())
+
+    assert plan.metadata["source_materialization_request"]["required_columns"] == ["revenue", "region"]
+
+
 def test_planner_builds_aggregate_value_plan_for_average_request() -> None:
     planner = AnalysisPlanner()
     request = AnalysisRequest(

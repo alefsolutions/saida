@@ -382,3 +382,36 @@ def test_template_family_spec_can_compile_grouped_entity_count_steps() -> None:
     assert compiled_steps[0].parameters["aggregation"] == "count"
     assert compiled_steps[0].parameters["group_by"] == ["channel"]
 
+
+def test_prompt_plan_contract_exposes_source_materialization_request() -> None:
+    engine = PromptAnalysisFrontend()
+    dataset = build_support_dataset()
+    dataset.source_type = "sqlite"
+    profile = engine.profile(dataset)
+    request = AnalysisRequest(
+        question="Give me the total tickets per channel.",
+        prompt_family="grouped_entity_count",
+        intent_name="grouped_tabular_query",
+        task_type_hint="descriptive",
+        aggregation="count",
+        group_by=["channel"],
+        options={
+            "source_materialization_request": {
+                "source_type": "sqlite",
+                "mode": "grouped_table",
+                "required_columns": ["channel"],
+                "preferred_base_table": None,
+                "candidate_measure_columns": [],
+                "candidate_dimension_columns": ["channel"],
+                "candidate_time_columns": [],
+                "reasons": ["group_by"],
+            }
+        },
+    )
+
+    contract = build_prompt_plan_contract(request, profile)
+
+    assert contract.source_materialization_request is not None
+    assert contract.source_materialization_request["source_type"] == "sqlite"
+    assert contract.source_materialization_request["required_columns"] == ["channel"]
+

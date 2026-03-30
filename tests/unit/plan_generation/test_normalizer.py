@@ -75,6 +75,18 @@ def build_dataset() -> Dataset:
     return Dataset(name="sales", source_type="pandas", data=dataframe)
 
 
+def build_sql_dataset() -> Dataset:
+    dataframe = pd.DataFrame(
+        {
+            "revenue": [100.0, 80.0, 60.0, 40.0],
+            "region": ["West", "East", "West", "East"],
+            "segment": ["SMB", "SMB", "Enterprise", "Enterprise"],
+            "posted_at": ["2026-02-01", "2026-02-01", "2026-03-01", "2026-03-01"],
+        }
+    )
+    return Dataset(name="sales", source_type="sqlite", data=dataframe)
+
+
 def build_statistical_profile() -> DatasetProfile:
     return DatasetProfile(
         dataset_name="tickets",
@@ -2076,4 +2088,38 @@ def test_normalizer_detects_dataset_slice_request_with_limit() -> None:
     assert request.intent_name == "tabular_query"
     assert request.options["limit"] == 20
     assert request.options["selected_columns"] == []
+
+
+def test_normalizer_adds_source_materialization_request_for_sql_grouped_prompt() -> None:
+    normalizer = RequestNormalizer()
+
+    request, warnings = normalizer.normalize(
+        "Show revenue by region",
+        build_sql_dataset(),
+        build_profile(),
+    )
+
+    assert warnings == []
+    materialization = request.options["source_materialization_request"]
+    assert materialization["source_type"] == "sqlite"
+    assert materialization["mode"] == "analysis_frame"
+    assert materialization["required_columns"] == ["revenue", "region"]
+    assert materialization["candidate_measure_columns"] == ["revenue"]
+    assert materialization["candidate_dimension_columns"] == ["region"]
+
+
+def test_normalizer_adds_full_row_materialization_request_for_sql_tabular_query() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _warnings = normalizer.normalize(
+        "Show the latest 5 rows",
+        build_sql_dataset(),
+        build_profile(),
+    )
+
+    materialization = request.options["source_materialization_request"]
+    assert materialization["source_type"] == "sqlite"
+    assert materialization["mode"] == "tabular_recordset"
+    assert materialization["required_columns"] == ["revenue", "region", "segment", "posted_at"]
+    assert "full_row_projection" in materialization["reasons"]
 
