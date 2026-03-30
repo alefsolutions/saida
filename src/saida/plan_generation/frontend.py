@@ -12,6 +12,7 @@ from saida.plan_generation.canonicalization import InputCanonicalizer
 from saida.plan_generation.generators import LlmAssistedPlanGenerator, OpenAIPlanGenerator, RuleBasedPlanGenerator
 from saida.plan_generation.planning import PlanBuilder, build_prompt_plan_contract
 from saida.plan_generation.source_orchestration import (
+    PreparedSourceAnalysis,
     SourceMaterializationResult,
     SourcePlanningContext,
     build_source_planning_context,
@@ -301,22 +302,3 @@ class PromptAnalysisFrontend:
             prompt_contract=prompt_contract,
             plan=plan,
         )
-
-
-class PreparedSourceAnalysis:
-    """Prepared source-aware prompt analysis bundle."""
-
-    def __init__(
-        self,
-        *,
-        planning_context: SourcePlanningContext,
-        materialization: SourceMaterializationResult,
-        generation: object,
-        prompt_contract: object,
-        plan: AnalysisPlan,
-    ) -> None:
-        self.planning_context = planning_context
-        self.materialization = materialization
-        self.generation = generation
-        self.prompt_contract = prompt_contract
-        self.plan = plan

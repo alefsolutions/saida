@@ -44,6 +44,17 @@ class SourceMaterializationResult:
         return asdict(self)
 
 
+@dataclass(slots=True)
+class PreparedSourceAnalysis:
+    """Prepared source-aware analysis bundle used by the prompt frontend."""
+
+    planning_context: SourcePlanningContext
+    materialization: SourceMaterializationResult
+    generation: Any
+    prompt_contract: Any
+    plan: Any
+
+
 def build_source_planning_context(
     source: SourceInterface,
     *,
