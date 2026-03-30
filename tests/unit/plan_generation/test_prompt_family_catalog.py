@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 
 import pandas as pd
 import pytest
@@ -134,8 +135,20 @@ def test_derive_prompt_family_from_request_matrix(
 def test_prompt_family_catalog_markdown_snapshot_matches_live_catalog() -> None:
     catalog = build_default_prompt_family_catalog()
     catalog_path = Path(__file__).resolve().parents[3] / "docs" / "reference" / "prompt-family-catalog.md"
+    content = catalog_path.read_text(encoding="utf-8")
+    normalized_lines = [
+        line
+        for line in content.splitlines()
+        if not line.startswith("![SAIDA Banner]")
+        and not line.startswith("[![Version]")
+        and not line.startswith("[![License]")
+        and not line.startswith("[![Python]")
+    ]
+    body = "\n".join(normalized_lines).strip() + "\n"
+    body = re.sub(r"\n{3,}", "\n\n", body)
+    expected = re.sub(r"\n{3,}", "\n\n", catalog.to_markdown())
 
-    assert catalog_path.read_text(encoding="utf-8") == catalog.to_markdown()
+    assert body == expected
 
 
 @pytest.mark.parametrize(

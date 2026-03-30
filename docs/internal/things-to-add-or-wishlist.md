@@ -1,6 +1,10 @@
-![SAIDA Banner](assets/github-banner.png)
+![SAIDA Banner](../../assets/github-banner.png)
 
 # SAIDA 0.3.0 Things To Add / Wishlist
+
+[![Version](https://img.shields.io/badge/version-0.3.0-1f6feb)](../../pyproject.toml)
+[![License](https://img.shields.io/badge/license-MIT-2ea043)](../../LICENSE)
+[![Python](https://img.shields.io/badge/python-3.11%2B-3776AB)](../../pyproject.toml)
 
 This file captures important improvements that should be considered for **SAIDA 0.3.0** and beyond.
 

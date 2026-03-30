@@ -1,4 +1,10 @@
+![SAIDA Banner](../../assets/github-banner.png)
+
 # AnalysisPlan API Reference
+
+[![Version](https://img.shields.io/badge/version-0.3.0-1f6feb)](../../pyproject.toml)
+[![License](https://img.shields.io/badge/license-MIT-2ea043)](../../LICENSE)
+[![Python](https://img.shields.io/badge/python-3.11%2B-3776AB)](../../pyproject.toml)
 
 This page is the contract-oriented reference for authoring a valid `AnalysisPlan` in SAIDA `0.3.0`.
 
@@ -24,9 +30,9 @@ Most important rules:
 
 The `AnalysisPlan` contract is defined in:
 
-- [contracts.py](C:/Git Projects/saida/src/saida/core/contracts.py)
-- [validation.py](C:/Git Projects/saida/src/saida/core/validation.py)
-- [analytics_registry.py](C:/Git Projects/saida/src/saida/core/analytics_registry.py)
+- [`contracts.py`](../../src/saida/core/contracts.py)
+- [`validation.py`](../../src/saida/core/validation.py)
+- [`analytics_registry.py`](../../src/saida/core/analytics_registry.py)
 
 ## Top-Level Types
 
@@ -444,7 +450,7 @@ parameters={"sort_by": "order_date", "sort_direction": "desc", "page": 1, "page_
 
 For the authoritative method-by-method surface, the live source of truth is the analytics registry:
 
-- [analytics_registry.py](C:/Git Projects/saida/src/saida/core/analytics_registry.py)
+- [`analytics_registry.py`](../../src/saida/core/analytics_registry.py)
 
 ## Minimal Valid Example
 

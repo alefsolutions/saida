@@ -1,4 +1,10 @@
+![SAIDA Banner](../../assets/github-banner.png)
+
 # Prompt Capability Architecture Note
+
+[![Version](https://img.shields.io/badge/version-0.3.0-1f6feb)](../../pyproject.toml)
+[![License](https://img.shields.io/badge/license-MIT-2ea043)](../../LICENSE)
+[![Python](https://img.shields.io/badge/python-3.11%2B-3776AB)](../../pyproject.toml)
 
 This note explains where prompt and capability handling now fits in the live SAIDA architecture.
 

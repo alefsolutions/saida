@@ -1,4 +1,10 @@
+![SAIDA Banner](../../assets/github-banner.png)
+
 # SAIDA File Structure
+
+[![Version](https://img.shields.io/badge/version-0.3.0-1f6feb)](../../pyproject.toml)
+[![License](https://img.shields.io/badge/license-MIT-2ea043)](../../LICENSE)
+[![Python](https://img.shields.io/badge/python-3.11%2B-3776AB)](../../pyproject.toml)
 
 This document describes the live repository structure and the role of each major package.
 
