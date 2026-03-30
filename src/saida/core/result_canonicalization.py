@@ -229,6 +229,7 @@ class ResultCanonicalizer:
         terminal_lineage = self._terminal_lineage(plan, terminal_ref)
         graph_summary = self._graph_execution_summary(plan, artifact_index, secondary_outputs, terminal_ref)
         execution_model = plan.metadata.get("execution_model") if isinstance(plan.metadata, dict) else None
+        source_provenance = self._source_provenance(plan)
 
         return self._json_safe(
             {
@@ -275,6 +276,7 @@ class ResultCanonicalizer:
                 "graph_summary": graph_summary,
                 "artifact_index": serialized_artifact_index,
                 "execution_model": execution_model,
+                "source_provenance": source_provenance,
             },
             "result": primary_result,
             "tables": table_entries,
@@ -314,6 +316,7 @@ class ResultCanonicalizer:
                 "graph_summary": graph_summary,
                 "execution_model": execution_model,
                 "table_names": [table.name for table in tables],
+                "source_provenance": source_provenance,
             },
             }
         )
@@ -908,6 +911,49 @@ class ResultCanonicalizer:
         if prompt_contract is None:
             return None
         return getattr(prompt_contract, "status", None)
+
+    def _source_provenance(self, plan: AnalysisPlan) -> dict[str, object] | None:
+        if not isinstance(plan.metadata, dict):
+            return None
+        orchestration = plan.metadata.get("source_orchestration")
+        if not isinstance(orchestration, dict):
+            return None
+
+        planning_context = orchestration.get("planning_context")
+        materialization = orchestration.get("materialization")
+        if not isinstance(planning_context, dict) or not isinstance(materialization, dict):
+            return None
+
+        planning_dataset = planning_context.get("dataset") if isinstance(planning_context.get("dataset"), dict) else {}
+        planning_metadata = planning_dataset.get("metadata") if isinstance(planning_dataset.get("metadata"), dict) else {}
+        materialization_request = (
+            materialization.get("source_materialization_request")
+            if isinstance(materialization.get("source_materialization_request"), dict)
+            else {}
+        )
+        access_plan = materialization.get("access_plan") if isinstance(materialization.get("access_plan"), dict) else {}
+        joins = access_plan.get("joins") if isinstance(access_plan.get("joins"), list) else []
+
+        return {
+            "source_name": planning_context.get("source_name"),
+            "source_type": planning_context.get("source_type"),
+            "planning_mode": planning_context.get("metadata", {}).get("planning_mode")
+            if isinstance(planning_context.get("metadata"), dict)
+            else None,
+            "materialization_mode": materialization.get("mode"),
+            "schema_table_count": planning_metadata.get("schema_table_count"),
+            "schema_relationship_count": planning_metadata.get("schema_relationship_count"),
+            "required_columns": list(materialization_request.get("required_columns") or []),
+            "preferred_base_table": materialization_request.get("preferred_base_table"),
+            "required_tables": list(access_plan.get("required_tables") or []),
+            "base_table": access_plan.get("base_table"),
+            "join_count": len(joins),
+            "joins": joins,
+            "generated_query": materialization.get("generated_query"),
+            "clarification": materialization.get("metadata", {}).get("clarification")
+            if isinstance(materialization.get("metadata"), dict)
+            else None,
+        }
 
     def _metric_result_payload(self, metric: Metric, logical_shape: str) -> dict[str, object]:
         return {
