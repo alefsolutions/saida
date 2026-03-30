@@ -12,6 +12,7 @@ if str(PLAYGROUND_PATH) not in sys.path:
 
 import run_analysis_openai as openai_playground
 import run_analysis_openai_json_yellow as openai_playground_json_yellow
+import run_analysis_plan_sqlite_sales_40 as sqlite_plan_playground
 import run_analysis_sqlite_sales_40 as sqlite_playground
 
 
@@ -325,3 +326,15 @@ def test_sqlite_playground_renders_tabular_rows_line_by_line(
     assert "Returned the latest sales rows." in output
     assert "1. order_id=ORD-040 | country=United States | total_sales=464.50" in output
     assert "2. order_id=ORD-039 | country=Germany | total_sales=323.00" in output
+
+
+def test_sqlite_authored_plan_playground_builds_explicit_first_five_rows_plan() -> None:
+    plan = sqlite_plan_playground.build_first_five_rows_plan("sales_sqlite_40")
+
+    assert plan.dataset_refs == ["sales_sqlite_40"]
+    assert plan.final_output_ref == "first_five_rows"
+    assert len(plan.steps) == 1
+    assert plan.steps[0].method_id == "tabular_query"
+    assert plan.steps[0].parameters["page_size"] == 5
+    assert plan.steps[0].parameters["sort_by"] == "order_date"
+    assert plan.steps[0].parameters["sort_direction"] == "asc"
