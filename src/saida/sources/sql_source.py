@@ -11,6 +11,7 @@ from saida.core.contracts import Dataset
 from saida.exceptions import AdapterError
 from saida.sources._helpers import build_dataset, load_context
 from saida.sources.interfaces import SQLSourceInterface
+from saida.sources.relational_access import RelationalAccessPlan, build_relational_access_plan
 from saida.sources.relational_schema import RelationalSchemaModel
 from saida.sources.sql_introspection import discover_relational_schema
 
@@ -62,6 +63,19 @@ class SQLiteSource(SQLSourceInterface):
                 metadata={"database_path": str(self.database_path)},
             )
         return self._schema_model
+
+    def plan_access(
+        self,
+        *,
+        required_columns: list[str],
+        preferred_base_table: str | None = None,
+    ) -> RelationalAccessPlan:
+        """Build a deterministic relational access plan for the requested fields."""
+        return build_relational_access_plan(
+            self.discover_schema(),
+            required_columns=required_columns,
+            preferred_base_table=preferred_base_table,
+        )
 
     def load(self) -> Dataset:
         """Execute the SQL query and return a normalized dataset."""
@@ -142,6 +156,19 @@ class SQLQuerySource(SQLSourceInterface):
                 metadata={"connection_uri": self._masked_connection_uri()},
             )
         return self._schema_model
+
+    def plan_access(
+        self,
+        *,
+        required_columns: list[str],
+        preferred_base_table: str | None = None,
+    ) -> RelationalAccessPlan:
+        """Build a deterministic relational access plan for the requested fields."""
+        return build_relational_access_plan(
+            self.discover_schema(),
+            required_columns=required_columns,
+            preferred_base_table=preferred_base_table,
+        )
 
     def load(self) -> Dataset:
         """Execute the SQL query through SQLAlchemy and return a normalized dataset."""

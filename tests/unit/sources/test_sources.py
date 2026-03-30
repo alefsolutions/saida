@@ -3,13 +3,16 @@ from __future__ import annotations
 import sqlite3
 
 import pandas as pd
+import pytest
 
+from saida.exceptions import AdapterError
 from saida.sources import (
     CSVSource,
     JSONSource,
     MySQLSource,
     PandasSource,
     PostgreSQLSource,
+    RelationalAccessPlan,
     RelationalSchemaModel,
     SQLSourceInterface,
     SourceInterface,
@@ -188,4 +191,97 @@ def test_sql_query_sources_can_discover_schema_from_sqlalchemy_uri(tmp_path) -> 
     assert schema.source_type == "postgresql"
     assert [table.name for table in schema.tables] == ["sales"]
     assert schema.metadata["introspection_backend"] == "sqlalchemy"
+
+
+def test_sqlite_source_can_plan_access_for_joined_fields(tmp_path) -> None:
+    database_path = tmp_path / "warehouse.sqlite"
+    connection = sqlite3.connect(database_path)
+    try:
+        connection.execute("pragma foreign_keys = on")
+        connection.execute("create table customers (customer_id text primary key, country text, region text)")
+        connection.execute(
+            "create table orders ("
+            "order_id text primary key, "
+            "customer_id text not null, "
+            "order_date text, "
+            "total_sales real, "
+            "foreign key(customer_id) references customers(customer_id)"
+            ")"
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+    source = SQLiteSource(database_path, "select * from orders", name="warehouse_sales")
+
+    plan = source.plan_access(required_columns=["order_id", "country", "total_sales"])
+
+    assert isinstance(plan, RelationalAccessPlan)
+    assert plan.base_table == "orders"
+    assert plan.required_tables == ["customers", "orders"]
+    assert [(projection.source_table, projection.source_column) for projection in plan.projections] == [
+        ("orders", "order_id"),
+        ("customers", "country"),
+        ("orders", "total_sales"),
+    ]
+    assert len(plan.joins) == 1
+    assert plan.joins[0].left_table == "orders"
+    assert plan.joins[0].right_table == "customers"
+    assert plan.joins[0].left_columns == ["customer_id"]
+    assert plan.joins[0].right_columns == ["customer_id"]
+
+
+def test_sqlite_source_can_plan_access_with_single_table_projection(tmp_path) -> None:
+    database_path = tmp_path / "warehouse.sqlite"
+    connection = sqlite3.connect(database_path)
+    try:
+        connection.execute("create table sales (order_id text primary key, order_date text, total_sales real)")
+        connection.commit()
+    finally:
+        connection.close()
+
+    source = SQLiteSource(database_path, "select * from sales", name="warehouse_sales")
+
+    plan = source.plan_access(required_columns=["order_id", "total_sales"])
+
+    assert plan.base_table == "sales"
+    assert plan.required_tables == ["sales"]
+    assert plan.joins == []
+    assert [projection.source_table for projection in plan.projections] == ["sales", "sales"]
+
+
+def test_sqlite_source_access_planning_rejects_ambiguous_columns(tmp_path) -> None:
+    database_path = tmp_path / "warehouse.sqlite"
+    connection = sqlite3.connect(database_path)
+    try:
+        connection.execute("create table customers (customer_id text primary key, country text)")
+        connection.execute("create table shipments (shipment_id text primary key, country text)")
+        connection.commit()
+    finally:
+        connection.close()
+
+    source = SQLiteSource(database_path, "select * from customers", name="warehouse_sales")
+
+    with pytest.raises(AdapterError, match="ambiguous across tables"):
+        source.plan_access(required_columns=["country"])
+
+
+def test_sqlite_source_access_planning_can_use_qualified_column_names(tmp_path) -> None:
+    database_path = tmp_path / "warehouse.sqlite"
+    connection = sqlite3.connect(database_path)
+    try:
+        connection.execute("create table customers (customer_id text primary key, country text)")
+        connection.execute("create table shipments (shipment_id text primary key, country text)")
+        connection.commit()
+    finally:
+        connection.close()
+
+    source = SQLiteSource(database_path, "select * from customers", name="warehouse_sales")
+
+    plan = source.plan_access(required_columns=["customers.country"], preferred_base_table="customers")
+
+    assert plan.base_table == "customers"
+    assert plan.required_tables == ["customers"]
+    assert plan.projections[0].source_table == "customers"
+    assert plan.projections[0].source_column == "country"
 
