@@ -760,14 +760,33 @@ class Saida:
         )
         try:
             proposal = self.llm_provider.generate_summary(summary_context)
-        except LlmIntegrationError:
-            return deterministic_summary, None, "deterministic", "Optional LLM summary generation failed; using deterministic summary."
+        except LlmIntegrationError as exc:
+            return deterministic_summary, None, "deterministic", self._llm_summary_fallback_warning(exc)
 
         if proposal is None:
             return deterministic_summary, None, "deterministic", "Optional LLM summary generation was unavailable; using deterministic summary."
         if proposal.status != "ready" or not proposal.summary:
             return deterministic_summary, None, "deterministic", "Optional LLM summary was invalid; using deterministic summary."
         return proposal.summary, proposal.summary, "llm", None
+
+    def _llm_summary_fallback_warning(self, exc: LlmIntegrationError) -> str:
+        provider_label = f"{exc.provider} provider" if getattr(exc, "provider", None) else "provider"
+        code = getattr(exc, "code", "integration_error")
+        if code == "provider_unreachable":
+            reason = f"{provider_label} was unreachable"
+        elif code == "model_missing":
+            reason = f"configured model was unavailable on the {provider_label}"
+        elif code in {"auth_missing", "bad_auth"}:
+            reason = f"{provider_label} authentication or configuration was invalid"
+        elif code == "timeout":
+            reason = f"{provider_label} timed out"
+        elif code in {"invalid_provider_json", "invalid_contract_json", "invalid_payload"}:
+            reason = f"{provider_label} returned invalid structured output"
+        elif code == "empty_response":
+            reason = f"{provider_label} returned no usable content"
+        else:
+            reason = f"{provider_label} failed"
+        return f"Optional LLM summary generation failed: {reason}; using deterministic summary."
 
     def _context_summary(self, context: SourceContext | None) -> str | None:
         if context is None:

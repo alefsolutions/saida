@@ -35,3 +35,14 @@ class ModelTrainingError(SaidaError):
 
 class LlmIntegrationError(SaidaError):
     """Raised when optional LLM integration fails."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: str = "integration_error",
+        provider: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.code = code
+        self.provider = provider

@@ -76,9 +76,9 @@ class LlmAssistedPlanGenerator(AnalysisPlanGeneratorInterface):
                     _frontend_grounding_summary(prompt_entities),
                 ),
             )
-        except LlmIntegrationError:
+        except LlmIntegrationError as exc:
             request, warnings = self.canonicalizer.normalize(question, dataset, profile, context)
-            warnings.append("Optional LLM prompting failed; falling back to deterministic request normalization.")
+            warnings.append(_llm_prompt_fallback_warning(exc))
             return _compile_plan_generation_result(
                 question=question,
                 request=request,
@@ -86,7 +86,15 @@ class LlmAssistedPlanGenerator(AnalysisPlanGeneratorInterface):
                 plan_builder=self.plan_builder,
                 profile=profile,
                 context=context,
-                trace_event=ExecutionTraceEvent(stage="llm", message="prompt interpretation failed", payload={"fallback": "rules"}),
+                trace_event=ExecutionTraceEvent(
+                    stage="llm",
+                    message="prompt interpretation failed",
+                    payload={
+                        "fallback": "rules",
+                        "code": getattr(exc, "code", "integration_error"),
+                        "provider": getattr(exc, "provider", None),
+                    },
+                ),
                 generator_name=self.generator_name,
             )
 
@@ -170,6 +178,26 @@ class OpenAIPlanGenerator(LlmAssistedPlanGenerator):
     @property
     def generator_name(self) -> str:
         return "openai_plan_generator"
+
+
+def _llm_prompt_fallback_warning(exc: LlmIntegrationError) -> str:
+    provider_label = f"{exc.provider} provider" if getattr(exc, "provider", None) else "provider"
+    code = getattr(exc, "code", "integration_error")
+    if code == "provider_unreachable":
+        reason = f"{provider_label} was unreachable"
+    elif code == "model_missing":
+        reason = f"configured model was unavailable on the {provider_label}"
+    elif code in {"auth_missing", "bad_auth"}:
+        reason = f"{provider_label} authentication or configuration was invalid"
+    elif code == "timeout":
+        reason = f"{provider_label} timed out"
+    elif code in {"invalid_provider_json", "invalid_contract_json", "invalid_payload"}:
+        reason = f"{provider_label} returned invalid structured output"
+    elif code == "empty_response":
+        reason = f"{provider_label} returned no usable content"
+    else:
+        reason = f"{provider_label} failed"
+    return f"Optional LLM prompting failed: {reason}; falling back to deterministic request normalization."
 
 
 def _compile_plan_generation_result(

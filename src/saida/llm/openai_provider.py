@@ -79,7 +79,11 @@ class OpenAiLlmProvider(BaseLlmProvider):
 
     def _responses_json(self, prompt: str, max_output_tokens: int) -> dict[str, object] | None:
         if not self.api_key:
-            raise LlmIntegrationError("OpenAI API key is not configured for optional LLM handling.")
+            raise LlmIntegrationError(
+                "OpenAI API key is not configured for optional LLM handling.",
+                code="auth_missing",
+                provider=self.provider_name,
+            )
 
         body = {
             "model": self.model,
@@ -100,20 +104,55 @@ class OpenAiLlmProvider(BaseLlmProvider):
         try:
             with request.urlopen(http_request, timeout=self.config.timeout_seconds) as response:
                 raw_payload = json.loads(response.read().decode("utf-8"))
-        except (error.URLError, TimeoutError, json.JSONDecodeError) as exc:
-            raise LlmIntegrationError("OpenAI request failed during optional LLM handling.") from exc
+        except error.HTTPError as exc:
+            code = "bad_auth" if exc.code in {401, 403} else "model_missing" if exc.code == 404 else "http_error"
+            raise LlmIntegrationError(
+                "OpenAI request failed during optional LLM handling.",
+                code=code,
+                provider=self.provider_name,
+            ) from exc
+        except error.URLError as exc:
+            raise LlmIntegrationError(
+                "OpenAI request failed during optional LLM handling.",
+                code="provider_unreachable",
+                provider=self.provider_name,
+            ) from exc
+        except TimeoutError as exc:
+            raise LlmIntegrationError(
+                "OpenAI request timed out during optional LLM handling.",
+                code="timeout",
+                provider=self.provider_name,
+            ) from exc
+        except json.JSONDecodeError as exc:
+            raise LlmIntegrationError(
+                "OpenAI returned invalid transport JSON for optional LLM handling.",
+                code="invalid_provider_json",
+                provider=self.provider_name,
+            ) from exc
 
         response_text = self._extract_output_text(raw_payload)
         if not response_text:
-            return None
+            raise LlmIntegrationError(
+                "OpenAI returned no usable content for optional LLM handling.",
+                code="empty_response",
+                provider=self.provider_name,
+            )
 
         try:
             parsed = json.loads(response_text)
         except json.JSONDecodeError as exc:
-            raise LlmIntegrationError("OpenAI returned invalid JSON for optional LLM handling.") from exc
+            raise LlmIntegrationError(
+                "OpenAI returned invalid JSON for optional LLM handling.",
+                code="invalid_contract_json",
+                provider=self.provider_name,
+            ) from exc
 
         if not isinstance(parsed, dict):
-            raise LlmIntegrationError("OpenAI returned a non-object JSON payload.")
+            raise LlmIntegrationError(
+                "OpenAI returned a non-object JSON payload.",
+                code="invalid_payload",
+                provider=self.provider_name,
+            )
         return parsed
 
     def _extract_output_text(self, raw_payload: dict[str, object]) -> str | None:

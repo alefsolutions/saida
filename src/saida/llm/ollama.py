@@ -89,20 +89,55 @@ class OllamaLlmProvider(BaseLlmProvider):
         try:
             with request.urlopen(http_request, timeout=self.config.timeout_seconds) as response:
                 raw_payload = json.loads(response.read().decode("utf-8"))
-        except (error.URLError, TimeoutError, json.JSONDecodeError) as exc:
-            raise LlmIntegrationError("Ollama request failed during optional LLM handling.") from exc
+        except error.HTTPError as exc:
+            code = "model_missing" if exc.code == 404 else "http_error"
+            raise LlmIntegrationError(
+                "Ollama request failed during optional LLM handling.",
+                code=code,
+                provider=self.provider_name,
+            ) from exc
+        except error.URLError as exc:
+            raise LlmIntegrationError(
+                "Ollama request failed during optional LLM handling.",
+                code="provider_unreachable",
+                provider=self.provider_name,
+            ) from exc
+        except TimeoutError as exc:
+            raise LlmIntegrationError(
+                "Ollama request timed out during optional LLM handling.",
+                code="timeout",
+                provider=self.provider_name,
+            ) from exc
+        except json.JSONDecodeError as exc:
+            raise LlmIntegrationError(
+                "Ollama returned invalid transport JSON for optional LLM handling.",
+                code="invalid_provider_json",
+                provider=self.provider_name,
+            ) from exc
 
         response_text = raw_payload.get("response")
         if not isinstance(response_text, str) or not response_text.strip():
-            return None
+            raise LlmIntegrationError(
+                "Ollama returned no usable content for optional LLM handling.",
+                code="empty_response",
+                provider=self.provider_name,
+            )
 
         try:
             parsed = json.loads(response_text)
         except json.JSONDecodeError as exc:
-            raise LlmIntegrationError("Ollama returned invalid JSON for optional LLM handling.") from exc
+            raise LlmIntegrationError(
+                "Ollama returned invalid JSON for optional LLM handling.",
+                code="invalid_contract_json",
+                provider=self.provider_name,
+            ) from exc
 
         if not isinstance(parsed, dict):
-            raise LlmIntegrationError("Ollama returned a non-object JSON payload.")
+            raise LlmIntegrationError(
+                "Ollama returned a non-object JSON payload.",
+                code="invalid_payload",
+                provider=self.provider_name,
+            )
         return parsed
 
     def _build_intent_prompt(
