@@ -56,3 +56,11 @@ class SQLSourceInterface(SourceInterface):
         preferred_base_table: str | None = None,
     ) -> RelationalAccessPlan:
         """Return a deterministic relational access plan for the requested fields."""
+
+    @abstractmethod
+    def render_access_query(self, access_plan: RelationalAccessPlan) -> str:
+        """Render one relational access plan into executable SQL."""
+
+    @abstractmethod
+    def load_from_access_plan(self, access_plan: RelationalAccessPlan) -> Dataset:
+        """Materialize one relational access plan into SAIDA's canonical dataset contract."""

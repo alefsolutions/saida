@@ -14,6 +14,7 @@ from saida.sources.relational_schema import (
     RelationalSchemaModel,
     RelationalTableModel,
 )
+from saida.sources.sql_rendering import render_relational_access_query
 from saida.sources.sql_source import (
     MySQLAdapter,
     MySQLSource,
@@ -53,6 +54,7 @@ __all__ = [
     "SQLQuerySource",
     "SQLSource",
     "SQLSourceInterface",
+    "render_relational_access_query",
     "SchemaDiscoveryService",
     "SQLiteAdapter",
     "SQLiteSource",

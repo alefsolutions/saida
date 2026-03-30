@@ -14,6 +14,7 @@ from saida.sources.interfaces import SQLSourceInterface
 from saida.sources.relational_access import RelationalAccessPlan, build_relational_access_plan
 from saida.sources.relational_schema import RelationalSchemaModel
 from saida.sources.sql_introspection import discover_relational_schema
+from saida.sources.sql_rendering import render_relational_access_query
 
 
 class SQLiteSource(SQLSourceInterface):
@@ -77,15 +78,55 @@ class SQLiteSource(SQLSourceInterface):
             preferred_base_table=preferred_base_table,
         )
 
+    def render_access_query(self, access_plan: RelationalAccessPlan) -> str:
+        """Render a relational access plan into executable SQLite SQL."""
+        return render_relational_access_query(self.source_type, access_plan)
+
+    def load_from_access_plan(self, access_plan: RelationalAccessPlan) -> Dataset:
+        """Materialize a relational access plan into a canonical SAIDA dataset."""
+        query = self.render_access_query(access_plan)
+        return self._load_query_dataset(
+            query=query,
+            metadata={
+                **self.describe_source(),
+                "materialization_mode": "relational_access_plan",
+                "generated_query": query,
+                "required_tables": list(access_plan.required_tables),
+                "access_plan": access_plan.to_dict(),
+            },
+        )
+
+    def load_for_columns(
+        self,
+        *,
+        required_columns: list[str],
+        preferred_base_table: str | None = None,
+    ) -> Dataset:
+        """Plan and materialize a dataset for the requested relational fields."""
+        return self.load_from_access_plan(
+            self.plan_access(required_columns=required_columns, preferred_base_table=preferred_base_table)
+        )
+
     def load(self) -> Dataset:
         """Execute the SQL query and return a normalized dataset."""
+        return self._load_query_dataset(query=self.query, metadata=self.describe_source())
+
+    def _build_engine(self):
+        try:
+            from sqlalchemy import create_engine
+            from sqlalchemy.engine import URL
+        except Exception as exc:  # pragma: no cover
+            raise AdapterError("SQLAlchemy is required for SQLite relational schema discovery.") from exc
+        return create_engine(URL.create("sqlite", database=str(self.database_path)))
+
+    def _load_query_dataset(self, *, query: str, metadata: dict[str, object]) -> Dataset:
         if not self.database_path.exists():
             raise AdapterError(f"SQLite database not found: {self.database_path}")
 
         connection: sqlite3.Connection | None = None
         try:
             connection = sqlite3.connect(self.database_path)
-            dataframe = pd.read_sql_query(self.query, connection)
+            dataframe = pd.read_sql_query(query, connection)
         except Exception as exc:  # pragma: no cover
             raise AdapterError(f"Failed to load SQL query results from: {self.database_path}") from exc
         finally:
@@ -96,17 +137,9 @@ class SQLiteSource(SQLSourceInterface):
             dataframe,
             name=self.name,
             source_type=self.source_type,
-            metadata=self.describe_source(),
+            metadata=metadata,
             context=self.load_context(),
         )
-
-    def _build_engine(self):
-        try:
-            from sqlalchemy import create_engine
-            from sqlalchemy.engine import URL
-        except Exception as exc:  # pragma: no cover
-            raise AdapterError("SQLAlchemy is required for SQLite relational schema discovery.") from exc
-        return create_engine(URL.create("sqlite", database=str(self.database_path)))
 
 
 class SQLQuerySource(SQLSourceInterface):
@@ -170,36 +203,38 @@ class SQLQuerySource(SQLSourceInterface):
             preferred_base_table=preferred_base_table,
         )
 
+    def render_access_query(self, access_plan: RelationalAccessPlan) -> str:
+        """Render a relational access plan into executable SQL."""
+        return render_relational_access_query(self.source_type, access_plan)
+
+    def load_from_access_plan(self, access_plan: RelationalAccessPlan) -> Dataset:
+        """Materialize a relational access plan into a canonical SAIDA dataset."""
+        query = self.render_access_query(access_plan)
+        return self._load_query_dataset(
+            query=query,
+            metadata={
+                **self.describe_source(),
+                "materialization_mode": "relational_access_plan",
+                "generated_query": query,
+                "required_tables": list(access_plan.required_tables),
+                "access_plan": access_plan.to_dict(),
+            },
+        )
+
+    def load_for_columns(
+        self,
+        *,
+        required_columns: list[str],
+        preferred_base_table: str | None = None,
+    ) -> Dataset:
+        """Plan and materialize a dataset for the requested relational fields."""
+        return self.load_from_access_plan(
+            self.plan_access(required_columns=required_columns, preferred_base_table=preferred_base_table)
+        )
+
     def load(self) -> Dataset:
         """Execute the SQL query through SQLAlchemy and return a normalized dataset."""
-        try:
-            from sqlalchemy import create_engine
-        except Exception as exc:  # pragma: no cover
-            raise AdapterError(
-                "SQLAlchemy is required for SQLQuerySource, PostgreSQLSource, and MySQLSource."
-            ) from exc
-
-        engine = None
-        connection = None
-        try:
-            engine = create_engine(self.connection_uri)
-            connection = engine.connect()
-            dataframe = pd.read_sql_query(self.query, connection)
-        except Exception as exc:  # pragma: no cover
-            raise AdapterError(f"Failed to load SQL query results from: {self._masked_connection_uri()}") from exc
-        finally:
-            if connection is not None:
-                connection.close()
-            if engine is not None:
-                engine.dispose()
-
-        return build_dataset(
-            dataframe,
-            name=self.name,
-            source_type=self.source_type,
-            metadata=self.describe_source(),
-            context=self.load_context(),
-        )
+        return self._load_query_dataset(query=self.query, metadata=self.describe_source())
 
     def _build_engine(self):
         try:
@@ -219,6 +254,29 @@ class SQLQuerySource(SQLSourceInterface):
             return self.connection_uri
         user, _password = credentials.split(":", 1)
         return f"{scheme}://{user}:***@{target}"
+
+    def _load_query_dataset(self, *, query: str, metadata: dict[str, object]) -> Dataset:
+        engine = None
+        connection = None
+        try:
+            engine = self._build_engine()
+            connection = engine.connect()
+            dataframe = pd.read_sql_query(query, connection)
+        except Exception as exc:  # pragma: no cover
+            raise AdapterError(f"Failed to load SQL query results from: {self._masked_connection_uri()}") from exc
+        finally:
+            if connection is not None:
+                connection.close()
+            if engine is not None:
+                engine.dispose()
+
+        return build_dataset(
+            dataframe,
+            name=self.name,
+            source_type=self.source_type,
+            metadata=metadata,
+            context=self.load_context(),
+        )
 
 
 class PostgreSQLSource(SQLQuerySource):
