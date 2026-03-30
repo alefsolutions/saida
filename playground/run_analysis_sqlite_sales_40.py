@@ -26,6 +26,39 @@ ANSI_RED = "\033[31m"
 ANSI_YELLOW = "\033[33m"
 
 
+def _llm_provider_name() -> str:
+    provider = str(os.getenv("SAIDA_LLM_PROVIDER", os.getenv("LLM_PROVIDER", "openai"))).strip().lower()
+    return provider if provider in {"openai", "ollama"} else "openai"
+
+
+def _require_provider_configuration(provider: str) -> None:
+    if provider == "openai" and not os.getenv("OPENAI_API_KEY"):
+        raise RuntimeError("OPENAI_API_KEY is not set.")
+
+
+def _build_llm_config(provider: str) -> LlmConfig:
+    if provider == "ollama":
+        return LlmConfig(
+            enabled=True,
+            provider="ollama",
+            model=os.getenv("OLLAMA_MODEL", "gemma3:1b"),
+            base_url=os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434"),
+            use_for_prompting=True,
+            use_for_summary=True,
+        )
+    return LlmConfig(
+        enabled=True,
+        provider="openai",
+        model=os.getenv("OPENAI_MODEL", "gpt-4.1-mini"),
+        use_for_prompting=True,
+        use_for_summary=True,
+    )
+
+
+def _playground_label(provider: str) -> str:
+    return "OpenAI" if provider == "openai" else "Ollama"
+
+
 def _show_loader(stop_event: threading.Event) -> None:
     frames = [".", "..", "..."]
     index = 0
@@ -48,9 +81,8 @@ def _render_analysis_result_json(result: object) -> str:
 
 def main() -> None:
     load_project_env(PROJECT_ROOT)
-
-    if not os.getenv("OPENAI_API_KEY"):
-        raise RuntimeError("OPENAI_API_KEY is not set.")
+    provider = _llm_provider_name()
+    _require_provider_configuration(provider)
 
     dataset = SQLiteSource(
         DEFAULT_DATABASE_PATH,
@@ -60,17 +92,11 @@ def main() -> None:
     ).load()
 
     config = SaidaConfig(
-        llm=LlmConfig(
-            enabled=True,
-            provider="openai",
-            model=os.getenv("OPENAI_MODEL", "gpt-4.1-mini"),
-            use_for_prompting=True,
-            use_for_summary=True,
-        )
+        llm=_build_llm_config(provider)
     )
 
     engine = PromptAnalysisFrontend(config=config)
-    print("SAIDA OpenAI SQLite playground")
+    print(f"SAIDA {_playground_label(provider)} SQLite playground")
     print(f"Dataset: {dataset.name}")
     print("Source: sqlite")
     print("Type a question, or type 'exit' to quit.")

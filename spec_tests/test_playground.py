@@ -239,3 +239,36 @@ def test_sqlite_playground_prints_summary_for_loaded_sqlite_dataset(
     assert "The dataset contains 40 rows." in output
     assert '"schema_version": "saida.response.v2"' in output
     assert fake_engine.calls == ["How many rows are there?"]
+
+
+def test_sqlite_playground_supports_ollama_provider(
+    monkeypatch: object,
+    capsys: object,
+) -> None:
+    fake_engine = _FakeEngine(summary="Returned the latest sales rows.")
+    dataset = SimpleNamespace(name="sales_sqlite_40", data=pd.DataFrame({"total_sales": [1.0]}))
+
+    def _fake_getenv(key: str, default: str | None = None) -> str | None:
+        if key == "SAIDA_LLM_PROVIDER":
+            return "ollama"
+        if key == "OLLAMA_MODEL":
+            return "gemma3:1b"
+        if key == "OLLAMA_BASE_URL":
+            return "http://127.0.0.1:11434"
+        return default
+
+    monkeypatch.setattr(sqlite_playground, "load_project_env", lambda project_root: None)
+    monkeypatch.setattr(sqlite_playground.os, "getenv", _fake_getenv)
+    monkeypatch.setattr(sqlite_playground.SQLiteSource, "load", lambda self: dataset)
+    monkeypatch.setattr(sqlite_playground, "PromptAnalysisFrontend", lambda config=None: fake_engine)
+
+    answers = iter(["Show the latest 5 rows", "exit"])
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(answers))
+
+    sqlite_playground.main()
+    output = capsys.readouterr().out
+
+    assert "SAIDA Ollama SQLite playground" in output
+    assert "Dataset: sales_sqlite_40" in output
+    assert "Returned the latest sales rows." in output
+    assert fake_engine.calls == ["Show the latest 5 rows"]
