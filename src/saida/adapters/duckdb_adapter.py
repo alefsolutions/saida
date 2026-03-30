@@ -1853,6 +1853,19 @@ class DuckDBAdapter(ComputeInterface):
         series = dataframe[column_name]
         if isinstance(expected_value, dict):
             operator = expected_value.get("op")
+            if operator in {"gt", "gte", "lt", "lte", "between"}:
+                numeric_series = pd.to_numeric(series, errors="coerce")
+                if operator == "gt":
+                    return dataframe.loc[numeric_series > float(expected_value["value"])]
+                if operator == "gte":
+                    return dataframe.loc[numeric_series >= float(expected_value["value"])]
+                if operator == "lt":
+                    return dataframe.loc[numeric_series < float(expected_value["value"])]
+                if operator == "lte":
+                    return dataframe.loc[numeric_series <= float(expected_value["value"])]
+                lower_bound = float(expected_value["lower_bound"])
+                upper_bound = float(expected_value["upper_bound"])
+                return dataframe.loc[numeric_series.between(lower_bound, upper_bound, inclusive="both")]
             if operator == "neq":
                 value = expected_value.get("value")
                 if pd.api.types.is_string_dtype(series):

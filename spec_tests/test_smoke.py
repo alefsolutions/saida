@@ -1662,6 +1662,23 @@ def test_analyze_returns_latest_five_rows_as_limited_recordset() -> None:
     assert list(table.dataframe.columns) == ["order_id", "order_date", "country", "total_sales"]
 
 
+def test_analyze_counts_rows_for_numeric_threshold_prompt() -> None:
+    dataframe = pd.DataFrame(
+        {
+            "order_id": [f"ORD-{index:03d}" for index in range(1, 9)],
+            "total_sales": [10.0, 20.0, 30.0, 40.0, 410.0, 460.0, 500.0, 80.0],
+            "country": ["A", "B", "C", "D", "E", "F", "G", "H"],
+        }
+    )
+    dataset = Dataset(name="sales", source_type="pandas", data=dataframe)
+
+    result = PromptAnalysisFrontend().analyze(dataset, "How many rows have total_sales greater than 400?")
+
+    assert result.response["interpretation"]["intent_name"] == "row_count"
+    assert result.response["interpretation"]["filters"] == {"total_sales": {"op": "gt", "value": 400.0}}
+    assert result.response["result"]["value"] == 3
+
+
 def _build_recurring_time_filter_dataset() -> Dataset:
     dataframe = pd.DataFrame(
         {

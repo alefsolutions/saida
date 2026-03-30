@@ -635,6 +635,15 @@ class InputCanonicalizer:
         )
         if semantic_intent is not None:
             options["semantic_intent"] = semantic_intent
+        numeric_threshold_filters = self._extract_numeric_threshold_filters(
+            question,
+            profile,
+            target,
+            intent_name,
+            filters,
+        )
+        if numeric_threshold_filters:
+            filters = {**(filters or {}), **numeric_threshold_filters}
         distinct_values = self._should_list_distinct_values(question, target, profile)
         if intent_name == "distinct_value_count":
             distinct_values = False
@@ -905,6 +914,15 @@ class InputCanonicalizer:
         semantic_intent = self._merge_semantic_intents(final_rule_semantic_intent, proposal_semantic_intent)
         if semantic_intent is not None:
             options["semantic_intent"] = semantic_intent
+        numeric_threshold_filters = self._extract_numeric_threshold_filters(
+            rule_question,
+            profile,
+            target,
+            rule_intent_name,
+            filters,
+        )
+        if numeric_threshold_filters:
+            filters = {**(filters or {}), **numeric_threshold_filters}
         distinct_values = self._should_list_distinct_values(rule_question, target, profile)
         if rule_intent_name == "distinct_value_count":
             distinct_values = False
@@ -2760,6 +2778,20 @@ class InputCanonicalizer:
                 continue
             if isinstance(value, dict):
                 operator = value.get("op")
+                if operator in {"gt", "gte", "lt", "lte"} and value.get("value") is not None:
+                    resolved[resolved_column] = {"op": operator, "value": float(value["value"])}
+                    continue
+                if operator == "between" and value.get("lower_bound") is not None and value.get("upper_bound") is not None:
+                    lower_bound = float(value["lower_bound"])
+                    upper_bound = float(value["upper_bound"])
+                    if lower_bound > upper_bound:
+                        lower_bound, upper_bound = upper_bound, lower_bound
+                    resolved[resolved_column] = {
+                        "op": "between",
+                        "lower_bound": lower_bound,
+                        "upper_bound": upper_bound,
+                    }
+                    continue
                 if operator in {"neq", "year_eq", "month_eq", "year_month_eq", "day_of_month_eq", "weekday_eq", "quarter_eq"} and value.get("value") is not None:
                     resolved_value = {"op": operator, "value": value.get("value")}
                     if value.get("label") is not None:
@@ -2816,6 +2848,77 @@ class InputCanonicalizer:
                 "month": int(month_part),
                 "label": value,
             }
+        return None
+
+    def _extract_numeric_threshold_filters(
+        self,
+        question: str,
+        profile: DatasetProfile,
+        target: str | None,
+        intent_name: str | None,
+        filters: dict[str, object] | None,
+    ) -> dict[str, object]:
+        if intent_name == "existence_check":
+            return {}
+        lowered = question.lower()
+        candidate_columns: list[str] = []
+        if target in set(profile.measure_columns):
+            candidate_columns.append(target)
+        candidate_columns.extend(
+            column
+            for column in (self._extract_named_columns(question, profile) or [])
+            if column in set(profile.measure_columns)
+        )
+        resolved_filters: dict[str, object] = {}
+        existing_columns = set(filters or {})
+        for column_name in dict.fromkeys(candidate_columns):
+            if column_name in existing_columns:
+                continue
+            threshold_filter = self._extract_column_threshold_filter(lowered, column_name)
+            if threshold_filter is not None:
+                resolved_filters[column_name] = threshold_filter
+        return resolved_filters
+
+    def _extract_column_threshold_filter(
+        self,
+        lowered_question: str,
+        column_name: str,
+    ) -> dict[str, object] | None:
+        escaped_column = re.escape(column_name.lower())
+        between_match = re.search(
+            rf"\b{escaped_column}\b(?:\s+is)?\s+between\s+(-?\d+(?:\.\d+)?)\s+and\s+(-?\d+(?:\.\d+)?)\b",
+            lowered_question,
+        )
+        if between_match:
+            lower_bound = float(between_match.group(1))
+            upper_bound = float(between_match.group(2))
+            if lower_bound > upper_bound:
+                lower_bound, upper_bound = upper_bound, lower_bound
+            return {"op": "between", "lower_bound": lower_bound, "upper_bound": upper_bound}
+
+        operator_patterns = {
+            "gte": [
+                rf"\b{escaped_column}\b(?:\s+is)?\s*(?:>=|=>)\s*(-?\d+(?:\.\d+)?)\b",
+                rf"\b{escaped_column}\b(?:\s+is)?\s+(?:at least|greater than or equal to|no less than)\s+(-?\d+(?:\.\d+)?)\b",
+            ],
+            "lte": [
+                rf"\b{escaped_column}\b(?:\s+is)?\s*(?:<=|=<)\s*(-?\d+(?:\.\d+)?)\b",
+                rf"\b{escaped_column}\b(?:\s+is)?\s+(?:at most|less than or equal to|no more than)\s+(-?\d+(?:\.\d+)?)\b",
+            ],
+            "gt": [
+                rf"\b{escaped_column}\b(?:\s+is)?\s*>\s*(-?\d+(?:\.\d+)?)\b",
+                rf"\b{escaped_column}\b(?:\s+is)?\s+(?:above|over|greater than|more than)\s+(-?\d+(?:\.\d+)?)\b",
+            ],
+            "lt": [
+                rf"\b{escaped_column}\b(?:\s+is)?\s*<\s*(-?\d+(?:\.\d+)?)\b",
+                rf"\b{escaped_column}\b(?:\s+is)?\s+(?:below|under|less than)\s+(-?\d+(?:\.\d+)?)\b",
+            ],
+        }
+        for operator, patterns in operator_patterns.items():
+            for pattern in patterns:
+                match = re.search(pattern, lowered_question)
+                if match:
+                    return {"op": operator, "value": float(match.group(1))}
         return None
 
     def _resolve_candidate_time_reference(self, time_reference: dict[str, str] | None) -> dict[str, str] | None:

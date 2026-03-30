@@ -2006,6 +2006,34 @@ def test_normalizer_detects_latest_rows_limit() -> None:
     assert request.options["page_size"] == 5
 
 
+def test_normalizer_extracts_numeric_threshold_filter_for_row_count_prompt() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "How many rows have revenue greater than 90?",
+        build_dataset(),
+        build_profile(),
+        None,
+    )
+
+    assert request.intent_name == "row_count"
+    assert request.filters == {"revenue": {"op": "gt", "value": 90.0}}
+
+
+def test_normalizer_extracts_symbolic_numeric_threshold_filter_for_tabular_prompt() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _ = normalizer.normalize(
+        "Show rows where revenue >= 80",
+        build_dataset(),
+        build_profile(),
+        None,
+    )
+
+    assert request.intent_name == "tabular_query"
+    assert request.filters == {"revenue": {"op": "gte", "value": 80.0}}
+
+
 def test_normalizer_defaults_tabular_page_size_from_limit() -> None:
     normalizer = RequestNormalizer()
 
