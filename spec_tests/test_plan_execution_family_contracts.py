@@ -5,9 +5,14 @@ from dataclasses import dataclass
 from typing import Callable
 
 import pytest
+import pandas as pd
 
 from saida import Saida
-from saida.core.contracts import AnalysisPlan, Dataset, PlanStep
+from saida.adapters.interfaces import ComputeRequest
+from saida.adapters.ml_adapter import MlAdapter
+from saida.core.analytics_registry import get_analytics_registry
+from saida.core.contracts import AnalysisPlan, Dataset, PlanInput, PlanStep, StepInputRef, StepOutputSpec
+from saida.exceptions import ModelTrainingError
 from .factories import build_explicit_single_step_plan, build_sales_dataset, build_statistical_dataset, build_support_dataset
 
 
@@ -42,6 +47,38 @@ def _plan_for_projection(dataset_name: str) -> AnalysisPlan:
     )
 
 
+def _plan_for_selection_filtering(dataset_name: str) -> AnalysisPlan:
+    return build_explicit_single_step_plan(
+        dataset_name=dataset_name,
+        task_type="descriptive",
+        rationale="Filter West sales rows.",
+        step_id="filter_frame",
+        tool_family="duckdb",
+        method_id="filter_frame",
+        family="selection_filtering",
+        parameters={"filters": {"region": "West"}},
+        description="Filter West sales rows.",
+        expected_result_name="filter_frame",
+        expected_result_shape="table",
+    )
+
+
+def _plan_for_transformation(dataset_name: str) -> AnalysisPlan:
+    return build_explicit_single_step_plan(
+        dataset_name=dataset_name,
+        task_type="descriptive",
+        rationale="Add a doubled revenue column.",
+        step_id="derive_column",
+        tool_family="duckdb",
+        method_id="derive_column",
+        family="transformation",
+        parameters={"target": "revenue_twice", "expression": {"op": "multiply", "source": "revenue", "value": 2}},
+        description="Add a doubled revenue column.",
+        expected_result_name="derive_column",
+        expected_result_shape="table",
+    )
+
+
 def _plan_for_aggregation(dataset_name: str) -> AnalysisPlan:
     return build_explicit_single_step_plan(
         dataset_name=dataset_name,
@@ -55,6 +92,77 @@ def _plan_for_aggregation(dataset_name: str) -> AnalysisPlan:
         description="Count reopened support rows.",
         expected_result_name="row_count",
         expected_result_shape="scalar",
+    )
+
+
+def _build_join_dataset() -> Dataset:
+    return Dataset(
+        name="joinable_support",
+        source_type="pandas",
+        data=pd.DataFrame(
+            {
+                "ticket_id": ["T1", "T2", "T3"],
+                "team": ["Support", "Platform", "Support"],
+                "priority": ["Low", "High", "Medium"],
+                "channel": ["Email", "Phone", "Chat"],
+            }
+        ),
+    )
+
+
+def _plan_for_joining(dataset_name: str) -> AnalysisPlan:
+    return AnalysisPlan(
+        task_type="descriptive",
+        rationale="Join projected support rows by ticket id.",
+        dataset_refs=[dataset_name],
+        inputs=[PlanInput(input_id="primary_dataset", kind="dataset", ref=dataset_name)],
+        expected_result_name="joined_rows",
+        expected_result_shape="table",
+        final_output_ref="joined_rows",
+        steps=[
+            PlanStep(
+                step_id="left_projection",
+                tool_family="duckdb",
+                action="select_columns",
+                method_id="select_columns",
+                family="selection_filtering",
+                parameters={"selected_columns": ["ticket_id", "team"]},
+                description="Project ticket ids and teams.",
+                inputs=[StepInputRef(input_id="dataset_input", source_type="plan_input", ref="primary_dataset", expected_kind="dataset")],
+                output_refs=["left_rows"],
+                outputs=[StepOutputSpec(output_id="left_rows", kind="frame", logical_shape="table", physical_shape="recordset")],
+                expected_output={"output_id": "left_rows", "logical_shape": "table", "physical_shape": "recordset"},
+            ),
+            PlanStep(
+                step_id="right_projection",
+                tool_family="duckdb",
+                action="select_columns",
+                method_id="select_columns",
+                family="selection_filtering",
+                parameters={"selected_columns": ["ticket_id", "channel"]},
+                description="Project ticket ids and channels.",
+                inputs=[StepInputRef(input_id="dataset_input", source_type="plan_input", ref="primary_dataset", expected_kind="dataset")],
+                output_refs=["right_rows"],
+                outputs=[StepOutputSpec(output_id="right_rows", kind="frame", logical_shape="table", physical_shape="recordset")],
+                expected_output={"output_id": "right_rows", "logical_shape": "table", "physical_shape": "recordset"},
+            ),
+            PlanStep(
+                step_id="join_frame",
+                tool_family="duckdb",
+                action="join_frame",
+                method_id="join_frame",
+                family="joining",
+                parameters={"on": "ticket_id", "how": "inner"},
+                description="Join the projected frames.",
+                inputs=[
+                    StepInputRef(input_id="left_frame", source_type="step_output", ref="left_rows", expected_kind="frame"),
+                    StepInputRef(input_id="right_frame", source_type="step_output", ref="right_rows", expected_kind="frame"),
+                ],
+                output_refs=["joined_rows"],
+                outputs=[StepOutputSpec(output_id="joined_rows", kind="frame", logical_shape="table", physical_shape="recordset")],
+                expected_output={"output_id": "joined_rows", "logical_shape": "table", "physical_shape": "recordset"},
+            ),
+        ],
     )
 
 
@@ -204,7 +312,10 @@ def _plan_for_diagnostic(dataset_name: str) -> AnalysisPlan:
 
 _FAMILY_CASES = [
     FamilyContractCase("projection", "projection_field_selection", build_support_dataset, _plan_for_projection, "table"),
+    FamilyContractCase("selection_filtering", "selection_filtering", build_sales_dataset, _plan_for_selection_filtering, "table"),
+    FamilyContractCase("transformation", "transformation", build_sales_dataset, _plan_for_transformation, "table"),
     FamilyContractCase("aggregation", "aggregation_grouping", build_support_dataset, _plan_for_aggregation, "scalar"),
+    FamilyContractCase("joining", "joining", _build_join_dataset, _plan_for_joining, "table"),
     FamilyContractCase("ranking", "ranking", build_sales_dataset, _plan_for_ranking, "table"),
     FamilyContractCase("verification", "validation_verification", build_support_dataset, _plan_for_verification, "verification"),
     FamilyContractCase("schema_metadata", "schema_metadata_inspection", build_support_dataset, _plan_for_schema_metadata, "scalar"),
@@ -245,8 +356,23 @@ def test_plan_execution_family_contracts_keep_plan_metadata_authoritative(case: 
     result = engine.execute_plan(dataset, deepcopy(plan))
 
     assert result.plan.expected_result_shape == case.expected_result_shape
-    assert result.plan.steps[0].family == case.family_id
+    assert any(step.family == case.family_id for step in result.plan.steps)
     assert result.response["interpretation"]["task_type"] == plan.task_type
-    assert result.response["execution"]["steps"][0]["family"] == case.family_id
+    assert any(step["family"] == case.family_id for step in result.response["execution"]["steps"])
     assert result.response["interpretation"]["options"]["plan_execution"] is True
     assert result.response["execution"]["expected_result_name"] == plan.expected_result_name
+
+
+def test_plan_execution_family_contracts_cover_every_registry_family_with_methods() -> None:
+    registry = get_analytics_registry()
+    covered_families = {case.family_id for case in _FAMILY_CASES} | {"predictive_forecasting"}
+    executable_families = {family_id for family_id, family in registry.families.items() if family.method_ids}
+
+    assert covered_families == executable_families
+
+
+def test_predictive_forecasting_family_keeps_clear_placeholder_behavior() -> None:
+    dataset = build_sales_dataset()
+
+    with pytest.raises(ModelTrainingError, match="Forecasting.*not implemented yet"):
+        MlAdapter().execute(ComputeRequest(method_id="forecast", dataset=dataset, parameters={"target": "revenue", "horizon": 3}))

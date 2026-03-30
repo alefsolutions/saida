@@ -279,6 +279,8 @@ _ALL_METHOD_CASES: list[PlanMethodCase] = [
     _case("group_mean_comparison", "group_mean_comparison", "stats", "diagnostic_workflows", build_statistical_dataset, {"target": "revenue", "group_column": "region"}, "table"),
 ]
 
+_PLACEHOLDER_METHOD_IDS = {"forecast"}
+
 
 def _build_plan(case: PlanMethodCase, dataset: Dataset) -> AnalysisPlan:
     if case.plan_builder is not None:
@@ -315,6 +317,13 @@ def test_plan_method_matrix_covers_every_supported_non_ml_method() -> None:
     }
 
     assert covered_methods == executable_methods
+
+
+def test_plan_method_matrix_release_coverage_accounts_for_placeholder_methods() -> None:
+    registry = get_analytics_registry()
+    covered_methods = {case.method_id for case in _ALL_METHOD_CASES} | _PLACEHOLDER_METHOD_IDS
+
+    assert covered_methods == set(registry.methods)
 
 
 def test_plan_method_matrix_covers_every_non_ml_family_with_methods() -> None:
