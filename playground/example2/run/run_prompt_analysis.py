@@ -7,10 +7,13 @@ import time
 from typing import Any
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+EXAMPLE_ROOT = Path(__file__).resolve().parents[1]
+PLAYGROUND_ROOT = EXAMPLE_ROOT.parents[0]
+PROJECT_ROOT = EXAMPLE_ROOT.parents[1]
 SRC_PATH = PROJECT_ROOT / "src"
-if str(SRC_PATH) not in sys.path:
-    sys.path.insert(0, str(SRC_PATH))
+for path in (SRC_PATH, PLAYGROUND_ROOT):
+    if str(path) not in sys.path:
+        sys.path.insert(0, str(path))
 
 from _env import load_project_env
 from saida import PromptAnalysisFrontend
@@ -19,8 +22,8 @@ from saida.sources import SQLiteSource
 
 
 EXIT_WORDS = {"exit", "quit", "q"}
-DEFAULT_DATABASE_PATH = PROJECT_ROOT / "examples" / "sqlite_sales_40" / "sales_sqlite_40.db"
-DEFAULT_CONTEXT_PATH = PROJECT_ROOT / "examples" / "sqlite_sales_40" / "sales_sqlite_40.md"
+DEFAULT_DATABASE_PATH = EXAMPLE_ROOT / "data" / "sales_sqlite_40.db"
+DEFAULT_CONTEXT_PATH = EXAMPLE_ROOT / "data" / "sales_sqlite_40.md"
 DEFAULT_QUERY = "SELECT * FROM sales_orders"
 ANSI_RESET = "\033[0m"
 ANSI_YELLOW = "\033[33m"
@@ -30,39 +33,6 @@ DEFAULT_ANALYST_INSTRUCTION = (
     "If the result is scalar, mention the scalar value clearly. "
     "If the result is tabular, summarize what the table represents without listing the rows, because rows are rendered separately."
 )
-
-
-def _llm_provider_name() -> str:
-    provider = str(os.getenv("SAIDA_SQLITE_PLAYGROUND_PROVIDER", "openai")).strip().lower()
-    return provider if provider in {"openai", "ollama"} else "openai"
-
-
-def _require_provider_configuration(provider: str) -> None:
-    if provider == "openai" and not os.getenv("OPENAI_API_KEY"):
-        raise RuntimeError("OPENAI_API_KEY is not set.")
-
-
-def _build_llm_config(provider: str) -> LlmConfig:
-    if provider == "ollama":
-        return LlmConfig(
-            enabled=True,
-            provider="ollama",
-            model=os.getenv("OLLAMA_MODEL", "gemma3:1b"),
-            base_url=os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434"),
-            use_for_prompting=True,
-            use_for_summary=True,
-        )
-    return LlmConfig(
-        enabled=True,
-        provider="openai",
-        model=os.getenv("OPENAI_MODEL", "gpt-4.1-mini"),
-        use_for_prompting=True,
-        use_for_summary=True,
-    )
-
-
-def _playground_label(provider: str) -> str:
-    return "OpenAI" if provider == "openai" else "Ollama"
 
 
 def _show_loader(stop_event: threading.Event) -> None:
@@ -105,8 +75,6 @@ def _playground_llm_summary(provider: object, question: str, payload: dict[str, 
     try:
         if getattr(provider, "provider_name", None) == "openai" and hasattr(provider, "_responses_json"):
             proposal = provider._responses_json(prompt, max_output_tokens=300)
-        elif hasattr(provider, "_generate_json"):
-            proposal = provider._generate_json(prompt)
         else:
             return None
     except Exception:
@@ -125,9 +93,7 @@ def _ensure_scalar_value_in_summary(summary: str, payload: dict[str, Any]) -> st
         return summary
     physical_shape = result_payload.get("physical_shape")
     value = result_payload.get("value")
-    if physical_shape != "scalar":
-        return summary
-    if value is None:
+    if physical_shape != "scalar" or value is None:
         return summary
     scalar_text = str(value)
     return summary if scalar_text in summary else f"{summary} Result: {scalar_text}."
@@ -159,8 +125,8 @@ def _display_value(value: object) -> str:
 
 def main() -> None:
     load_project_env(PROJECT_ROOT)
-    provider = _llm_provider_name()
-    _require_provider_configuration(provider)
+    if not os.getenv("OPENAI_API_KEY"):
+        raise RuntimeError("OPENAI_API_KEY is not set.")
 
     dataset = SQLiteSource(
         DEFAULT_DATABASE_PATH,
@@ -170,11 +136,17 @@ def main() -> None:
     ).load()
 
     config = SaidaConfig(
-        llm=_build_llm_config(provider)
+        llm=LlmConfig(
+            enabled=True,
+            provider="openai",
+            model=os.getenv("OPENAI_MODEL", "gpt-4.1-mini"),
+            use_for_prompting=True,
+            use_for_summary=True,
+        )
     )
 
     engine = PromptAnalysisFrontend(config=config)
-    print(f"SAIDA {_playground_label(provider)} SQLite playground")
+    print("SAIDA Example 2: OpenAI sqlite sales 40 rows")
     print(f"Dataset: {dataset.name}")
     print("Source: sqlite")
     print("Type a question, or type 'exit' to quit.")
@@ -204,8 +176,7 @@ def main() -> None:
             stop_event.set()
             loader_thread.join()
 
-        display_summary = _playground_summary(engine, question, result)
-        print(f"{ANSI_YELLOW}{display_summary}{ANSI_RESET}")
+        print(f"{ANSI_YELLOW}{_playground_summary(engine, question, result)}{ANSI_RESET}")
         for line in _render_tabular_lines(result):
             print(line)
         if result.plan.task_type == "clarification":
@@ -215,4 +186,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

@@ -5,10 +5,13 @@ import threading
 import time
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+EXAMPLE_ROOT = Path(__file__).resolve().parents[1]
+PLAYGROUND_ROOT = EXAMPLE_ROOT.parents[0]
+PROJECT_ROOT = EXAMPLE_ROOT.parents[1]
 SRC_PATH = PROJECT_ROOT / "src"
-if str(SRC_PATH) not in sys.path:
-    sys.path.insert(0, str(SRC_PATH))
+for path in (SRC_PATH, PLAYGROUND_ROOT):
+    if str(path) not in sys.path:
+        sys.path.insert(0, str(path))
 
 from _env import load_project_env
 from saida import PromptAnalysisFrontend
@@ -17,8 +20,8 @@ from saida.sources import CSVSource
 
 
 EXIT_WORDS = {"exit", "quit", "q"}
-DEFAULT_DATASET_PATH = PROJECT_ROOT / "examples" / "datasets" / "sales_data_800_rows.csv"
-DEFAULT_CONTEXT_PATH = PROJECT_ROOT / "examples" / "contexts" / "sales_data_800_rows.md"
+DEFAULT_DATASET_PATH = EXAMPLE_ROOT / "data" / "sales_data_800_rows.csv"
+DEFAULT_CONTEXT_PATH = EXAMPLE_ROOT / "data" / "sales_data_800_rows.md"
 
 
 def _show_loader(stop_event: threading.Event) -> None:
@@ -37,13 +40,13 @@ def _compose_clarification_follow_up(original_question: str, answer: str) -> str
 
 def main() -> None:
     load_project_env(PROJECT_ROOT)
-
     if not os.getenv("OPENAI_API_KEY"):
         raise RuntimeError("OPENAI_API_KEY is not set.")
 
     dataset = CSVSource(
         DEFAULT_DATASET_PATH,
         context_path=DEFAULT_CONTEXT_PATH,
+        name="sales_data_800_rows",
     ).load()
 
     config = SaidaConfig(
@@ -57,7 +60,7 @@ def main() -> None:
     )
 
     engine = PromptAnalysisFrontend(config=config)
-    print("SAIDA OpenAI playground")
+    print("SAIDA Example 1: OpenAI sales CSV 800 rows")
     print(f"Dataset: {dataset.name}")
     print("Type a question, or type 'exit' to quit.")
 
@@ -86,12 +89,11 @@ def main() -> None:
             stop_event.set()
             loader_thread.join()
 
-        print((result.llm_summary or result.summary).strip())
-
+        print((getattr(result, "llm_summary", None) or result.summary).strip())
         if result.plan.task_type == "clarification":
             pending_prompt = question
+            print("Please answer the clarification above, or type 'exit' to quit.")
 
 
 if __name__ == "__main__":
     main()
-

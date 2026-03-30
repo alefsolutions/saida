@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
+import importlib.util
 import sys
 
 import pandas as pd
@@ -12,8 +13,30 @@ if str(PLAYGROUND_PATH) not in sys.path:
 
 import run_analysis_openai as openai_playground
 import run_analysis_openai_json_yellow as openai_playground_json_yellow
-import run_analysis_plan_sqlite_sales_40 as sqlite_plan_playground
-import run_analysis_sqlite_sales_40 as sqlite_playground
+
+
+def _load_module(module_name: str, relative_path: str):
+    module_path = PLAYGROUND_PATH / relative_path
+    spec = importlib.util.spec_from_file_location(module_name, module_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Unable to load playground module at {module_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+example1_playground = _load_module(
+    "example1_playground",
+    "example1/run/run_prompt_analysis.py",
+)
+example2_playground = _load_module(
+    "example2_playground",
+    "example2/run/run_prompt_analysis.py",
+)
+example3_playground = _load_module(
+    "example3_playground",
+    "example3/run/run_authored_plan.py",
+)
 
 
 class _FakeEngine:
@@ -40,14 +63,16 @@ class _FakeEngine:
                 "prompt_contract": {
                     "status": "supported_with_partial_fallback",
                     "selected_capabilities": ["descriptive"],
-                }
+                },
             },
             "result": {
                 "name": "empty_result" if self.status == "clarify" else "tabular_query",
                 "value": {
                     "rows": [{"ticket_id": "T1"}],
                 },
-            } if self.status != "clarify" else {
+            }
+            if self.status != "clarify"
+            else {
                 "name": "empty_result",
                 "value": None,
             },
@@ -215,25 +240,25 @@ def test_openai_yellow_json_playground_can_render_prompt_contract(
     assert '"selected_capabilities"' in output
 
 
-def test_sqlite_playground_prints_summary_for_loaded_sqlite_dataset(
+def test_example2_playground_prints_summary_for_loaded_sqlite_dataset(
     monkeypatch: object,
     capsys: object,
 ) -> None:
     fake_engine = _FakeEngine(summary="The dataset contains 40 rows.")
     dataset = SimpleNamespace(name="sales_sqlite_40", data=pd.DataFrame({"total_sales": [1.0]}))
 
-    monkeypatch.setattr(sqlite_playground, "load_project_env", lambda project_root: None)
-    monkeypatch.setattr(sqlite_playground.os, "getenv", lambda key, default=None: "test-key" if key == "OPENAI_API_KEY" else default)
-    monkeypatch.setattr(sqlite_playground.SQLiteSource, "load", lambda self: dataset)
-    monkeypatch.setattr(sqlite_playground, "PromptAnalysisFrontend", lambda config=None: fake_engine)
+    monkeypatch.setattr(example2_playground, "load_project_env", lambda project_root: None)
+    monkeypatch.setattr(example2_playground.os, "getenv", lambda key, default=None: "test-key" if key == "OPENAI_API_KEY" else default)
+    monkeypatch.setattr(example2_playground.SQLiteSource, "load", lambda self: dataset)
+    monkeypatch.setattr(example2_playground, "PromptAnalysisFrontend", lambda config=None: fake_engine)
 
     answers = iter(["How many rows are there?", "exit"])
     monkeypatch.setattr("builtins.input", lambda prompt="": next(answers))
 
-    sqlite_playground.main()
+    example2_playground.main()
     output = capsys.readouterr().out
 
-    assert "SAIDA OpenAI SQLite playground" in output
+    assert "SAIDA Example 2: OpenAI sqlite sales 40 rows" in output
     assert "Dataset: sales_sqlite_40" in output
     assert "\033[33m" in output
     assert "The dataset contains 40 rows." in output
@@ -241,40 +266,31 @@ def test_sqlite_playground_prints_summary_for_loaded_sqlite_dataset(
     assert fake_engine.calls == ["How many rows are there?"]
 
 
-def test_sqlite_playground_supports_ollama_provider(
+def test_example1_playground_prints_summary_for_loaded_csv_dataset(
     monkeypatch: object,
     capsys: object,
 ) -> None:
     fake_engine = _FakeEngine(summary="Returned the latest sales rows.")
-    dataset = SimpleNamespace(name="sales_sqlite_40", data=pd.DataFrame({"total_sales": [1.0]}))
+    dataset = SimpleNamespace(name="sales_data_800_rows", data=pd.DataFrame({"revenue": [1.0]}))
 
-    def _fake_getenv(key: str, default: str | None = None) -> str | None:
-        if key == "SAIDA_SQLITE_PLAYGROUND_PROVIDER":
-            return "ollama"
-        if key == "OLLAMA_MODEL":
-            return "gemma3:1b"
-        if key == "OLLAMA_BASE_URL":
-            return "http://127.0.0.1:11434"
-        return default
-
-    monkeypatch.setattr(sqlite_playground, "load_project_env", lambda project_root: None)
-    monkeypatch.setattr(sqlite_playground.os, "getenv", _fake_getenv)
-    monkeypatch.setattr(sqlite_playground.SQLiteSource, "load", lambda self: dataset)
-    monkeypatch.setattr(sqlite_playground, "PromptAnalysisFrontend", lambda config=None: fake_engine)
+    monkeypatch.setattr(example1_playground, "load_project_env", lambda project_root: None)
+    monkeypatch.setattr(example1_playground.os, "getenv", lambda key, default=None: "test-key" if key == "OPENAI_API_KEY" else default)
+    monkeypatch.setattr(example1_playground.CSVSource, "load", lambda self: dataset)
+    monkeypatch.setattr(example1_playground, "PromptAnalysisFrontend", lambda config=None: fake_engine)
 
     answers = iter(["Show the latest 5 rows", "exit"])
     monkeypatch.setattr("builtins.input", lambda prompt="": next(answers))
 
-    sqlite_playground.main()
+    example1_playground.main()
     output = capsys.readouterr().out
 
-    assert "SAIDA Ollama SQLite playground" in output
-    assert "Dataset: sales_sqlite_40" in output
+    assert "SAIDA Example 1: OpenAI sales CSV 800 rows" in output
+    assert "Dataset: sales_data_800_rows" in output
     assert "Returned the latest sales rows." in output
     assert fake_engine.calls == ["Show the latest 5 rows"]
 
 
-def test_sqlite_playground_renders_tabular_rows_line_by_line(
+def test_example2_playground_renders_tabular_rows_line_by_line(
     monkeypatch: object,
     capsys: object,
 ) -> None:
@@ -312,15 +328,15 @@ def test_sqlite_playground_renders_tabular_rows_line_by_line(
 
     fake_engine = _FakeTabularEngine()
 
-    monkeypatch.setattr(sqlite_playground, "load_project_env", lambda project_root: None)
-    monkeypatch.setattr(sqlite_playground.os, "getenv", lambda key, default=None: "test-key" if key == "OPENAI_API_KEY" else default)
-    monkeypatch.setattr(sqlite_playground.SQLiteSource, "load", lambda self: dataset)
-    monkeypatch.setattr(sqlite_playground, "PromptAnalysisFrontend", lambda config=None: fake_engine)
+    monkeypatch.setattr(example2_playground, "load_project_env", lambda project_root: None)
+    monkeypatch.setattr(example2_playground.os, "getenv", lambda key, default=None: "test-key" if key == "OPENAI_API_KEY" else default)
+    monkeypatch.setattr(example2_playground.SQLiteSource, "load", lambda self: dataset)
+    monkeypatch.setattr(example2_playground, "PromptAnalysisFrontend", lambda config=None: fake_engine)
 
     answers = iter(["Show the latest 2 rows", "exit"])
     monkeypatch.setattr("builtins.input", lambda prompt="": next(answers))
 
-    sqlite_playground.main()
+    example2_playground.main()
     output = capsys.readouterr().out
 
     assert "Returned the latest sales rows." in output
@@ -328,8 +344,8 @@ def test_sqlite_playground_renders_tabular_rows_line_by_line(
     assert "2. order_id=ORD-039 | country=Germany | total_sales=323.00" in output
 
 
-def test_sqlite_authored_plan_playground_builds_explicit_first_five_rows_plan() -> None:
-    plan = sqlite_plan_playground.build_first_five_rows_plan("sales_sqlite_40")
+def test_example3_authored_plan_playground_builds_explicit_first_five_rows_plan() -> None:
+    plan = example3_playground.build_first_five_rows_plan("sales_sqlite_40")
 
     assert plan.dataset_refs == ["sales_sqlite_40"]
     assert plan.final_output_ref == "first_five_rows"
@@ -339,3 +355,29 @@ def test_sqlite_authored_plan_playground_builds_explicit_first_five_rows_plan() 
     assert plan.steps[0].parameters["sort_by"] == "order_date"
     assert plan.steps[0].parameters["sort_direction"] == "asc"
 
+
+def test_example3_authored_plan_playground_prints_public_response_json(
+    monkeypatch: object,
+    capsys: object,
+) -> None:
+    dataset = SimpleNamespace(name="sales_sqlite_40", data=pd.DataFrame({"total_sales": [1.0]}))
+    fake_result_payload = {
+        "schema_version": "saida.response.v2",
+        "status": "ok",
+        "result": {"name": "first_five_rows", "value": [{"order_id": "ORD-001"}]},
+    }
+    fake_engine = SimpleNamespace(
+        execute_plan=lambda dataset, plan: SimpleNamespace(
+            to_response_dict=lambda: fake_result_payload,
+        )
+    )
+
+    monkeypatch.setattr(example3_playground, "load_project_env", lambda project_root: None)
+    monkeypatch.setattr(example3_playground.SQLiteSource, "load", lambda self: dataset)
+    monkeypatch.setattr(example3_playground, "Saida", lambda: fake_engine)
+
+    example3_playground.main()
+    output = capsys.readouterr().out
+
+    assert '"schema_version": "saida.response.v2"' in output
+    assert '"first_five_rows"' in output
