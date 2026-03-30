@@ -234,10 +234,9 @@ def test_sqlite_playground_prints_summary_for_loaded_sqlite_dataset(
 
     assert "SAIDA OpenAI SQLite playground" in output
     assert "Dataset: sales_sqlite_40" in output
-    assert "\033[31m" in output
     assert "\033[33m" in output
     assert "The dataset contains 40 rows." in output
-    assert '"schema_version": "saida.response.v2"' in output
+    assert '"schema_version": "saida.response.v2"' not in output
     assert fake_engine.calls == ["How many rows are there?"]
 
 
@@ -272,3 +271,57 @@ def test_sqlite_playground_supports_ollama_provider(
     assert "Dataset: sales_sqlite_40" in output
     assert "Returned the latest sales rows." in output
     assert fake_engine.calls == ["Show the latest 5 rows"]
+
+
+def test_sqlite_playground_renders_tabular_rows_line_by_line(
+    monkeypatch: object,
+    capsys: object,
+) -> None:
+    dataset = SimpleNamespace(name="sales_sqlite_40", data=pd.DataFrame({"total_sales": [1.0]}))
+
+    class _FakeTabularEngine:
+        def __init__(self) -> None:
+            self.calls: list[str] = []
+
+        def analyze(self, dataset: object, question: str) -> object:
+            _ = dataset
+            self.calls.append(question)
+            payload = {
+                "schema_version": "saida.response.v2",
+                "status": "ok",
+                "interpretation": {"prompt_family": "tabular_record_retrieval"},
+                "result": {
+                    "name": "tabular_query",
+                    "physical_shape": "recordset",
+                    "value": [
+                        {"order_id": "ORD-040", "country": "United States", "total_sales": 464.5},
+                        {"order_id": "ORD-039", "country": "Germany", "total_sales": 323.0},
+                    ],
+                },
+                "summary": {"summary": "Returned the latest sales rows."},
+            }
+            return SimpleNamespace(
+                summary="Returned the latest sales rows.",
+                llm_summary=None,
+                tables=[],
+                warnings=[],
+                plan=SimpleNamespace(task_type="descriptive"),
+                to_response_dict=lambda: payload,
+            )
+
+    fake_engine = _FakeTabularEngine()
+
+    monkeypatch.setattr(sqlite_playground, "load_project_env", lambda project_root: None)
+    monkeypatch.setattr(sqlite_playground.os, "getenv", lambda key, default=None: "test-key" if key == "OPENAI_API_KEY" else default)
+    monkeypatch.setattr(sqlite_playground.SQLiteSource, "load", lambda self: dataset)
+    monkeypatch.setattr(sqlite_playground, "PromptAnalysisFrontend", lambda config=None: fake_engine)
+
+    answers = iter(["Show the latest 2 rows", "exit"])
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(answers))
+
+    sqlite_playground.main()
+    output = capsys.readouterr().out
+
+    assert "Returned the latest sales rows." in output
+    assert "1. order_id=ORD-040 | country=United States | total_sales=464.50" in output
+    assert "2. order_id=ORD-039 | country=Germany | total_sales=323.00" in output
