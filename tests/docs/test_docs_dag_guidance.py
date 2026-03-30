@@ -3,6 +3,20 @@ from __future__ import annotations
 from pathlib import Path
 
 
+def test_analysis_plan_api_reference_documents_contract_fields_and_allowed_values() -> None:
+    reference_path = Path(__file__).resolve().parents[2] / "docs" / "reference" / "analysis-plan-api.md"
+    content = reference_path.read_text(encoding="utf-8")
+
+    assert "# AnalysisPlan API Reference" in content
+    assert "## AnalysisPlan" in content
+    assert "## PlanStep" in content
+    assert "`saida.plan.v2`" in content
+    assert "`selection_filtering`" in content
+    assert "`tabular_query`" in content
+    assert "`plan_input`" in content
+    assert "`frame`" in content
+
+
 def test_dag_plan_authoring_guide_documents_explicit_plan_contracts() -> None:
     guide_path = Path(__file__).resolve().parents[2] / "docs" / "guides" / "dag-plan-authoring.md"
     content = guide_path.read_text(encoding="utf-8")

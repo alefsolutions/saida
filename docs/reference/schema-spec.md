@@ -2,6 +2,8 @@
 
 This page summarizes the main live contracts in SAIDA.
 
+If you need the exhaustive plan-authoring reference, see [AnalysisPlan API Reference](./analysis-plan-api.md).
+
 Most important rule:
 
 - canonical input: `AnalysisPlan`

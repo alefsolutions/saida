@@ -136,6 +136,7 @@ Reserved ML-facing APIs still exist, but forecasting and model training are not 
 ## Read Next
 
 - [Docs Index](./docs/README.md)
+- [AnalysisPlan API Reference](./docs/reference/analysis-plan-api.md)
 - [Architecture](./docs/overview/architecture.md)
 - [API Usage](./docs/reference/api-usage.md)
 - [Schema Spec](./docs/reference/schema-spec.md)
