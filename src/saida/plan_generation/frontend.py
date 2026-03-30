@@ -10,7 +10,14 @@ from saida.engine import Saida
 from saida.llm import BaseLlmProvider
 from saida.plan_generation.canonicalization import InputCanonicalizer
 from saida.plan_generation.generators import LlmAssistedPlanGenerator, OpenAIPlanGenerator, RuleBasedPlanGenerator
-from saida.plan_generation.planning import PlanBuilder
+from saida.plan_generation.planning import PlanBuilder, build_prompt_plan_contract
+from saida.plan_generation.source_orchestration import (
+    SourceMaterializationResult,
+    SourcePlanningContext,
+    build_source_planning_context,
+    materialize_source_for_request,
+)
+from saida.sources.interfaces import SourceInterface
 
 
 class PromptAnalysisFrontend:
@@ -51,7 +58,9 @@ class PromptAnalysisFrontend:
         capabilities.update(
             {
                 "analyze": True,
+                "analyze_source": True,
                 "plan": True,
+                "plan_source": True,
                 "prompt_plan_contract": True,
                 "llm_plan_generation": bool(self.engine.llm_provider and self.engine.config.llm.use_for_prompting),
             }
@@ -81,6 +90,11 @@ class PromptAnalysisFrontend:
         if plan.steps:
             self.engine.validator.validate_plan(plan, dataset=dataset, profile=profile, router=self.engine.router)
         return plan
+
+    def plan_source(self, source: SourceInterface, question: str) -> AnalysisPlan:
+        """Compile a prompt against a source-aware planning/materialization flow."""
+        prepared = self.prepare_source_analysis(source, question)
+        return prepared.plan
 
     def analyze(self, dataset: Dataset, question: str) -> AnalysisResult:
         """Compile a prompt into a plan, then execute it through the core runtime."""
@@ -161,3 +175,148 @@ class PromptAnalysisFrontend:
                 generation.contract_warning_messages,
             ),
         )
+
+    def analyze_source(self, source: SourceInterface, question: str) -> AnalysisResult:
+        """Compile and execute a prompt through a source-aware materialization flow."""
+        prepared = self.prepare_source_analysis(source, question)
+        generation = prepared.generation
+        request = generation.request
+        interpretation = AnalysisInterpretation.from_request(request)
+
+        trace = [
+            self.engine._trace(
+                "source",
+                "source planning context built",
+                {
+                    "source_name": prepared.planning_context.source_name,
+                    "source_type": prepared.planning_context.source_type,
+                    "planning_mode": prepared.planning_context.metadata.get("planning_mode"),
+                },
+            )
+        ]
+        if generation.trace_event is not None:
+            trace.append(generation.trace_event)
+        trace.append(
+            self.engine._trace(
+                "nlp",
+                "request normalized",
+                {"task_type": request.task_type_hint, "target": request.target},
+            )
+        )
+        trace.append(
+            self.engine._trace(
+                "contract",
+                "prompt plan contract built",
+                {
+                    "status": prepared.prompt_contract.status,
+                    "selected_capabilities": list(prepared.prompt_contract.selected_capabilities),
+                },
+            )
+        )
+        trace.append(
+            self.engine._trace(
+                "source",
+                "source dataset materialized",
+                {
+                    "mode": prepared.materialization.mode,
+                    "source_name": prepared.materialization.metadata.get("source_name"),
+                    "generated_query": prepared.materialization.generated_query,
+                },
+            )
+        )
+
+        if generation.terminal_summary is not None:
+            summary = generation.terminal_summary
+            trace.append(self.engine._trace("results", "planning clarification returned", {"summary_length": len(summary)}))
+            return self.engine.result_canonicalizer.build_analysis_result(
+                summary,
+                None,
+                None,
+                "deterministic",
+                [],
+                [],
+                self.engine._merge_warnings(
+                    generation.request_warnings,
+                    prepared.prompt_contract.warnings,
+                    generation.contract_warning_messages,
+                ),
+                prepared.plan,
+                interpretation,
+                prepared.materialization.profile,
+                trace,
+                prepared.prompt_contract,
+            )
+
+        return self.engine._execute_prepared_plan(
+            dataset=prepared.materialization.dataset,
+            question=question,
+            interpretation=interpretation,
+            profile=prepared.materialization.profile,
+            plan=prepared.plan,
+            trace=trace,
+            prompt_contract=prepared.prompt_contract,
+            warning_groups=(
+                prepared.materialization.profile.warnings,
+                generation.request_warnings,
+                prepared.prompt_contract.warnings,
+                generation.contract_warning_messages,
+            ),
+        )
+
+    def prepare_source_analysis(self, source: SourceInterface, question: str):
+        """Prepare a source-aware prompt analysis without touching the core runtime boundary."""
+        planning_context = build_source_planning_context(source, discovery=self.engine.discovery)
+        generation = self._generate_plan_result(question, planning_context.dataset, planning_context.profile)
+        materialization = materialize_source_for_request(source, generation.request, discovery=self.engine.discovery)
+        prompt_contract = build_prompt_plan_contract(generation.request, materialization.profile)
+        interpretation = AnalysisInterpretation.from_request(generation.request)
+        plan = self.plan_builder.build_plan_from_contract(
+            prompt_contract,
+            generation.request,
+            materialization.profile,
+            materialization.dataset.context,
+        )
+        plan = self.engine._prepare_prompt_generated_plan(
+            plan,
+            materialization.dataset,
+            materialization.profile,
+            interpretation=interpretation,
+        )
+        plan.metadata = dict(plan.metadata)
+        plan.metadata["source_orchestration"] = {
+            "planning_context": planning_context.to_dict(),
+            "materialization": materialization.to_dict(),
+        }
+        if plan.steps:
+            self.engine.validator.validate_plan(
+                plan,
+                dataset=materialization.dataset,
+                profile=materialization.profile,
+                router=self.engine.router,
+            )
+        return PreparedSourceAnalysis(
+            planning_context=planning_context,
+            materialization=materialization,
+            generation=generation,
+            prompt_contract=prompt_contract,
+            plan=plan,
+        )
+
+
+class PreparedSourceAnalysis:
+    """Prepared source-aware prompt analysis bundle."""
+
+    def __init__(
+        self,
+        *,
+        planning_context: SourcePlanningContext,
+        materialization: SourceMaterializationResult,
+        generation: object,
+        prompt_contract: object,
+        plan: AnalysisPlan,
+    ) -> None:
+        self.planning_context = planning_context
+        self.materialization = materialization
+        self.generation = generation
+        self.prompt_contract = prompt_contract
+        self.plan = plan
