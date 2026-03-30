@@ -7,14 +7,17 @@ from typing import Any
 from saida.config import SaidaConfig
 from saida.core.contracts import AnalysisInterpretation, AnalysisPlan, AnalysisResult, Dataset, DatasetProfile
 from saida.engine import Saida
+from saida.exceptions import AdapterError
 from saida.llm import BaseLlmProvider
 from saida.plan_generation.canonicalization import InputCanonicalizer
 from saida.plan_generation.generators import LlmAssistedPlanGenerator, OpenAIPlanGenerator, RuleBasedPlanGenerator
 from saida.plan_generation.planning import PlanBuilder, build_prompt_plan_contract
 from saida.plan_generation.source_orchestration import (
     PreparedSourceAnalysis,
+    SourceClarification,
     SourceMaterializationResult,
     SourcePlanningContext,
+    build_source_clarification,
     build_source_planning_context,
     materialize_source_for_request,
 )
@@ -268,21 +271,70 @@ class PromptAnalysisFrontend:
         """Prepare a source-aware prompt analysis without touching the core runtime boundary."""
         planning_context = build_source_planning_context(source, discovery=self.engine.discovery)
         generation = self._generate_plan_result(question, planning_context.dataset, planning_context.profile)
-        materialization = materialize_source_for_request(source, generation.request, discovery=self.engine.discovery)
+        if generation.terminal_summary is not None:
+            materialization = SourceMaterializationResult(
+                dataset=planning_context.dataset,
+                profile=planning_context.profile,
+                mode="skipped",
+                source_materialization_request=(
+                    dict(generation.request.options.get("source_materialization_request"))
+                    if isinstance(generation.request.options.get("source_materialization_request"), dict)
+                    else None
+                ),
+                metadata={
+                    "source_name": planning_context.source_name,
+                    "source_type": planning_context.source_type,
+                    "materialization_skipped": True,
+                },
+            )
+        else:
+            try:
+                materialization = materialize_source_for_request(source, generation.request, discovery=self.engine.discovery)
+            except AdapterError as exc:
+                clarification = build_source_clarification(
+                    exc,
+                    source_name=planning_context.source_name,
+                    source_type=planning_context.source_type,
+                    source_materialization_request=(
+                        dict(generation.request.options.get("source_materialization_request"))
+                        if isinstance(generation.request.options.get("source_materialization_request"), dict)
+                        else None
+                    ),
+                )
+                self._mark_source_clarification(generation, planning_context, clarification)
+                materialization = SourceMaterializationResult(
+                    dataset=planning_context.dataset,
+                    profile=planning_context.profile,
+                    mode="clarification",
+                    source_materialization_request=(
+                        dict(generation.request.options.get("source_materialization_request"))
+                        if isinstance(generation.request.options.get("source_materialization_request"), dict)
+                        else None
+                    ),
+                    metadata={
+                        "source_name": planning_context.source_name,
+                        "source_type": planning_context.source_type,
+                        "clarification": clarification.to_dict(),
+                    },
+                )
         prompt_contract = build_prompt_plan_contract(generation.request, materialization.profile)
         interpretation = AnalysisInterpretation.from_request(generation.request)
-        plan = self.plan_builder.build_plan_from_contract(
-            prompt_contract,
-            generation.request,
-            materialization.profile,
-            materialization.dataset.context,
-        )
-        plan = self.engine._prepare_prompt_generated_plan(
-            plan,
-            materialization.dataset,
-            materialization.profile,
-            interpretation=interpretation,
-        )
+        if generation.terminal_summary is not None:
+            plan = generation.plan
+            plan.warnings = list(dict.fromkeys([*plan.warnings, *generation.request_warnings]))
+        else:
+            plan = self.plan_builder.build_plan_from_contract(
+                prompt_contract,
+                generation.request,
+                materialization.profile,
+                materialization.dataset.context,
+            )
+            plan = self.engine._prepare_prompt_generated_plan(
+                plan,
+                materialization.dataset,
+                materialization.profile,
+                interpretation=interpretation,
+            )
         plan.metadata = dict(plan.metadata)
         plan.metadata["source_orchestration"] = {
             "planning_context": planning_context.to_dict(),
@@ -301,4 +353,30 @@ class PromptAnalysisFrontend:
             generation=generation,
             prompt_contract=prompt_contract,
             plan=plan,
+        )
+
+    def _mark_source_clarification(
+        self,
+        generation: Any,
+        planning_context: SourcePlanningContext,
+        clarification: SourceClarification,
+    ) -> None:
+        generation.request.options["analysis_outcome"] = "clarify"
+        generation.request.options["llm_message"] = clarification.message
+        generation.request.options["clarification_reason"] = clarification.reason
+        warning = (
+            f"Source materialization was held for clarification because the relational source could not be "
+            f"resolved safely: {clarification.detail}"
+        )
+        if warning not in generation.request_warnings:
+            generation.request_warnings.append(warning)
+        generation.terminal_summary = clarification.message
+        generation.plan = AnalysisPlan(
+            task_type="clarification",
+            rationale=(
+                "Relational source materialization requires clarification before SAIDA can prepare "
+                f"a dataset for {planning_context.source_name}."
+            ),
+            steps=[],
+            warnings=list(generation.request_warnings),
         )

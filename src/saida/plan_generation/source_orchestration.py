@@ -55,6 +55,18 @@ class PreparedSourceAnalysis:
     plan: Any
 
 
+@dataclass(slots=True)
+class SourceClarification:
+    """Clarification guidance raised by source-side relational materialization."""
+
+    reason: str
+    message: str
+    detail: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
 def build_source_planning_context(
     source: SourceInterface,
     *,
@@ -130,6 +142,75 @@ def materialize_source_for_request(
     )
 
 
+def build_source_clarification(
+    error: Exception,
+    *,
+    source_name: str,
+    source_type: str,
+    source_materialization_request: dict[str, Any] | None,
+) -> SourceClarification:
+    """Classify a source-side materialization failure into clarification guidance."""
+    detail = str(error).strip() or "The relational source could not be materialized safely."
+    lowered = detail.lower()
+    required_columns = list(source_materialization_request.get("required_columns") or [])
+
+    if "ambiguous across tables" in lowered:
+        requested_column = _extract_quoted_value(detail)
+        candidates = _extract_suffix_after(detail, "tables:")
+        column_label = requested_column or "the requested field"
+        message = (
+            f"Please clarify which table you mean for {column_label!r}. "
+            f"The SQL source has multiple matching columns{f': {candidates}' if candidates else '.'}"
+        )
+        return SourceClarification(
+            reason="ambiguous_relational_column",
+            message=message,
+            detail=detail,
+        )
+
+    if "no relational join path exists" in lowered:
+        joined_columns = ", ".join(required_columns) if required_columns else "the requested fields"
+        return SourceClarification(
+            reason="missing_relational_join_path",
+            message=(
+                "Please clarify which related tables should be analyzed together. "
+                f"SAIDA could not find a safe relational join path for {joined_columns}."
+            ),
+            detail=detail,
+        )
+
+    if "was not found in the relational schema" in lowered or "does not exist in the relational schema" in lowered:
+        requested_column = _extract_quoted_value(detail)
+        return SourceClarification(
+            reason="unknown_relational_column",
+            message=(
+                f"Please clarify the requested field{f' {requested_column!r}' if requested_column else ''}. "
+                f"SAIDA could not resolve it from the {source_type} schema for {source_name}."
+            ),
+            detail=detail,
+        )
+
+    if "preferred base table" in lowered:
+        requested_table = _extract_quoted_value(detail)
+        return SourceClarification(
+            reason="unknown_relational_base_table",
+            message=(
+                f"Please clarify the base table{f' {requested_table!r}' if requested_table else ''}. "
+                f"SAIDA could not find it in the {source_type} schema for {source_name}."
+            ),
+            detail=detail,
+        )
+
+    return SourceClarification(
+        reason="relational_source_clarification",
+        message=(
+            "Please clarify the relational data request. "
+            f"SAIDA could not safely materialize the needed dataset from {source_name}."
+        ),
+        detail=detail,
+    )
+
+
 def _build_schema_planning_dataset(source: SQLSourceInterface, schema_model: RelationalSchemaModel) -> Dataset:
     columns: list[str] = []
     values: dict[str, object] = {}
@@ -179,3 +260,17 @@ def _placeholder_value(data_type: str, column_name: str) -> object:
     if lowered_name.endswith("_id") or lowered_name == "id":
         return "sample_id"
     return "sample"
+
+
+def _extract_quoted_value(text: str) -> str | None:
+    parts = text.split("'")
+    if len(parts) >= 3 and parts[1].strip():
+        return parts[1].strip()
+    return None
+
+
+def _extract_suffix_after(text: str, marker: str) -> str | None:
+    if marker not in text:
+        return None
+    suffix = text.split(marker, 1)[1].strip().rstrip(".")
+    return suffix or None
