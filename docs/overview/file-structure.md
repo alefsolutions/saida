@@ -13,7 +13,7 @@ src/saida/
 |-- plan_generation/
 `-- sources/
 
-spec_tests/
+tests/
 playground/
 examples/
 ```
@@ -107,7 +107,7 @@ Rule:
 
 ## Tests
 
-### `spec_tests/`
+### `tests/`
 
 Owns automated verification for the live codebase.
 
