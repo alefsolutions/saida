@@ -372,6 +372,7 @@ class ResultCanonicalizer:
                 "name": result_payload.get("name"),
                 "logical_shape": result_payload.get("logical_shape"),
                 "physical_shape": result_payload.get("physical_shape"),
+                "semantic_kind": result_payload.get("semantic_kind"),
                 "shape": {
                     "logical": result_payload.get("logical_shape"),
                     "physical": result_payload.get("physical_shape"),

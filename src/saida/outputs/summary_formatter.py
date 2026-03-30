@@ -646,11 +646,15 @@ class SummaryFormatter:
     def _describe_statistical_result(self, tables: list[TableArtifact]) -> str | None:
         statistical_tables = {
             "t_test",
+            "chi_square",
             "chi_square_test",
+            "anova",
             "anova_test",
+            "mann_whitney",
             "mann_whitney_test",
             "confidence_interval",
             "regression_significance",
+            "significance_inference",
             "significance_test",
             "power_analysis",
             "sample_size_estimate",
@@ -666,19 +670,19 @@ class SummaryFormatter:
                 f"Welch t-test for {row['target']} by {row['group_column']} compared {row['left_group']} and {row['right_group']}: "
                 f"p={float(row['p_value']):.4f}, which is {conclusion} at alpha={float(row['alpha']):.2f}."
             )
-        if statistical_table.name in {"anova_test", "significance_test"} and row.get("test_name") == "anova":
+        if statistical_table.name in {"anova", "anova_test", "significance_inference", "significance_test"} and row.get("test_name") == "anova":
             conclusion = "statistically significant" if bool(row.get("is_significant")) else "not statistically significant"
             return (
                 f"ANOVA for {row['target']} by {row['group_column']} returned p={float(row['p_value']):.4f}, "
                 f"which is {conclusion} at alpha={float(row['alpha']):.2f}."
             )
-        if statistical_table.name == "chi_square_test":
+        if statistical_table.name in {"chi_square", "chi_square_test"}:
             conclusion = "statistically significant" if bool(row.get("is_significant")) else "not statistically significant"
             return (
                 f"Chi-square test for {row['left_column']} and {row['right_column']} returned p={float(row['p_value']):.4f}, "
                 f"which is {conclusion} at alpha={float(row['alpha']):.2f}."
             )
-        if statistical_table.name == "mann_whitney_test":
+        if statistical_table.name in {"mann_whitney", "mann_whitney_test"}:
             conclusion = "statistically significant" if bool(row.get("is_significant")) else "not statistically significant"
             return (
                 f"Mann-Whitney test for {row['target']} by {row['group_column']} returned p={float(row['p_value']):.4f}, "
