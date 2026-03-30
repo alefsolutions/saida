@@ -128,12 +128,12 @@ def main() -> None:
     if not os.getenv("OPENAI_API_KEY"):
         raise RuntimeError("OPENAI_API_KEY is not set.")
 
-    dataset = SQLiteSource(
+    source = SQLiteSource(
         DEFAULT_DATABASE_PATH,
         DEFAULT_QUERY,
         name="sales_sqlite_40",
         context_path=DEFAULT_CONTEXT_PATH,
-    ).load()
+    )
 
     config = SaidaConfig(
         llm=LlmConfig(
@@ -147,8 +147,9 @@ def main() -> None:
 
     engine = PromptAnalysisFrontend(config=config)
     print("SAIDA Example 2: OpenAI sqlite sales 40 rows")
-    print(f"Dataset: {dataset.name}")
+    print(f"Dataset: {source.source_name}")
     print("Source: sqlite")
+    print("Mode: source-aware relational materialization")
     print("Type a question, or type 'exit' to quit.")
 
     pending_prompt: str | None = None
@@ -171,7 +172,7 @@ def main() -> None:
         loader_thread = threading.Thread(target=_show_loader, args=(stop_event,), daemon=True)
         loader_thread.start()
         try:
-            result = engine.analyze(dataset, question)
+            result = engine.analyze_source(source, question)
         finally:
             stop_event.set()
             loader_thread.join()

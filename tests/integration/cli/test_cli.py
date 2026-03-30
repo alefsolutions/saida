@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import json
+import sqlite3
 
 import pytest
 
@@ -115,6 +116,50 @@ def test_cli_analyze_supports_debug_json_output(monkeypatch: object, tmp_path: P
     assert payload["interpretation"]["task_type"] == "diagnostic"
     assert payload["history"][0]["stage"] == "adapter"
     assert any(table["name"] == "period_comparison" for table in payload["tables"])
+
+
+def test_cli_analyze_sqlite_supports_source_aware_json_output(monkeypatch: object, tmp_path: Path, capsys: object) -> None:
+    database_path = tmp_path / "warehouse.sqlite"
+    connection = sqlite3.connect(database_path)
+    try:
+        connection.execute("pragma foreign_keys = on")
+        connection.execute("create table customers (customer_id text primary key, country text)")
+        connection.execute(
+            "create table orders ("
+            "order_id text primary key, "
+            "customer_id text not null, "
+            "total_sales real, "
+            "foreign key(customer_id) references customers(customer_id)"
+            ")"
+        )
+        connection.execute("insert into customers values ('C1', 'Australia')")
+        connection.execute("insert into orders values ('O1', 'C1', 100.0)")
+        connection.commit()
+    finally:
+        connection.close()
+
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "saida",
+            "analyze-sqlite",
+            "--database",
+            str(database_path),
+            "--table",
+            "orders",
+            "--question",
+            "Show a table of total_sales by country",
+            "--json",
+        ],
+    )
+
+    exit_code = main()
+    payload = json.loads(capsys.readouterr().out)
+
+    assert exit_code == 0
+    assert payload["status"] == "ok"
+    assert payload["interpretation"]["prompt_family"] == "grouped_metric_table"
+    assert payload["result"]["value"] == [{"country": "Australia", "target_total": 100.0}]
 
 
 def test_cli_version_command(monkeypatch: object, capsys: object) -> None:

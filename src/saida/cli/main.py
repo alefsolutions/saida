@@ -9,7 +9,7 @@ from pathlib import Path
 from saida import PromptAnalysisFrontend, Saida
 from saida.config import LlmConfig, SaidaConfig
 from saida.core import AnalysisResult, DatasetProfile
-from saida.sources import CSVSource
+from saida.sources import CSVSource, SQLiteSource
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -40,6 +40,27 @@ def build_parser() -> argparse.ArgumentParser:
     analyze_parser.add_argument("--llm-provider", help="Optional LLM provider name, for example 'ollama'.")
     analyze_parser.add_argument("--llm-model", help="Optional LLM model name.")
     analyze_parser.add_argument("--llm-base-url", help="Optional LLM provider base URL.")
+
+    analyze_sqlite_parser = subparsers.add_parser(
+        "analyze-sqlite",
+        help="Analyze a SQLite source through the source-aware relational prompt flow.",
+    )
+    analyze_sqlite_parser.add_argument("--database", required=True, help="Path to the SQLite database file.")
+    analyze_sqlite_parser.add_argument("--table", required=True, help="Base table to expose for source-aware planning.")
+    analyze_sqlite_parser.add_argument("--question", required=True, help="Question to analyze.")
+    analyze_sqlite_parser.add_argument("--context", help="Optional path to a markdown context file.")
+    analyze_sqlite_parser.add_argument("--name", help="Optional source name. Defaults to the database stem.")
+    analyze_sqlite_parser.add_argument("--json", action="store_true", help="Print the analysis result as JSON.")
+    analyze_sqlite_parser.add_argument(
+        "--debug-json",
+        action="store_true",
+        help="Print the full verbose debug analysis payload as JSON.",
+    )
+    analyze_sqlite_parser.add_argument("--show-plan", action="store_true", help="Print plan steps after the summary.")
+    analyze_sqlite_parser.add_argument("--show-trace", action="store_true", help="Print execution trace events after the summary.")
+    analyze_sqlite_parser.add_argument("--llm-provider", help="Optional LLM provider name, for example 'ollama'.")
+    analyze_sqlite_parser.add_argument("--llm-model", help="Optional LLM model name.")
+    analyze_sqlite_parser.add_argument("--llm-base-url", help="Optional LLM provider base URL.")
 
     return parser
 
@@ -87,6 +108,27 @@ def main() -> int:
                 print("Warnings:", "; ".join(result.warnings))
         return 0
 
+    if args.command == "analyze-sqlite":
+        source = _build_sqlite_source(args.database, args.table, args.context, args.name)
+        engine = PromptAnalysisFrontend(config=_build_cli_config(args.llm_provider, args.llm_model, args.llm_base_url))
+        result = engine.analyze_source(source, args.question)
+        if args.json or args.debug_json:
+            print(json.dumps(_analysis_payload(result, debug=args.debug_json), indent=2, allow_nan=False))
+        else:
+            print(result.summary)
+            print("Tables:", ", ".join(table.name for table in result.tables))
+            if args.show_plan:
+                print("Plan:")
+                for step in result.plan.steps:
+                    print(f"- {step.step_id}: {step.description}")
+            if args.show_trace:
+                print("Trace:")
+                for event in result.trace:
+                    print(f"- {event.stage}: {event.message}")
+            if result.warnings:
+                print("Warnings:", "; ".join(result.warnings))
+        return 0
+
     parser.print_help()
     return 1
 
@@ -95,6 +137,19 @@ def _load_csv_dataset(csv_path: str, context_path: str | None) -> object:
     """Load a CSV dataset for CLI commands."""
     csv_source = CSVSource(Path(csv_path), context_path=Path(context_path) if context_path else None)
     return csv_source.load()
+
+
+def _build_sqlite_source(database_path: str, table_name: str, context_path: str | None, source_name: str | None) -> SQLiteSource:
+    """Build a SQLite source for source-aware CLI analysis."""
+    database = Path(database_path)
+    context = Path(context_path) if context_path else None
+    query = f'SELECT * FROM "{table_name}"'
+    return SQLiteSource(
+        database,
+        query,
+        name=source_name or database.stem,
+        context_path=context,
+    )
 
 
 def _profile_payload(profile: DatasetProfile) -> dict[str, object]:

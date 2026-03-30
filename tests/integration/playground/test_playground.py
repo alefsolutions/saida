@@ -86,6 +86,9 @@ class _FakeEngine:
             to_response_dict=lambda: payload,
         )
 
+    def analyze_source(self, source: object, question: str) -> object:
+        return self.analyze(source, question)
+
 
 def test_openai_playground_exits_cleanly_from_clarification_prompt(
     monkeypatch: object,
@@ -245,11 +248,9 @@ def test_example2_playground_prints_summary_for_loaded_sqlite_dataset(
     capsys: object,
 ) -> None:
     fake_engine = _FakeEngine(summary="The dataset contains 40 rows.")
-    dataset = SimpleNamespace(name="sales_sqlite_40", data=pd.DataFrame({"total_sales": [1.0]}))
 
     monkeypatch.setattr(example2_playground, "load_project_env", lambda project_root: None)
     monkeypatch.setattr(example2_playground.os, "getenv", lambda key, default=None: "test-key" if key == "OPENAI_API_KEY" else default)
-    monkeypatch.setattr(example2_playground.SQLiteSource, "load", lambda self: dataset)
     monkeypatch.setattr(example2_playground, "PromptAnalysisFrontend", lambda config=None: fake_engine)
 
     answers = iter(["How many rows are there?", "exit"])
@@ -260,6 +261,7 @@ def test_example2_playground_prints_summary_for_loaded_sqlite_dataset(
 
     assert "SAIDA Example 2: OpenAI sqlite sales 40 rows" in output
     assert "Dataset: sales_sqlite_40" in output
+    assert "Mode: source-aware relational materialization" in output
     assert "\033[33m" in output
     assert "The dataset contains 40 rows." in output
     assert '"schema_version": "saida.response.v2"' not in output
@@ -294,8 +296,6 @@ def test_example2_playground_renders_tabular_rows_line_by_line(
     monkeypatch: object,
     capsys: object,
 ) -> None:
-    dataset = SimpleNamespace(name="sales_sqlite_40", data=pd.DataFrame({"total_sales": [1.0]}))
-
     class _FakeTabularEngine:
         def __init__(self) -> None:
             self.calls: list[str] = []
@@ -326,11 +326,13 @@ def test_example2_playground_renders_tabular_rows_line_by_line(
                 to_response_dict=lambda: payload,
             )
 
+        def analyze_source(self, source: object, question: str) -> object:
+            return self.analyze(source, question)
+
     fake_engine = _FakeTabularEngine()
 
     monkeypatch.setattr(example2_playground, "load_project_env", lambda project_root: None)
     monkeypatch.setattr(example2_playground.os, "getenv", lambda key, default=None: "test-key" if key == "OPENAI_API_KEY" else default)
-    monkeypatch.setattr(example2_playground.SQLiteSource, "load", lambda self: dataset)
     monkeypatch.setattr(example2_playground, "PromptAnalysisFrontend", lambda config=None: fake_engine)
 
     answers = iter(["Show the latest 2 rows", "exit"])
