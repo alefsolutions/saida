@@ -20,13 +20,15 @@ Prompt and LLM features are documented too, but they are optional frontend layer
 1. [Architecture](./overview/architecture.md)
 2. [AnalysisPlan API Reference](./reference/analysis-plan-api.md)
 3. [API Usage](./reference/api-usage.md)
-4. [Schema Spec](./reference/schema-spec.md)
-5. [DAG Plan Authoring](./guides/dag-plan-authoring.md)
-6. [File Structure](./overview/file-structure.md)
+4. [Relational Sources](./reference/relational-sources.md)
+5. [Schema Spec](./reference/schema-spec.md)
+6. [DAG Plan Authoring](./guides/dag-plan-authoring.md)
+7. [File Structure](./overview/file-structure.md)
 
 ## Reference
 
 - [AnalysisPlan API Reference](./reference/analysis-plan-api.md)
+- [Relational Sources](./reference/relational-sources.md)
 - [Prompt Family Catalog](./reference/prompt-family-catalog.md)
 
 ## Guides

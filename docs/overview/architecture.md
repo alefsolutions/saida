@@ -40,6 +40,7 @@ Core flow:
 Optional frontend flow:
 
 - `Prompt -> Plan generator -> candidate AnalysisPlan -> Validate -> Execute -> AnalysisResult`
+- `Relational SQL Source -> schema discovery -> access planning -> Dataset -> candidate AnalysisPlan -> Validate -> Execute -> AnalysisResult`
 
 The optional frontend can use rules or an LLM, but the framework itself executes only validated plans.
 
@@ -66,6 +67,14 @@ Main abstractions and built-ins:
 - `SourceContextParser`
 - `SchemaDiscoveryService`
 
+Relational SQL sources can now also do source-side work before the core ever sees a dataset:
+
+- discover schema metadata with SQLAlchemy
+- normalize tables, columns, and foreign-key relationships
+- build deterministic relational access plans
+- render materialization SQL
+- return a canonical `Dataset` to the unchanged core
+
 ### 2. Plan Generation
 
 Purpose:
@@ -83,6 +92,12 @@ Main abstractions:
 - `PromptAnalysisFrontend`
 - rule-based generators
 - LLM-assisted generators
+
+For relational SQL sources, prompt planning now has a source-aware path:
+
+- `PromptAnalysisFrontend.prepare_source_analysis(...)`
+- `PromptAnalysisFrontend.plan_source(...)`
+- `PromptAnalysisFrontend.analyze_source(...)`
 
 ### 3. Validation
 
@@ -263,3 +278,8 @@ Main packages:
 - `src/saida/outputs/`
 - `src/saida/plan_generation/`
 - `src/saida/llm/`
+
+Important boundary:
+
+- relational schema discovery and source materialization live in `src/saida/sources/` and prompt/frontend orchestration
+- `src/saida/core/` still stays centered on `Dataset`, `AnalysisPlan`, and `AnalysisResult`

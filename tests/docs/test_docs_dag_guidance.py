@@ -32,11 +32,16 @@ def test_schema_spec_and_api_usage_describe_dag_runtime_contracts() -> None:
     schema_spec = (docs_root / "reference" / "schema-spec.md").read_text(encoding="utf-8")
     api_usage = (docs_root / "reference" / "api-usage.md").read_text(encoding="utf-8")
     architecture = (docs_root / "overview" / "architecture.md").read_text(encoding="utf-8")
+    relational_sources = (docs_root / "reference" / "relational-sources.md").read_text(encoding="utf-8")
 
     assert "`StepInputRef`" in schema_spec
     assert "`StepOutputSpec`" in schema_spec
     assert "`ExecutionArtifact`" in schema_spec
     assert "deterministic DAG scheduler" in api_usage
+    assert "analyze_source(source, \"Show a table of total_sales by country\")" in api_usage
     assert "execution artifact store" in architecture
     assert "`artifact_index` and `node_results` expose graph execution lineage" in architecture
+    assert "schema discovery" in relational_sources
+    assert "source.discover_schema()" in relational_sources
+    assert "`execution.source_provenance`" in relational_sources
 

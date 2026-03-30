@@ -15,7 +15,7 @@ This folder contains runnable scenario-based playgrounds.
   - `run/run_prompt_analysis.py`: OpenAI prompt-driven analysis over the 800-row sales CSV
 - `example2/`
   - `data/`: SQLite database and markdown context
-  - `run/run_prompt_analysis.py`: OpenAI prompt-driven analysis over the 40-row SQLite dataset
+  - `run/run_prompt_analysis.py`: OpenAI prompt-driven analysis over the SQLite source-aware flow
 - `example3/`
   - `data/`: SQLite database and markdown context
   - `run/run_authored_plan.py`: pure `AnalysisPlan -> execute_plan -> AnalysisResult` example that prints JSON
@@ -33,6 +33,8 @@ Example 2:
 ```powershell
 python playground/example2/run/run_prompt_analysis.py
 ```
+
+Example 2 now uses `PromptAnalysisFrontend.analyze_source(...)`, so the playground exercises schema discovery and source-side materialization before the core runtime executes the final plan.
 
 Example 3:
 

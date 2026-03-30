@@ -95,6 +95,38 @@ result = frontend.analyze(dataset, "How many tickets do we have by team?")
 
 Prompt and LLM features are not the compute layer. They are convenience tooling that generates candidate plans or optional summaries.
 
+## Relational SQL Sources
+
+SQL source adapters can now do more than run a fixed query.
+
+For SQLite, PostgreSQL, and MySQL sources, SAIDA can:
+
+- discover schema structure with SQLAlchemy
+- build a canonical relational schema model
+- deterministically plan joins and projections outside the core
+- materialize an analysis-ready `Dataset`
+- hand that dataset to the unchanged core runtime
+
+The source-aware prompt path is:
+
+- `SQL source -> schema discovery -> relational access plan -> Dataset -> AnalysisPlan -> AnalysisResult`
+
+Example:
+
+```python
+from saida import PromptAnalysisFrontend
+from saida.sources import SQLiteSource
+
+source = SQLiteSource(
+    "warehouse.sqlite",
+    'SELECT * FROM "orders"',
+    name="warehouse_sales",
+)
+
+frontend = PromptAnalysisFrontend()
+result = frontend.analyze_source(source, "Show a table of total_sales by country")
+```
+
 ## Built-In Interfaces
 
 ### Sources
@@ -139,6 +171,7 @@ Reserved ML-facing APIs still exist, but forecasting and model training are not 
 - [AnalysisPlan API Reference](./docs/reference/analysis-plan-api.md)
 - [Architecture](./docs/overview/architecture.md)
 - [API Usage](./docs/reference/api-usage.md)
+- [Relational Sources](./docs/reference/relational-sources.md)
 - [Schema Spec](./docs/reference/schema-spec.md)
 - [Prompt Playbook](./docs/guides/prompt-playbook.md)
 - [Prompt Family Catalog](./docs/reference/prompt-family-catalog.md)

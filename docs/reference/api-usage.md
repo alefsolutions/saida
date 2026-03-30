@@ -181,6 +181,32 @@ dataset = PostgreSQLSource(
 ).load()
 ```
 
+### Source-Aware Relational SQL
+
+If you want SAIDA to discover schema relationships and materialize the needed dataset before planning, use a SQL source with `PromptAnalysisFrontend.analyze_source(...)`.
+
+```python
+from saida import PromptAnalysisFrontend
+from saida.sources import SQLiteSource
+
+source = SQLiteSource(
+    "warehouse.sqlite",
+    'SELECT * FROM "orders"',
+    name="warehouse_sales",
+)
+
+frontend = PromptAnalysisFrontend()
+result = frontend.analyze_source(source, "Show a table of total_sales by country")
+```
+
+Other useful source-aware methods:
+
+- `frontend.prepare_source_analysis(source, question)`
+- `frontend.plan_source(source, question)`
+- `source.discover_schema()`
+- `source.plan_access(required_columns=[...])`
+- `source.load_from_access_plan(access_plan)`
+
 ## Working With `AnalysisResult`
 
 The main fields most application code uses are:
@@ -239,6 +265,21 @@ from saida import PromptAnalysisFrontend
 
 frontend = PromptAnalysisFrontend()
 result = frontend.analyze(dataset, "How many tickets do we have by team?")
+```
+
+### Analyze directly from a relational source
+
+```python
+from saida import PromptAnalysisFrontend
+from saida.sources import SQLiteSource
+
+frontend = PromptAnalysisFrontend()
+source = SQLiteSource(
+    "warehouse.sqlite",
+    'SELECT * FROM "orders"',
+    name="warehouse_sales",
+)
+result = frontend.analyze_source(source, "Show a table of total_sales by country")
 ```
 
 This path is optional. The framework itself is still centered on authored or generated `AnalysisPlan` execution.
