@@ -33,7 +33,7 @@ DEFAULT_ANALYST_INSTRUCTION = (
 
 
 def _llm_provider_name() -> str:
-    provider = str(os.getenv("SAIDA_LLM_PROVIDER", os.getenv("LLM_PROVIDER", "openai"))).strip().lower()
+    provider = str(os.getenv("SAIDA_SQLITE_PLAYGROUND_PROVIDER", "openai")).strip().lower()
     return provider if provider in {"openai", "ollama"} else "openai"
 
 

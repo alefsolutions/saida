@@ -249,7 +249,7 @@ def test_sqlite_playground_supports_ollama_provider(
     dataset = SimpleNamespace(name="sales_sqlite_40", data=pd.DataFrame({"total_sales": [1.0]}))
 
     def _fake_getenv(key: str, default: str | None = None) -> str | None:
-        if key == "SAIDA_LLM_PROVIDER":
+        if key == "SAIDA_SQLITE_PLAYGROUND_PROVIDER":
             return "ollama"
         if key == "OLLAMA_MODEL":
             return "gemma3:1b"
