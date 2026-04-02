@@ -37,6 +37,10 @@ example3_playground = _load_module(
     "example3_playground",
     "example3/run/run_authored_plan.py",
 )
+example4_playground = _load_module(
+    "example4_playground",
+    "example4/run/run_prompt_analysis.py",
+)
 
 
 class _FakeEngine:
@@ -383,3 +387,26 @@ def test_example3_authored_plan_playground_prints_public_response_json(
 
     assert '"schema_version": "saida.response.v2"' in output
     assert '"first_five_rows"' in output
+
+
+def test_example4_playground_prints_summary_for_multi_table_relational_source(
+    monkeypatch: object,
+    capsys: object,
+) -> None:
+    fake_engine = _FakeEngine(summary="Returned grouped relational sales totals.")
+
+    monkeypatch.setattr(example4_playground, "load_project_env", lambda project_root: None)
+    monkeypatch.setattr(example4_playground.os, "getenv", lambda key, default=None: "test-key" if key == "OPENAI_API_KEY" else default)
+    monkeypatch.setattr(example4_playground, "_ensure_database", lambda path: None)
+    monkeypatch.setattr(example4_playground, "PromptAnalysisFrontend", lambda config=None: fake_engine)
+
+    answers = iter(["Show a table of total_sales by country", "exit"])
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(answers))
+
+    example4_playground.main()
+    output = capsys.readouterr().out
+
+    assert "SAIDA Example 4: OpenAI relational warehouse sqlite" in output
+    assert "Mode: source-aware relational materialization (multi-table)" in output
+    assert "Returned grouped relational sales totals." in output
+    assert fake_engine.calls == ["Show a table of total_sales by country"]

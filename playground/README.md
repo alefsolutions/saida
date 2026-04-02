@@ -19,6 +19,9 @@ This folder contains runnable scenario-based playgrounds.
 - `example3/`
   - `data/`: SQLite database and markdown context
   - `run/run_authored_plan.py`: pure `AnalysisPlan -> execute_plan -> AnalysisResult` example that prints JSON
+- `example4/`
+  - `data/`: markdown context plus a runtime-built multi-table SQLite warehouse
+  - `run/run_prompt_analysis.py`: OpenAI prompt-driven analysis over a richer relational schema
 
 ## Run
 
@@ -40,4 +43,10 @@ Example 3:
 
 ```powershell
 python playground/example3/run/run_authored_plan.py
+```
+
+Example 4:
+
+```powershell
+python playground/example4/run/run_prompt_analysis.py
 ```
