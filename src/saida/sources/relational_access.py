@@ -42,6 +42,30 @@ class RelationalJoinSpec:
 
 
 @dataclass(slots=True)
+class RelationalFilterSpec:
+    """One source-side filter predicate bound to a relational column."""
+
+    source_table: str
+    source_column: str
+    predicate: Any
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(slots=True)
+class RelationalOrderSpec:
+    """One source-side ordering directive bound to a relational column."""
+
+    source_table: str
+    source_column: str
+    direction: str = "asc"
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(slots=True)
 class RelationalAccessPlan:
     """Deterministic source-side access plan for materializing a relational dataset."""
 
@@ -49,6 +73,10 @@ class RelationalAccessPlan:
     required_tables: list[str] = field(default_factory=list)
     projections: list[RelationalProjectionSpec] = field(default_factory=list)
     joins: list[RelationalJoinSpec] = field(default_factory=list)
+    filters: list[RelationalFilterSpec] = field(default_factory=list)
+    order_by: list[RelationalOrderSpec] = field(default_factory=list)
+    limit: int | None = None
+    offset: int | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -60,6 +88,11 @@ def build_relational_access_plan(
     *,
     required_columns: list[str],
     preferred_base_table: str | None = None,
+    filters: dict[str, Any] | None = None,
+    sort_by: str | None = None,
+    sort_direction: str | None = None,
+    limit: int | None = None,
+    offset: int | None = None,
 ) -> RelationalAccessPlan:
     """Build a deterministic relational access plan from a discovered schema."""
     if not required_columns:
@@ -73,17 +106,57 @@ def build_relational_access_plan(
     column_candidates = _build_column_candidate_index(schema)
     table_semantics = infer_relational_table_semantics(schema)
 
+    if preferred_base_table is not None and preferred_base_table not in tables_by_name:
+        raise AdapterError(f"Preferred base table {preferred_base_table!r} was not found in the relational schema.")
+
+    effective_preferred_base_table = preferred_base_table
+    if isinstance(sort_by, str) and sort_by.strip():
+        sort_table, _sort_column, _sort_output_name = _resolve_projection_binding(
+            sort_by,
+            column_candidates,
+            preferred_base_table=preferred_base_table,
+        )
+        if effective_preferred_base_table is None:
+            effective_preferred_base_table = sort_table
+
     projection_bindings: list[tuple[str, str, str]] = []
     for requested_column in required_columns:
         source_table, source_column, output_name = _resolve_projection_binding(
             requested_column,
             column_candidates,
-            preferred_base_table=preferred_base_table,
+            preferred_base_table=effective_preferred_base_table,
         )
         projection_bindings.append((source_table, source_column, output_name))
 
-    if preferred_base_table is not None and preferred_base_table not in tables_by_name:
-        raise AdapterError(f"Preferred base table {preferred_base_table!r} was not found in the relational schema.")
+    filter_specs: list[RelationalFilterSpec] = []
+    for filter_column, predicate in (filters or {}).items():
+        source_table, source_column, _output_name = _resolve_projection_binding(
+            str(filter_column),
+            column_candidates,
+            preferred_base_table=effective_preferred_base_table,
+        )
+        filter_specs.append(
+            RelationalFilterSpec(
+                source_table=source_table,
+                source_column=source_column,
+                predicate=predicate,
+            )
+        )
+
+    order_specs: list[RelationalOrderSpec] = []
+    if isinstance(sort_by, str) and sort_by.strip():
+        source_table, source_column, _output_name = _resolve_projection_binding(
+            sort_by,
+            column_candidates,
+            preferred_base_table=effective_preferred_base_table,
+        )
+        order_specs.append(
+            RelationalOrderSpec(
+                source_table=source_table,
+                source_column=source_column,
+                direction=(sort_direction or "asc").lower(),
+            )
+        )
 
     (
         base_table,
@@ -93,9 +166,16 @@ def build_relational_access_plan(
         schema,
         projection_bindings,
         table_semantics=table_semantics,
-        preferred_base_table=preferred_base_table,
+        preferred_base_table=effective_preferred_base_table,
     )
-    required_tables = sorted({base_table, *(source_table for source_table, _source_column, _output_name in projection_bindings)})
+    required_tables = sorted(
+        {
+            base_table,
+            *(source_table for source_table, _source_column, _output_name in projection_bindings),
+            *(filter_spec.source_table for filter_spec in filter_specs),
+            *(order_spec.source_table for order_spec in order_specs),
+        }
+    )
 
     joins, join_analysis = _build_join_plan(
         base_table,
@@ -118,9 +198,19 @@ def build_relational_access_plan(
         required_tables=required_tables,
         projections=projections,
         joins=joins,
+        filters=filter_specs,
+        order_by=order_specs,
+        limit=limit,
+        offset=offset,
         metadata={
             "requested_columns": list(required_columns),
             "preferred_base_table": preferred_base_table,
+            "effective_preferred_base_table": effective_preferred_base_table,
+            "requested_filters": dict(filters or {}),
+            "requested_sort_by": sort_by,
+            "requested_sort_direction": (sort_direction or "asc").lower() if sort_by else None,
+            "requested_limit": limit,
+            "requested_offset": offset,
             "table_roles": {
                 table_name: semantics.role
                 for table_name, semantics in sorted(table_semantics.items())

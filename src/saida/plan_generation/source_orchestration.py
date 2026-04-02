@@ -112,9 +112,18 @@ def materialize_source_for_request(
     if isinstance(source, SQLSourceInterface) and isinstance(source_materialization_request, dict):
         required_columns = list(source_materialization_request.get("required_columns") or [])
         preferred_base_table = source_materialization_request.get("preferred_base_table")
+        mode = str(source_materialization_request.get("mode") or "analysis_frame")
+        filters = source_materialization_request.get("filters")
+        sort_by = source_materialization_request.get("sort_by") if mode == "tabular_recordset" else None
+        sort_direction = source_materialization_request.get("sort_direction") if mode == "tabular_recordset" else None
+        row_limit = source_materialization_request.get("row_limit") if mode == "tabular_recordset" else None
         access_plan = source.plan_access(
             required_columns=required_columns,
             preferred_base_table=preferred_base_table if isinstance(preferred_base_table, str) else None,
+            filters=dict(filters) if isinstance(filters, dict) else None,
+            sort_by=sort_by if isinstance(sort_by, str) else None,
+            sort_direction=sort_direction if isinstance(sort_direction, str) else None,
+            limit=int(row_limit) if isinstance(row_limit, int) else None,
         )
         query = source.render_access_query(access_plan)
         dataset = source.load_from_access_plan(access_plan)
@@ -255,7 +264,13 @@ def _placeholder_value(data_type: str, column_name: str) -> object:
         return 1.0
     if "bool" in normalized:
         return True
-    if "date" in normalized or "time" in normalized:
+    if (
+        "date" in normalized
+        or "time" in normalized
+        or lowered_name.endswith("_date")
+        or lowered_name.endswith("_at")
+        or lowered_name.endswith("_time")
+    ):
         return "2026-01-01"
     if lowered_name.endswith("_id") or lowered_name == "id":
         return "sample_id"

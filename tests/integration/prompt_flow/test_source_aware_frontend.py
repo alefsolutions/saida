@@ -88,6 +88,31 @@ def test_frontend_prepare_source_analysis_builds_source_orchestration_metadata(t
     assert prepared.plan.metadata["source_orchestration"]["materialization"]["mode"] == "relational_access_plan"
 
 
+def test_frontend_prepare_source_analysis_pushes_sort_and_limit_for_latest_rows(tmp_path) -> None:
+    source = _build_relational_sqlite_source(tmp_path / "warehouse_latest.sqlite")
+    frontend = PromptAnalysisFrontend()
+
+    prepared = frontend.prepare_source_analysis(source, "Show the latest 2 rows")
+
+    assert prepared.materialization.generated_query is not None
+    assert 'ORDER BY "orders"."order_date" DESC' in prepared.materialization.generated_query
+    assert "LIMIT 2" in prepared.materialization.generated_query
+    assert prepared.materialization.dataset.metadata["access_plan"]["limit"] == 2
+
+
+def test_frontend_prepare_source_analysis_pushes_safe_threshold_filters(tmp_path) -> None:
+    source = _build_relational_sqlite_source(tmp_path / "warehouse_filtered.sqlite")
+    frontend = PromptAnalysisFrontend()
+
+    prepared = frontend.prepare_source_analysis(source, "How many rows have total_sales greater than 90?")
+
+    assert prepared.materialization.generated_query is not None
+    assert 'WHERE "orders"."total_sales" > 90.0' in prepared.materialization.generated_query
+    assert prepared.materialization.dataset.metadata["access_plan"]["filters"] == [
+        {"source_table": "orders", "source_column": "total_sales", "predicate": {"op": "gt", "value": 90.0}}
+    ]
+
+
 def test_frontend_analyze_source_runs_end_to_end_against_relational_sqlite(tmp_path) -> None:
     source = _build_relational_sqlite_source(tmp_path / "warehouse.sqlite")
     frontend = PromptAnalysisFrontend()

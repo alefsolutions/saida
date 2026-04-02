@@ -459,6 +459,44 @@ def test_sqlite_source_can_render_access_query_for_joined_fields(tmp_path) -> No
     assert '"customers"."country" AS "country"' in query
 
 
+def test_sqlite_source_can_render_access_query_with_filters_sort_and_limit(tmp_path) -> None:
+    database_path = tmp_path / "warehouse.sqlite"
+    connection = sqlite3.connect(database_path)
+    try:
+        connection.execute("pragma foreign_keys = on")
+        connection.execute("create table customers (customer_id text primary key, country text)")
+        connection.execute(
+            "create table orders ("
+            "order_id text primary key, "
+            "customer_id text not null, "
+            "order_date text, "
+            "total_sales real, "
+            "foreign key(customer_id) references customers(customer_id)"
+            ")"
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+    source = SQLiteSource(database_path, "select * from orders", name="warehouse_sales")
+    plan = source.plan_access(
+        required_columns=["order_id", "country", "order_date", "total_sales"],
+        filters={"total_sales": {"op": "gt", "value": 90.0}},
+        sort_by="order_date",
+        sort_direction="desc",
+        limit=3,
+    )
+
+    query = source.render_access_query(plan)
+
+    assert 'WHERE "orders"."total_sales" > 90.0' in query
+    assert 'ORDER BY "orders"."order_date" DESC' in query
+    assert "LIMIT 3" in query
+    assert plan.filters[0].source_table == "orders"
+    assert plan.order_by[0].source_column == "order_date"
+    assert plan.limit == 3
+
+
 def test_sqlite_source_can_materialize_dataset_from_access_plan(tmp_path) -> None:
     database_path = tmp_path / "warehouse.sqlite"
     connection = sqlite3.connect(database_path)
@@ -495,6 +533,48 @@ def test_sqlite_source_can_materialize_dataset_from_access_plan(tmp_path) -> Non
     assert dataset.metadata["required_tables"] == ["customers", "orders"]
     assert "generated_query" in dataset.metadata
     assert dataset.metadata["access_plan"]["base_table"] == "orders"
+
+
+def test_sqlite_source_materialization_pushes_filter_sort_and_limit(tmp_path) -> None:
+    database_path = tmp_path / "warehouse.sqlite"
+    connection = sqlite3.connect(database_path)
+    try:
+        connection.execute("pragma foreign_keys = on")
+        connection.execute("create table customers (customer_id text primary key, country text)")
+        connection.execute(
+            "create table orders ("
+            "order_id text primary key, "
+            "customer_id text not null, "
+            "order_date text, "
+            "total_sales real, "
+            "foreign key(customer_id) references customers(customer_id)"
+            ")"
+        )
+        connection.execute("insert into customers values ('C1', 'Australia')")
+        connection.execute("insert into customers values ('C2', 'Japan')")
+        connection.execute("insert into orders values ('O1', 'C1', '2026-01-01', 80.0)")
+        connection.execute("insert into orders values ('O2', 'C1', '2026-01-02', 100.5)")
+        connection.execute("insert into orders values ('O3', 'C2', '2026-01-03', 120.0)")
+        connection.commit()
+    finally:
+        connection.close()
+
+    source = SQLiteSource(database_path, "select * from orders", name="warehouse_sales")
+    dataset = source.load_for_columns(
+        required_columns=["order_id", "country", "order_date", "total_sales"],
+        filters={"total_sales": {"op": "gt", "value": 90.0}},
+        sort_by="order_date",
+        sort_direction="desc",
+        limit=2,
+    )
+
+    assert dataset.data.to_dict(orient="records") == [
+        {"order_id": "O3", "country": "Japan", "order_date": "2026-01-03", "total_sales": 120.0},
+        {"order_id": "O2", "country": "Australia", "order_date": "2026-01-02", "total_sales": 100.5},
+    ]
+    assert "WHERE \"orders\".\"total_sales\" > 90.0" in dataset.metadata["generated_query"]
+    assert "ORDER BY \"orders\".\"order_date\" DESC" in dataset.metadata["generated_query"]
+    assert "LIMIT 2" in dataset.metadata["generated_query"]
 
 
 def test_sql_query_source_can_materialize_dataset_from_access_plan(tmp_path) -> None:

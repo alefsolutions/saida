@@ -70,12 +70,22 @@ class SQLiteSource(SQLSourceInterface):
         *,
         required_columns: list[str],
         preferred_base_table: str | None = None,
+        filters: dict[str, object] | None = None,
+        sort_by: str | None = None,
+        sort_direction: str | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
     ) -> RelationalAccessPlan:
         """Build a deterministic relational access plan for the requested fields."""
         return build_relational_access_plan(
             self.discover_schema(),
             required_columns=required_columns,
             preferred_base_table=preferred_base_table,
+            filters=filters,
+            sort_by=sort_by,
+            sort_direction=sort_direction,
+            limit=limit,
+            offset=offset,
         )
 
     def render_access_query(self, access_plan: RelationalAccessPlan) -> str:
@@ -101,10 +111,23 @@ class SQLiteSource(SQLSourceInterface):
         *,
         required_columns: list[str],
         preferred_base_table: str | None = None,
+        filters: dict[str, object] | None = None,
+        sort_by: str | None = None,
+        sort_direction: str | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
     ) -> Dataset:
         """Plan and materialize a dataset for the requested relational fields."""
         return self.load_from_access_plan(
-            self.plan_access(required_columns=required_columns, preferred_base_table=preferred_base_table)
+            self.plan_access(
+                required_columns=required_columns,
+                preferred_base_table=preferred_base_table,
+                filters=filters,
+                sort_by=sort_by,
+                sort_direction=sort_direction,
+                limit=limit,
+                offset=offset,
+            )
         )
 
     def load(self) -> Dataset:
@@ -195,12 +218,22 @@ class SQLQuerySource(SQLSourceInterface):
         *,
         required_columns: list[str],
         preferred_base_table: str | None = None,
+        filters: dict[str, object] | None = None,
+        sort_by: str | None = None,
+        sort_direction: str | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
     ) -> RelationalAccessPlan:
         """Build a deterministic relational access plan for the requested fields."""
         return build_relational_access_plan(
             self.discover_schema(),
             required_columns=required_columns,
             preferred_base_table=preferred_base_table,
+            filters=filters,
+            sort_by=sort_by,
+            sort_direction=sort_direction,
+            limit=limit,
+            offset=offset,
         )
 
     def render_access_query(self, access_plan: RelationalAccessPlan) -> str:
@@ -226,10 +259,23 @@ class SQLQuerySource(SQLSourceInterface):
         *,
         required_columns: list[str],
         preferred_base_table: str | None = None,
+        filters: dict[str, object] | None = None,
+        sort_by: str | None = None,
+        sort_direction: str | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
     ) -> Dataset:
         """Plan and materialize a dataset for the requested relational fields."""
         return self.load_from_access_plan(
-            self.plan_access(required_columns=required_columns, preferred_base_table=preferred_base_table)
+            self.plan_access(
+                required_columns=required_columns,
+                preferred_base_table=preferred_base_table,
+                filters=filters,
+                sort_by=sort_by,
+                sort_direction=sort_direction,
+                limit=limit,
+                offset=offset,
+            )
         )
 
     def load(self) -> Dataset:

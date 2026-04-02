@@ -54,6 +54,11 @@ class SQLSourceInterface(SourceInterface):
         *,
         required_columns: list[str],
         preferred_base_table: str | None = None,
+        filters: dict[str, Any] | None = None,
+        sort_by: str | None = None,
+        sort_direction: str | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
     ) -> RelationalAccessPlan:
         """Return a deterministic relational access plan for the requested fields."""
 

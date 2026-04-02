@@ -7,7 +7,13 @@ from saida.sources.excel_source import ExcelAdapter, ExcelSource
 from saida.sources.interfaces import SQLSourceInterface, SourceInterface
 from saida.sources.json_source import JSONAdapter, JSONSource
 from saida.sources.pandas_source import PandasAdapter, PandasSource
-from saida.sources.relational_access import RelationalAccessPlan, RelationalJoinSpec, RelationalProjectionSpec
+from saida.sources.relational_access import (
+    RelationalAccessPlan,
+    RelationalFilterSpec,
+    RelationalJoinSpec,
+    RelationalOrderSpec,
+    RelationalProjectionSpec,
+)
 from saida.sources.relational_semantics import RelationalTableSemantics, infer_relational_table_semantics
 from saida.sources.relational_schema import (
     RelationalColumnModel,
@@ -47,8 +53,10 @@ __all__ = [
     "PostgreSQLSource",
     "RelationalAccessPlan",
     "RelationalColumnModel",
+    "RelationalFilterSpec",
     "RelationalIndexModel",
     "RelationalJoinSpec",
+    "RelationalOrderSpec",
     "RelationalProjectionSpec",
     "RelationalRelationshipModel",
     "RelationalSchemaModel",
