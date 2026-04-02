@@ -2106,6 +2106,12 @@ def test_normalizer_adds_source_materialization_request_for_sql_grouped_prompt()
     assert materialization["required_columns"] == ["revenue", "region"]
     assert materialization["candidate_measure_columns"] == ["revenue"]
     assert materialization["candidate_dimension_columns"] == ["region"]
+    assert materialization["candidate_group_columns"] == ["region"]
+    assert materialization["candidate_entity_columns"] == ["region"]
+    assert materialization["filters"] == {}
+    assert materialization["sort_by"] is None
+    assert materialization["row_limit"] is None
+    assert materialization["requires_full_rows"] is False
 
 
 def test_normalizer_adds_full_row_materialization_request_for_sql_tabular_query() -> None:
@@ -2121,5 +2127,27 @@ def test_normalizer_adds_full_row_materialization_request_for_sql_tabular_query(
     assert materialization["source_type"] == "sqlite"
     assert materialization["mode"] == "tabular_recordset"
     assert materialization["required_columns"] == ["revenue", "region", "segment", "posted_at"]
+    assert materialization["sort_by"] == "posted_at"
+    assert materialization["sort_direction"] == "desc"
+    assert materialization["row_limit"] == 5
+    assert materialization["page"] == 1
+    assert materialization["page_size"] == 5
+    assert materialization["requires_full_rows"] is True
     assert "full_row_projection" in materialization["reasons"]
+
+
+def test_normalizer_carries_filters_into_source_materialization_request_for_sql_row_count() -> None:
+    normalizer = RequestNormalizer()
+
+    request, _warnings = normalizer.normalize(
+        "How many rows have revenue greater than 90?",
+        build_sql_dataset(),
+        build_profile(),
+    )
+
+    materialization = request.options["source_materialization_request"]
+    assert materialization["mode"] == "filtered_rowset"
+    assert materialization["required_columns"] == ["revenue"]
+    assert materialization["filters"] == {"revenue": {"op": "gt", "value": 90.0}}
+    assert materialization["row_limit"] is None
 

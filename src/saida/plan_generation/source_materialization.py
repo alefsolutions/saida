@@ -21,6 +21,16 @@ class SourceMaterializationRequest:
     candidate_measure_columns: list[str] = field(default_factory=list)
     candidate_dimension_columns: list[str] = field(default_factory=list)
     candidate_time_columns: list[str] = field(default_factory=list)
+    candidate_group_columns: list[str] = field(default_factory=list)
+    candidate_entity_columns: list[str] = field(default_factory=list)
+    filters: dict[str, Any] = field(default_factory=dict)
+    sort_by: str | None = None
+    sort_direction: str | None = None
+    row_limit: int | None = None
+    page: int | None = None
+    page_size: int | None = None
+    time_reference: dict[str, Any] | None = None
+    requires_full_rows: bool = False
     reasons: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
@@ -39,6 +49,7 @@ def build_source_materialization_request(
     required_columns: list[str] = []
     reasons: list[str] = []
     selected_columns = request.options.get("selected_columns", [])
+    requires_full_rows = False
 
     if isinstance(selected_columns, list) and selected_columns:
         required_columns.extend(str(column) for column in selected_columns if isinstance(column, str))
@@ -59,6 +70,7 @@ def build_source_materialization_request(
     if request.intent_name in {"tabular_query", "row_ranking"} and not selected_columns:
         required_columns.extend(column.name for column in profile.columns)
         reasons.append("full_row_projection")
+        requires_full_rows = True
 
     sort_by = request.options.get("sort_by")
     if isinstance(sort_by, str) and sort_by.strip():
@@ -89,6 +101,16 @@ def build_source_materialization_request(
     measure_columns = set(profile.measure_columns)
     dimension_columns = set(profile.dimension_columns)
     time_columns = set(profile.time_columns)
+    identifier_columns = set(profile.identifier_columns)
+    candidate_group_columns = [column for column in (request.group_by or []) if column in dimension_columns]
+    candidate_entity_columns = [
+        column
+        for column in deduped_required_columns
+        if column in dimension_columns or column in identifier_columns
+    ]
+    sort_direction = request.options.get("sort_direction")
+    if not isinstance(sort_direction, str) or not sort_direction.strip():
+        sort_direction = None
 
     return SourceMaterializationRequest(
         source_type=dataset.source_type,
@@ -98,6 +120,16 @@ def build_source_materialization_request(
         candidate_measure_columns=[column for column in deduped_required_columns if column in measure_columns],
         candidate_dimension_columns=[column for column in deduped_required_columns if column in dimension_columns],
         candidate_time_columns=[column for column in deduped_required_columns if column in time_columns],
+        candidate_group_columns=candidate_group_columns,
+        candidate_entity_columns=candidate_entity_columns,
+        filters=dict(request.filters or {}),
+        sort_by=sort_by if isinstance(sort_by, str) and sort_by.strip() else None,
+        sort_direction=sort_direction.lower() if isinstance(sort_direction, str) else None,
+        row_limit=_derive_row_limit(request),
+        page=_as_positive_int(request.options.get("page")),
+        page_size=_as_positive_int(request.options.get("page_size")),
+        time_reference=dict(request.time_reference) if request.time_reference is not None else None,
+        requires_full_rows=requires_full_rows,
         reasons=_dedupe(reasons),
     )
 
@@ -129,3 +161,27 @@ def _dedupe(values: list[str]) -> list[str]:
         if value not in deduped:
             deduped.append(value)
     return deduped
+
+
+def _as_positive_int(value: object) -> int | None:
+    try:
+        parsed = int(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed > 0 else None
+
+
+def _derive_row_limit(request: AnalysisRequest) -> int | None:
+    if _derive_materialization_mode(request) != "tabular_recordset":
+        return None
+
+    limit = _as_positive_int(request.options.get("limit"))
+    page = _as_positive_int(request.options.get("page"))
+    page_size = _as_positive_int(request.options.get("page_size"))
+    pagination_window = page * page_size if page is not None and page_size is not None else None
+
+    if limit is not None and pagination_window is not None:
+        return min(limit, pagination_window)
+    if limit is not None:
+        return limit
+    return pagination_window
