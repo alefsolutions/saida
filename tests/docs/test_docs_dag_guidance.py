@@ -44,4 +44,12 @@ def test_schema_spec_and_api_usage_describe_dag_runtime_contracts() -> None:
     assert "schema discovery" in relational_sources
     assert "source.discover_schema()" in relational_sources
     assert "`execution.source_provenance`" in relational_sources
+    assert "`RelationalFilterSpec`" in relational_sources
+    assert "`RelationalOrderSpec`" in relational_sources
+    assert "candidate_tables" in relational_sources
+    assert "suggested_qualified_fields" in relational_sources
+    assert "playground/example4/run/run_prompt_analysis.py" in relational_sources
+    assert "source.load_for_columns(" in api_usage
+    assert "PostgreSQLSource" in api_usage
+    assert "candidate_join_paths" in api_usage
 

@@ -207,6 +207,19 @@ Other useful source-aware methods:
 - `source.plan_access(required_columns=[...])`
 - `source.load_from_access_plan(access_plan)`
 
+For richer control, SQL-backed sources also support source-side filters and retrieval windows:
+
+```python
+dataset = source.load_for_columns(
+    required_columns=["order_id", "country", "order_date", "total_sales"],
+    preferred_base_table="orders",
+    filters={"total_sales": {"op": "gt", "value": 90.0}},
+    sort_by="order_date",
+    sort_direction="desc",
+    limit=5,
+)
+```
+
 ## Working With `AnalysisResult`
 
 The main fields most application code uses are:
@@ -281,6 +294,90 @@ source = SQLiteSource(
 )
 result = frontend.analyze_source(source, "Show a table of total_sales by country")
 ```
+
+### Use PostgreSQL or MySQL through the same source-aware flow
+
+```python
+from saida import PromptAnalysisFrontend
+from saida.sources import PostgreSQLSource
+
+frontend = PromptAnalysisFrontend()
+source = PostgreSQLSource(
+    "postgresql+psycopg://user:pass@host:5432/warehouse",
+    'SELECT * FROM "orders"',
+    name="warehouse_sales",
+)
+result = frontend.analyze_source(source, "Show a table of total_sales by country")
+```
+
+### Execute an authored `AnalysisPlan` against a source-materialized relational dataset
+
+```python
+from saida import Saida
+from saida.core.contracts import AnalysisPlan, PlanInput, PlanStep, StepInputRef, StepOutputSpec
+from saida.sources import SQLiteSource
+
+source = SQLiteSource(
+    "warehouse.sqlite",
+    'SELECT * FROM "orders"',
+    name="warehouse_sales",
+)
+
+dataset = source.load_for_columns(
+    required_columns=["country", "total_sales"],
+    preferred_base_table="orders",
+)
+
+plan = AnalysisPlan(
+    task_type="descriptive",
+    rationale="Aggregate materialized relational sales by country.",
+    inputs=[PlanInput(input_id="primary_dataset", kind="dataset", ref=dataset.name)],
+    expected_result_name="grouped_totals",
+    expected_result_shape="table",
+    final_output_ref="grouped_totals",
+    steps=[
+        PlanStep(
+            step_id="grouped_totals",
+            tool_family="duckdb",
+            action="aggregate_frame",
+            method_id="aggregate_frame",
+            family="transformation",
+            parameters={"target": "total_sales", "aggregation": "sum", "group_by": ["country"]},
+            description="Aggregate sales totals by country.",
+            inputs=[
+                StepInputRef(
+                    input_id="dataset_input",
+                    source_type="plan_input",
+                    ref="primary_dataset",
+                    expected_kind="dataset",
+                )
+            ],
+            output_refs=["grouped_totals"],
+            outputs=[
+                StepOutputSpec(
+                    output_id="grouped_totals",
+                    kind="frame",
+                    logical_shape="table",
+                    physical_shape="recordset",
+                )
+            ],
+        )
+    ],
+)
+
+result = Saida().execute_plan(dataset, plan)
+```
+
+### Clarification behavior for ambiguous relational prompts
+
+If a prompt maps to ambiguous columns or disconnected table groups, `analyze_source(...)` returns a clarification result instead of guessing unsafely.
+
+Debug payloads from `result.to_debug_response_dict()` now include richer clarification hints such as:
+
+- `candidate_tables`
+- `suggested_qualified_fields`
+- `candidate_join_paths`
+- `candidate_columns`
 
 This path is optional. The framework itself is still centered on authored or generated `AnalysisPlan` execution.
 
