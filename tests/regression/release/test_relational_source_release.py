@@ -71,3 +71,11 @@ def test_relational_source_release_ambiguous_prompt_returns_clarification(tmp_pa
     assert "which table you mean" in payload["summary"]["summary"]
     assert "source_provenance" not in payload["execution"]
     assert debug_payload["execution"]["source_provenance"]["clarification"]["reason"] == "ambiguous_relational_column"
+    assert debug_payload["execution"]["source_provenance"]["clarification"]["candidate_tables"] == [
+        "customers",
+        "shipments",
+    ]
+    assert debug_payload["execution"]["source_provenance"]["clarification"]["suggested_qualified_fields"] == [
+        "customers.country",
+        "shipments.country",
+    ]

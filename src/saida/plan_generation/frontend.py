@@ -300,6 +300,11 @@ class PromptAnalysisFrontend:
                         if isinstance(generation.request.options.get("source_materialization_request"), dict)
                         else None
                     ),
+                    schema_model=(
+                        dict(planning_context.schema_model)
+                        if isinstance(planning_context.schema_model, dict)
+                        else None
+                    ),
                 )
                 self._mark_source_clarification(generation, planning_context, clarification)
                 materialization = SourceMaterializationResult(

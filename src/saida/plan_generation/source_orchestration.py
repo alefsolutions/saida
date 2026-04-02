@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
+import difflib
 from typing import Any
 
 import pandas as pd
@@ -62,6 +63,10 @@ class SourceClarification:
     reason: str
     message: str
     detail: str
+    candidate_tables: list[str] = field(default_factory=list)
+    suggested_qualified_fields: list[str] = field(default_factory=list)
+    candidate_join_paths: list[str] = field(default_factory=list)
+    candidate_columns: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -157,57 +162,99 @@ def build_source_clarification(
     source_name: str,
     source_type: str,
     source_materialization_request: dict[str, Any] | None,
+    schema_model: dict[str, Any] | None = None,
 ) -> SourceClarification:
     """Classify a source-side materialization failure into clarification guidance."""
     detail = str(error).strip() or "The relational source could not be materialized safely."
     lowered = detail.lower()
     required_columns = list(source_materialization_request.get("required_columns") or [])
+    schema_insights = _schema_insights(schema_model)
 
     if "ambiguous across tables" in lowered:
         requested_column = _extract_quoted_value(detail)
-        candidates = _extract_suffix_after(detail, "tables:")
+        candidate_tables = _candidate_tables_for_column(schema_insights, requested_column) if requested_column else []
+        if not candidate_tables:
+            candidates = _extract_suffix_after(detail, "tables:")
+            candidate_tables = [value.strip() for value in str(candidates or "").split(",") if value.strip()]
+        suggestions = (
+            [f"{table_name}.{requested_column}" for table_name in candidate_tables]
+            if requested_column is not None
+            else []
+        )
         column_label = requested_column or "the requested field"
+        suggestion_text = f" Try one of: {', '.join(suggestions)}." if suggestions else ""
         message = (
             f"Please clarify which table you mean for {column_label!r}. "
-            f"The SQL source has multiple matching columns{f': {candidates}' if candidates else '.'}"
+            f"The SQL source has multiple matching columns"
+            f"{f': {', '.join(candidate_tables)}' if candidate_tables else '.'}"
+            f"{suggestion_text}"
         )
         return SourceClarification(
             reason="ambiguous_relational_column",
             message=message,
             detail=detail,
+            candidate_tables=candidate_tables,
+            suggested_qualified_fields=suggestions,
         )
 
     if "no relational join path exists" in lowered:
         joined_columns = ", ".join(required_columns) if required_columns else "the requested fields"
+        candidate_tables = sorted(
+            {
+                table_name
+                for column_name in required_columns
+                for table_name in _candidate_tables_for_column(schema_insights, column_name)
+            }
+        )
+        suggestions = _qualified_field_suggestions(schema_insights, required_columns)
+        join_paths = _reachable_join_paths(schema_insights, candidate_tables)
+        join_path_text = (
+            f" Available connected paths include: {', '.join(join_paths)}."
+            if join_paths
+            else ""
+        )
+        suggestion_text = f" Try qualified fields like: {', '.join(suggestions)}." if suggestions else ""
         return SourceClarification(
             reason="missing_relational_join_path",
             message=(
                 "Please clarify which related tables should be analyzed together. "
                 f"SAIDA could not find a safe relational join path for {joined_columns}."
+                f"{suggestion_text}{join_path_text}"
             ),
             detail=detail,
+            candidate_tables=candidate_tables,
+            suggested_qualified_fields=suggestions,
+            candidate_join_paths=join_paths,
         )
 
     if "was not found in the relational schema" in lowered or "does not exist in the relational schema" in lowered:
         requested_column = _extract_quoted_value(detail)
+        suggestions = _closest_columns(schema_insights, requested_column)
+        suggestion_text = f" Similar columns include: {', '.join(suggestions)}." if suggestions else ""
         return SourceClarification(
             reason="unknown_relational_column",
             message=(
                 f"Please clarify the requested field{f' {requested_column!r}' if requested_column else ''}. "
                 f"SAIDA could not resolve it from the {source_type} schema for {source_name}."
+                f"{suggestion_text}"
             ),
             detail=detail,
+            candidate_columns=suggestions,
         )
 
     if "preferred base table" in lowered:
         requested_table = _extract_quoted_value(detail)
+        available_tables = list(schema_insights["table_names"])
+        suggestion_text = f" Available tables include: {', '.join(available_tables)}." if available_tables else ""
         return SourceClarification(
             reason="unknown_relational_base_table",
             message=(
                 f"Please clarify the base table{f' {requested_table!r}' if requested_table else ''}. "
                 f"SAIDA could not find it in the {source_type} schema for {source_name}."
+                f"{suggestion_text}"
             ),
             detail=detail,
+            candidate_tables=available_tables,
         )
 
     return SourceClarification(
@@ -217,6 +264,7 @@ def build_source_clarification(
             f"SAIDA could not safely materialize the needed dataset from {source_name}."
         ),
         detail=detail,
+        candidate_tables=list(schema_insights["table_names"]),
     )
 
 
@@ -289,3 +337,113 @@ def _extract_suffix_after(text: str, marker: str) -> str | None:
         return None
     suffix = text.split(marker, 1)[1].strip().rstrip(".")
     return suffix or None
+
+
+def _schema_insights(schema_model: dict[str, Any] | None) -> dict[str, Any]:
+    table_names: list[str] = []
+    column_to_tables: dict[str, list[str]] = {}
+    relationships: list[tuple[str, str]] = []
+    all_columns: list[str] = []
+
+    if not isinstance(schema_model, dict):
+        return {
+            "table_names": table_names,
+            "column_to_tables": column_to_tables,
+            "relationships": relationships,
+            "all_columns": all_columns,
+        }
+
+    for table in schema_model.get("tables", []):
+        if not isinstance(table, dict):
+            continue
+        table_name = table.get("name")
+        if not isinstance(table_name, str) or not table_name:
+            continue
+        table_names.append(table_name)
+        for column in table.get("columns", []):
+            if not isinstance(column, dict):
+                continue
+            column_name = column.get("name")
+            if not isinstance(column_name, str) or not column_name:
+                continue
+            column_to_tables.setdefault(column_name, []).append(table_name)
+            all_columns.append(column_name)
+
+    for relationship in schema_model.get("relationships", []):
+        if not isinstance(relationship, dict):
+            continue
+        left_table = relationship.get("left_table")
+        right_table = relationship.get("right_table")
+        if isinstance(left_table, str) and isinstance(right_table, str):
+            relationships.append((left_table, right_table))
+            relationships.append((right_table, left_table))
+
+    for tables in column_to_tables.values():
+        tables.sort()
+
+    return {
+        "table_names": sorted(dict.fromkeys(table_names)),
+        "column_to_tables": column_to_tables,
+        "relationships": relationships,
+        "all_columns": sorted(dict.fromkeys(all_columns)),
+    }
+
+
+def _candidate_tables_for_column(schema_insights: dict[str, Any], column_name: str | None) -> list[str]:
+    if not isinstance(column_name, str) or not column_name:
+        return []
+    return list(schema_insights.get("column_to_tables", {}).get(column_name, []))
+
+
+def _qualified_field_suggestions(schema_insights: dict[str, Any], required_columns: list[str]) -> list[str]:
+    suggestions: list[str] = []
+    for column_name in required_columns:
+        for table_name in _candidate_tables_for_column(schema_insights, column_name):
+            suggestion = f"{table_name}.{column_name}"
+            if suggestion not in suggestions:
+                suggestions.append(suggestion)
+    return suggestions[:6]
+
+
+def _reachable_join_paths(schema_insights: dict[str, Any], candidate_tables: list[str]) -> list[str]:
+    if len(candidate_tables) < 2:
+        return []
+    adjacency: dict[str, list[str]] = {}
+    for left_table, right_table in schema_insights.get("relationships", []):
+        adjacency.setdefault(left_table, []).append(right_table)
+    for neighbors in adjacency.values():
+        neighbors.sort()
+
+    paths: list[str] = []
+    for start_table in candidate_tables:
+        for end_table in candidate_tables:
+            if start_table >= end_table:
+                continue
+            path = _shortest_table_path(adjacency, start_table, end_table)
+            if path is not None:
+                rendered = " -> ".join(path)
+                if rendered not in paths:
+                    paths.append(rendered)
+    return paths[:4]
+
+
+def _shortest_table_path(adjacency: dict[str, list[str]], start_table: str, end_table: str) -> list[str] | None:
+    queue: list[list[str]] = [[start_table]]
+    visited = {start_table}
+    while queue:
+        path = queue.pop(0)
+        current = path[-1]
+        if current == end_table:
+            return path
+        for next_table in adjacency.get(current, []):
+            if next_table in visited:
+                continue
+            visited.add(next_table)
+            queue.append([*path, next_table])
+    return None
+
+
+def _closest_columns(schema_insights: dict[str, Any], requested_column: str | None) -> list[str]:
+    if not isinstance(requested_column, str) or not requested_column:
+        return []
+    return difflib.get_close_matches(requested_column, schema_insights.get("all_columns", []), n=5, cutoff=0.4)
