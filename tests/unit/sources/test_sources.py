@@ -116,12 +116,17 @@ def test_sqlite_source_can_discover_relational_schema_with_foreign_keys(tmp_path
     assert schema.source_type == "sqlite"
     assert schema.source_name == "warehouse_sales"
     assert schema.metadata["table_count"] == 2
+    assert schema.metadata["view_count"] == 0
     assert schema.metadata["relationship_count"] == 1
+    assert schema.metadata["default_schema_name"] == "main"
+    assert schema.metadata["schema_names"] == ["main"]
 
     tables_by_name = {table.name: table for table in schema.tables}
     assert sorted(tables_by_name) == ["customers", "orders"]
     assert tables_by_name["customers"].primary_key == ["customer_id"]
     assert tables_by_name["orders"].primary_key == ["order_id"]
+    assert tables_by_name["customers"].schema_name == "main"
+    assert tables_by_name["customers"].is_view is False
 
     order_columns = {column.name: column for column in tables_by_name["orders"].columns}
     assert order_columns["order_id"].is_primary_key is True
@@ -134,6 +139,61 @@ def test_sqlite_source_can_discover_relational_schema_with_foreign_keys(tmp_path
     assert relationship.right_table == "customers"
     assert relationship.right_columns == ["customer_id"]
     assert relationship.relationship_type == "many_to_one"
+    assert relationship.metadata["referred_schema"] == "main"
+    assert relationship.metadata["is_required"] is True
+
+
+def test_sqlite_source_schema_discovery_captures_views_unique_constraints_and_indexes(tmp_path) -> None:
+    database_path = tmp_path / "warehouse.sqlite"
+    connection = sqlite3.connect(database_path)
+    try:
+        connection.execute("pragma foreign_keys = on")
+        connection.execute(
+            "create table customers ("
+            "customer_id text primary key, "
+            "email text not null, "
+            "country text, "
+            "constraint uq_customers_email unique(email)"
+            ")"
+        )
+        connection.execute(
+            "create table orders ("
+            "order_id text primary key, "
+            "customer_id text not null, "
+            "total_sales real, "
+            "foreign key(customer_id) references customers(customer_id)"
+            ")"
+        )
+        connection.execute("create unique index idx_orders_customer_sales on orders(customer_id, total_sales)")
+        connection.execute(
+            "create view customer_sales as "
+            "select c.customer_id, c.country, o.total_sales "
+            "from customers c join orders o on o.customer_id = c.customer_id"
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+    source = SQLiteSource(database_path, "select * from orders", name="warehouse_sales")
+
+    schema = source.discover_schema()
+
+    assert schema.metadata["table_count"] == 2
+    assert schema.metadata["view_count"] == 1
+
+    tables_by_name = {table.name: table for table in schema.tables}
+    customers = tables_by_name["customers"]
+    orders = tables_by_name["orders"]
+    customer_sales = tables_by_name["customer_sales"]
+
+    assert customers.unique_constraints[0].name == "uq_customers_email"
+    assert customers.unique_constraints[0].columns == ["email"]
+    assert orders.indexes[0].name == "idx_orders_customer_sales"
+    assert orders.indexes[0].columns == ["customer_id", "total_sales"]
+    assert orders.indexes[0].unique is True
+    assert customer_sales.is_view is True
+    assert customer_sales.view_definition is not None
+    assert "create view customer_sales" in customer_sales.view_definition.lower()
 
 
 def test_sqlite_source_schema_discovery_is_cached(tmp_path) -> None:
@@ -191,6 +251,7 @@ def test_sql_query_sources_can_discover_schema_from_sqlalchemy_uri(tmp_path) -> 
     assert schema.source_type == "postgresql"
     assert [table.name for table in schema.tables] == ["sales"]
     assert schema.metadata["introspection_backend"] == "sqlalchemy"
+    assert schema.metadata["default_schema_name"] == "main"
 
 
 def test_sqlite_source_can_plan_access_for_joined_fields(tmp_path) -> None:

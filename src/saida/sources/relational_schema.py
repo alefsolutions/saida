@@ -22,12 +22,42 @@ class RelationalColumnModel:
 
 
 @dataclass(slots=True)
+class RelationalUniqueConstraintModel:
+    """Canonical unique-constraint metadata discovered from a relational source."""
+
+    name: str | None = None
+    columns: list[str] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(slots=True)
+class RelationalIndexModel:
+    """Canonical index metadata discovered from a relational source."""
+
+    name: str | None = None
+    columns: list[str] = field(default_factory=list)
+    unique: bool = False
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(slots=True)
 class RelationalTableModel:
     """Canonical table metadata discovered from a relational source."""
 
     name: str
+    schema_name: str | None = None
     columns: list[RelationalColumnModel] = field(default_factory=list)
     primary_key: list[str] = field(default_factory=list)
+    unique_constraints: list[RelationalUniqueConstraintModel] = field(default_factory=list)
+    indexes: list[RelationalIndexModel] = field(default_factory=list)
+    is_view: bool = False
+    view_definition: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -62,4 +92,3 @@ class RelationalSchemaModel:
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
-

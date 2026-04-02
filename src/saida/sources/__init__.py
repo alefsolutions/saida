@@ -10,9 +10,11 @@ from saida.sources.pandas_source import PandasAdapter, PandasSource
 from saida.sources.relational_access import RelationalAccessPlan, RelationalJoinSpec, RelationalProjectionSpec
 from saida.sources.relational_schema import (
     RelationalColumnModel,
+    RelationalIndexModel,
     RelationalRelationshipModel,
     RelationalSchemaModel,
     RelationalTableModel,
+    RelationalUniqueConstraintModel,
 )
 from saida.sources.sql_rendering import render_relational_access_query
 from saida.sources.sql_source import (
@@ -44,11 +46,13 @@ __all__ = [
     "PostgreSQLSource",
     "RelationalAccessPlan",
     "RelationalColumnModel",
+    "RelationalIndexModel",
     "RelationalJoinSpec",
     "RelationalProjectionSpec",
     "RelationalRelationshipModel",
     "RelationalSchemaModel",
     "RelationalTableModel",
+    "RelationalUniqueConstraintModel",
     "SQLAdapter",
     "SQLQueryAdapter",
     "SQLQuerySource",
