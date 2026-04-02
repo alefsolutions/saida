@@ -290,6 +290,10 @@ def test_sqlite_source_can_plan_access_for_joined_fields(tmp_path) -> None:
     assert plan.joins[0].right_table == "customers"
     assert plan.joins[0].left_columns == ["customer_id"]
     assert plan.joins[0].right_columns == ["customer_id"]
+    assert plan.metadata["table_roles"]["orders"] == "fact"
+    assert plan.metadata["table_roles"]["customers"] == "dimension"
+    assert "Selected base table" in plan.metadata["base_table_reason"]
+    assert any(entry["relationship_name"] == plan.joins[0].relationship_name for entry in plan.metadata["join_analysis"])
 
 
 def test_sqlite_source_can_plan_access_with_single_table_projection(tmp_path) -> None:
@@ -309,6 +313,85 @@ def test_sqlite_source_can_plan_access_with_single_table_projection(tmp_path) ->
     assert plan.required_tables == ["sales"]
     assert plan.joins == []
     assert [projection.source_table for projection in plan.projections] == ["sales", "sales"]
+    assert plan.metadata["table_roles"]["sales"] in {"fact", "dimension", "unknown"}
+
+
+def test_sqlite_source_access_planning_prefers_required_intermediate_tables_for_join_paths(tmp_path) -> None:
+    database_path = tmp_path / "warehouse.sqlite"
+    connection = sqlite3.connect(database_path)
+    try:
+        connection.execute("pragma foreign_keys = on")
+        connection.execute("create table tiers (tier_id text primary key, tier_name text)")
+        connection.execute(
+            "create table accounts ("
+            "account_id text primary key, "
+            "tier_id text not null, "
+            "foreign key(tier_id) references tiers(tier_id)"
+            ")"
+        )
+        connection.execute(
+            "create table customers ("
+            "customer_id text primary key, "
+            "customer_name text, "
+            "tier_id text not null, "
+            "foreign key(tier_id) references tiers(tier_id)"
+            ")"
+        )
+        connection.execute(
+            "create table orders ("
+            "order_id text primary key, "
+            "account_id text not null, "
+            "customer_id text not null, "
+            "foreign key(account_id) references accounts(account_id), "
+            "foreign key(customer_id) references customers(customer_id)"
+            ")"
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+    source = SQLiteSource(database_path, "select * from orders", name="warehouse_sales")
+
+    plan = source.plan_access(required_columns=["order_id", "customer_name", "tier_name"])
+
+    join_names = [join.relationship_name for join in plan.joins]
+    assert "orders__customer_id__customers" in join_names
+    assert "customers__tier_id__tiers" in join_names
+    assert "accounts__tier_id__tiers" not in join_names
+    assert plan.base_table in {"customers", "orders"}
+    path_analysis = next(
+        entry for entry in plan.metadata["join_analysis"] if entry.get("target_table") == "tiers" and "path" in entry
+    )
+    assert "customers__tier_id__tiers" in path_analysis["path"]
+    assert "accounts__tier_id__tiers" not in path_analysis["path"]
+
+
+def test_sqlite_source_access_planning_marks_parent_to_child_paths_as_fanout_risk(tmp_path) -> None:
+    database_path = tmp_path / "warehouse.sqlite"
+    connection = sqlite3.connect(database_path)
+    try:
+        connection.execute("pragma foreign_keys = on")
+        connection.execute("create table customers (customer_id text primary key, customer_name text)")
+        connection.execute(
+            "create table orders ("
+            "order_id text primary key, "
+            "customer_id text not null, "
+            "foreign key(customer_id) references customers(customer_id)"
+            ")"
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+    source = SQLiteSource(database_path, "select * from customers", name="warehouse_sales")
+
+    plan = source.plan_access(required_columns=["customer_id", "order_id"], preferred_base_table="customers")
+
+    join_analysis = next(
+        entry for entry in plan.metadata["join_analysis"] if entry.get("relationship_name") == "orders__customer_id__customers"
+    )
+    assert join_analysis["direction"] == "parent_to_child"
+    assert join_analysis["fanout_risk"] is True
 
 
 def test_sqlite_source_access_planning_rejects_ambiguous_columns(tmp_path) -> None:

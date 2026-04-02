@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-from collections import deque
 from dataclasses import asdict, dataclass, field
+import heapq
 from typing import Any
 
 from saida.exceptions import AdapterError
+from saida.sources.relational_semantics import RelationalTableSemantics, infer_relational_table_semantics
 from saida.sources.relational_schema import (
     RelationalRelationshipModel,
     RelationalSchemaModel,
-    RelationalTableModel,
 )
 
 
@@ -71,6 +71,7 @@ def build_relational_access_plan(
 
     relationship_lookup = {relationship.name: relationship for relationship in schema.relationships}
     column_candidates = _build_column_candidate_index(schema)
+    table_semantics = infer_relational_table_semantics(schema)
 
     projection_bindings: list[tuple[str, str, str]] = []
     for requested_column in required_columns:
@@ -84,11 +85,25 @@ def build_relational_access_plan(
     if preferred_base_table is not None and preferred_base_table not in tables_by_name:
         raise AdapterError(f"Preferred base table {preferred_base_table!r} was not found in the relational schema.")
 
-    projection_tables = {output_name: source_table for source_table, _source_column, output_name in projection_bindings}
-    base_table = preferred_base_table or _choose_base_table(schema, projection_tables)
+    (
+        base_table,
+        base_table_reason,
+        base_table_candidates,
+    ) = _choose_base_table(
+        schema,
+        projection_bindings,
+        table_semantics=table_semantics,
+        preferred_base_table=preferred_base_table,
+    )
     required_tables = sorted({base_table, *(source_table for source_table, _source_column, _output_name in projection_bindings)})
 
-    joins = _build_join_plan(base_table, required_tables, schema, relationship_lookup)
+    joins, join_analysis = _build_join_plan(
+        base_table,
+        required_tables,
+        schema,
+        relationship_lookup,
+        table_semantics=table_semantics,
+    )
     projections = [
         RelationalProjectionSpec(
             source_table=source_table,
@@ -106,6 +121,17 @@ def build_relational_access_plan(
         metadata={
             "requested_columns": list(required_columns),
             "preferred_base_table": preferred_base_table,
+            "table_roles": {
+                table_name: semantics.role
+                for table_name, semantics in sorted(table_semantics.items())
+            },
+            "table_role_reasons": {
+                table_name: list(semantics.reasons)
+                for table_name, semantics in sorted(table_semantics.items())
+            },
+            "base_table_reason": base_table_reason,
+            "base_table_candidates": base_table_candidates,
+            "join_analysis": join_analysis,
         },
     )
 
@@ -149,34 +175,74 @@ def _resolve_projection_binding(
     )
 
 
-def _choose_base_table(schema: RelationalSchemaModel, projection_tables: dict[str, str]) -> str:
-    projected_counts: dict[str, int] = {}
-    for table_name in projection_tables.values():
-        projected_counts[table_name] = projected_counts.get(table_name, 0) + 1
+def _choose_base_table(
+    schema: RelationalSchemaModel,
+    projection_bindings: list[tuple[str, str, str]],
+    *,
+    table_semantics: dict[str, RelationalTableSemantics],
+    preferred_base_table: str | None,
+) -> tuple[str, str, list[dict[str, Any]]]:
+    projection_counts: dict[str, int] = {}
+    measure_like_counts: dict[str, int] = {}
+    for table_name, _source_column, output_name in projection_bindings:
+        projection_counts[table_name] = projection_counts.get(table_name, 0) + 1
+        if _is_measure_like(output_name):
+            measure_like_counts[table_name] = measure_like_counts.get(table_name, 0) + 1
 
-    scored_tables = []
+    candidate_entries: list[dict[str, Any]] = []
+    best_score: tuple[int, int, int, int, int] | None = None
+    best_table_name: str | None = None
+
     for table in schema.tables:
+        semantics = table_semantics[table.name]
+        role_bonus = _role_bonus(semantics.role)
+        projection_count = projection_counts.get(table.name, 0)
+        measure_count = measure_like_counts.get(table.name, 0)
         score = (
-            projected_counts.get(table.name, 0),
-            _fact_like_score(table, schema.relationships),
+            projection_count * 100,
+            measure_count * 40,
+            role_bonus,
             len(table.columns),
             -len(table.name),
         )
-        scored_tables.append((score, table.name))
+        candidate_entries.append(
+            {
+                "table_name": table.name,
+                "role": semantics.role,
+                "score": list(score),
+                "projected_column_count": projection_count,
+                "measure_like_projection_count": measure_count,
+            }
+        )
+        if best_score is None or score > best_score:
+            best_score = score
+            best_table_name = table.name
 
-    scored_tables.sort(key=lambda item: (item[0], item[1]))
-    return scored_tables[-1][1]
+    candidate_entries.sort(key=lambda entry: (entry["score"], entry["table_name"]))
+    chosen_table = preferred_base_table or str(best_table_name)
+    chosen_semantics = table_semantics[chosen_table]
+    reason = (
+        f"Selected base table {chosen_table!r} with role {chosen_semantics.role!r} "
+        f"and projected-column priority."
+    )
+    if preferred_base_table is not None:
+        reason = f"Used caller-provided preferred base table {preferred_base_table!r}."
+    return chosen_table, reason, candidate_entries
 
 
-def _fact_like_score(table: RelationalTableModel, relationships: list[RelationalRelationshipModel]) -> int:
-    outgoing_relationships = sum(1 for relationship in relationships if relationship.left_table == table.name)
-    numeric_like_columns = sum(1 for column in table.columns if _is_numeric_like(column.data_type))
-    return (outgoing_relationships * 10) + numeric_like_columns
+def _role_bonus(role: str) -> int:
+    return {
+        "fact": 30,
+        "dimension": 15,
+        "bridge": 5,
+        "view": 0,
+        "unknown": 0,
+    }.get(role, 0)
 
 
-def _is_numeric_like(data_type: str) -> bool:
-    normalized = data_type.lower()
-    return any(token in normalized for token in ("int", "numeric", "decimal", "real", "float", "double"))
+def _is_measure_like(column_name: str) -> bool:
+    lowered = column_name.lower()
+    return any(token in lowered for token in ("total", "amount", "revenue", "sales", "cost", "price", "quantity"))
 
 
 def _build_join_plan(
@@ -184,20 +250,29 @@ def _build_join_plan(
     required_tables: list[str],
     schema: RelationalSchemaModel,
     relationship_lookup: dict[str, RelationalRelationshipModel],
-) -> list[RelationalJoinSpec]:
+    *,
+    table_semantics: dict[str, RelationalTableSemantics],
+) -> tuple[list[RelationalJoinSpec], list[dict[str, Any]]]:
     if len(required_tables) <= 1:
-        return []
+        return [], []
 
     joins_by_name: dict[str, RelationalJoinSpec] = {}
+    join_analysis_by_name: dict[str, dict[str, Any]] = {}
     for target_table in required_tables:
         if target_table == base_table:
             continue
-        path = _shortest_relationship_path(base_table, target_table, schema.relationships)
+        path, path_cost, edge_analysis = _best_relationship_path(
+            start_table=base_table,
+            end_table=target_table,
+            relationships=schema.relationships,
+            table_semantics=table_semantics,
+            preferred_intermediate_tables=set(required_tables) - {base_table, target_table},
+        )
         if path is None:
             raise AdapterError(
                 f"No relational join path exists between base table {base_table!r} and required table {target_table!r}."
             )
-        for relationship_name in path:
+        for relationship_name, edge_details in zip(path, edge_analysis, strict=True):
             relationship = relationship_lookup[relationship_name]
             joins_by_name.setdefault(
                 relationship.name,
@@ -209,32 +284,130 @@ def _build_join_plan(
                     right_columns=list(relationship.right_columns),
                 ),
             )
+            join_analysis_by_name.setdefault(
+                relationship.name,
+                {
+                    "relationship_name": relationship.name,
+                    "target_table": target_table,
+                    "direction": edge_details["direction"],
+                    "fanout_risk": edge_details["fanout_risk"],
+                    "cost": edge_details["cost"],
+                    "from_table": edge_details["from_table"],
+                    "to_table": edge_details["to_table"],
+                    "left_role": table_semantics[relationship.left_table].role,
+                    "right_role": table_semantics[relationship.right_table].role,
+                },
+            )
+        join_analysis_by_name[f"path::{target_table}"] = {
+            "target_table": target_table,
+            "path": path,
+            "path_cost": path_cost,
+            "preferred_intermediate_tables": sorted(set(required_tables) - {base_table, target_table}),
+        }
 
-    return sorted(joins_by_name.values(), key=lambda join: join.relationship_name)
+    join_entries = sorted(joins_by_name.values(), key=lambda join: join.relationship_name)
+    analysis_entries = [
+        join_analysis_by_name[join.relationship_name]
+        for join in join_entries
+    ]
+    analysis_entries.extend(
+        sorted(
+            (
+                details
+                for key, details in join_analysis_by_name.items()
+                if key.startswith("path::")
+            ),
+            key=lambda details: str(details["target_table"]),
+        )
+    )
+    return join_entries, analysis_entries
 
 
-def _shortest_relationship_path(
+def _best_relationship_path(
     start_table: str,
     end_table: str,
     relationships: list[RelationalRelationshipModel],
-) -> list[str] | None:
-    adjacency: dict[str, list[tuple[str, str]]] = {}
+    *,
+    table_semantics: dict[str, RelationalTableSemantics],
+    preferred_intermediate_tables: set[str],
+) -> tuple[list[str] | None, int | None, list[dict[str, Any]]]:
+    adjacency: dict[str, list[tuple[str, str, str]]] = {}
     for relationship in relationships:
-        adjacency.setdefault(relationship.left_table, []).append((relationship.right_table, relationship.name))
-        adjacency.setdefault(relationship.right_table, []).append((relationship.left_table, relationship.name))
+        adjacency.setdefault(relationship.left_table, []).append(
+            (relationship.right_table, relationship.name, "child_to_parent")
+        )
+        adjacency.setdefault(relationship.right_table, []).append(
+            (relationship.left_table, relationship.name, "parent_to_child")
+        )
 
     for neighbors in adjacency.values():
-        neighbors.sort(key=lambda item: (item[0], item[1]))
+        neighbors.sort(key=lambda item: (item[0], item[1], item[2]))
 
-    queue: deque[tuple[str, list[str]]] = deque([(start_table, [])])
-    visited = {start_table}
+    queue: list[tuple[int, int, str, str, list[str], list[dict[str, Any]]]] = [
+        (0, 0, start_table, start_table, [], [])
+    ]
+    best_cost_by_table: dict[str, tuple[int, int]] = {start_table: (0, 0)}
+
     while queue:
-        current_table, path = queue.popleft()
+        total_cost, hop_count, _signature, current_table, path, edge_analysis = heapq.heappop(queue)
         if current_table == end_table:
-            return path
-        for next_table, relationship_name in adjacency.get(current_table, []):
-            if next_table in visited:
+            return path, total_cost, edge_analysis
+        for next_table, relationship_name, direction in adjacency.get(current_table, []):
+            edge_cost = _relationship_edge_cost(
+                next_table=next_table,
+                direction=direction,
+                role=table_semantics.get(next_table, RelationalTableSemantics(next_table, "unknown", 0, 0, 0, 0, 0)).role,
+                preferred_intermediate=next_table in preferred_intermediate_tables,
+                is_terminal=next_table == end_table,
+            )
+            next_cost = total_cost + edge_cost
+            next_hop_count = hop_count + 1
+            best_known = best_cost_by_table.get(next_table)
+            if best_known is not None and (next_cost, next_hop_count) >= best_known:
                 continue
-            visited.add(next_table)
-            queue.append((next_table, [*path, relationship_name]))
-    return None
+            best_cost_by_table[next_table] = (next_cost, next_hop_count)
+            next_edge_analysis = [
+                *edge_analysis,
+                {
+                    "relationship_name": relationship_name,
+                    "from_table": current_table,
+                    "to_table": next_table,
+                    "direction": direction,
+                    "fanout_risk": direction == "parent_to_child",
+                    "cost": edge_cost,
+                },
+            ]
+            heapq.heappush(
+                queue,
+                (
+                    next_cost,
+                    next_hop_count,
+                    "|".join([*path, relationship_name]),
+                    next_table,
+                    [*path, relationship_name],
+                    next_edge_analysis,
+                ),
+            )
+    return None, None, []
+
+
+def _relationship_edge_cost(
+    *,
+    next_table: str,
+    direction: str,
+    role: str,
+    preferred_intermediate: bool,
+    is_terminal: bool,
+) -> int:
+    cost = 10
+    if direction == "parent_to_child":
+        cost += 20
+    if role == "bridge":
+        cost += 8
+    elif role == "view":
+        cost += 4
+    if preferred_intermediate and not is_terminal:
+        cost -= 6
+    if direction == "child_to_parent" and role == "dimension":
+        cost -= 2
+    return max(cost, 1)

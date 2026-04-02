@@ -8,6 +8,7 @@ from saida.sources.interfaces import SQLSourceInterface, SourceInterface
 from saida.sources.json_source import JSONAdapter, JSONSource
 from saida.sources.pandas_source import PandasAdapter, PandasSource
 from saida.sources.relational_access import RelationalAccessPlan, RelationalJoinSpec, RelationalProjectionSpec
+from saida.sources.relational_semantics import RelationalTableSemantics, infer_relational_table_semantics
 from saida.sources.relational_schema import (
     RelationalColumnModel,
     RelationalIndexModel,
@@ -51,6 +52,7 @@ __all__ = [
     "RelationalProjectionSpec",
     "RelationalRelationshipModel",
     "RelationalSchemaModel",
+    "RelationalTableSemantics",
     "RelationalTableModel",
     "RelationalUniqueConstraintModel",
     "SQLAdapter",
@@ -64,4 +66,5 @@ __all__ = [
     "SQLiteSource",
     "SourceContextParser",
     "SourceInterface",
+    "infer_relational_table_semantics",
 ]
