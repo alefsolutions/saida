@@ -16,6 +16,7 @@ if str(SRC_PATH) not in sys.path:
     sys.path.insert(0, str(SRC_PATH))
 
 from _env import load_project_env
+from _defaults import example1_dataset_paths
 from saida import PromptAnalysisFrontend
 from saida.config import LlmConfig, SaidaConfig
 from saida.core import AnalysisResult, Dataset
@@ -83,9 +84,10 @@ class OpenAiPlaygroundApp:
             raise RuntimeError("OPENAI_API_KEY is not set.")
 
     def _load_dataset(self) -> Dataset:
+        dataset_path, context_path = example1_dataset_paths(PROJECT_ROOT)
         return CSVSource(
-            PROJECT_ROOT / "examples" / "sales.csv",
-            context_path=PROJECT_ROOT / "examples" / "sales_context.md",
+            dataset_path,
+            context_path=context_path,
         ).load()
 
     def _build_engine(self) -> PromptAnalysisFrontend:

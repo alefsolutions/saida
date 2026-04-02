@@ -14,14 +14,14 @@ if str(SRC_PATH) not in sys.path:
     sys.path.insert(0, str(SRC_PATH))
 
 from _env import load_project_env
+from _defaults import example1_dataset_paths
 from saida import PromptAnalysisFrontend
 from saida.config import LlmConfig, SaidaConfig
 from saida.sources import CSVSource
 
 
 EXIT_WORDS = {"exit", "quit", "q"}
-DEFAULT_DATASET_PATH = PROJECT_ROOT / "examples" / "datasets" / "support_tickets_500.csv"
-DEFAULT_CONTEXT_PATH = PROJECT_ROOT / "examples" / "contexts" / "support_tickets_500.md"
+DEFAULT_DATASET_PATH, DEFAULT_CONTEXT_PATH = example1_dataset_paths(PROJECT_ROOT)
 
 
 def _show_loader(stop_event: threading.Event) -> None:

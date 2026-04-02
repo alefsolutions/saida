@@ -9,6 +9,7 @@ if str(SRC_PATH) not in sys.path:
     sys.path.insert(0, str(SRC_PATH))
 
 from _env import load_project_env
+from _defaults import example1_dataset_paths
 from saida import PromptAnalysisFrontend
 from saida.config import LlmConfig, SaidaConfig
 from saida.sources import CSVSource
@@ -23,10 +24,11 @@ def _compose_clarification_follow_up(original_question: str, answer: str) -> str
 
 def main() -> None:
     load_project_env(PROJECT_ROOT)
+    dataset_path, context_path = example1_dataset_paths(PROJECT_ROOT)
 
     dataset = CSVSource(
-        PROJECT_ROOT / "examples" / "sales.csv",
-        context_path=PROJECT_ROOT / "examples" / "sales_context.md",
+        dataset_path,
+        context_path=context_path,
     ).load()
 
     config = SaidaConfig(

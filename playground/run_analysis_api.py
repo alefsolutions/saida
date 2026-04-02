@@ -12,6 +12,7 @@ if str(SRC_PATH) not in sys.path:
     sys.path.insert(0, str(SRC_PATH))
 
 from _env import load_project_env
+from _defaults import example1_dataset_paths
 from saida import PromptAnalysisFrontend
 from saida.config import LlmConfig, SaidaConfig
 from saida.sources import CSVSource
@@ -26,8 +27,7 @@ except ImportError as exc:  # pragma: no cover - runtime dependency guard
     ) from exc
 
 
-DEFAULT_DATASET_PATH = PROJECT_ROOT / "examples" / "datasets" / "support_tickets_500.csv"
-DEFAULT_CONTEXT_PATH = PROJECT_ROOT / "examples" / "contexts" / "support_tickets_500.md"
+DEFAULT_DATASET_PATH, DEFAULT_CONTEXT_PATH = example1_dataset_paths(PROJECT_ROOT)
 
 load_project_env(PROJECT_ROOT)
 
@@ -36,11 +36,11 @@ class AnalyzeRequest(BaseModel):
     question: str = Field(..., description="Natural-language question for SAIDA.")
     dataset_path: str | None = Field(
         default=None,
-        description="Optional CSV path. Defaults to the bundled support_tickets_500 dataset.",
+        description="Optional CSV path. Defaults to the bundled example1 sales dataset.",
     )
     context_path: str | None = Field(
         default=None,
-        description="Optional markdown context path. Defaults to the bundled support_tickets_500 context.",
+        description="Optional markdown context path. Defaults to the bundled example1 sales context.",
     )
     use_llm: bool = Field(
         default=False,
@@ -70,12 +70,12 @@ def _resolve_path(path_value: str | None, default_path: Path) -> Path:
     return candidate
 
 
-def _build_engine(use_llm: bool, llm_provider: str, llm_model: str) -> Saida:
+def _build_engine(use_llm: bool, llm_provider: str, llm_model: str) -> PromptAnalysisFrontend:
     if not use_llm:
-        return Saida()
+        return PromptAnalysisFrontend()
     if llm_provider == "openai" and not os.getenv("OPENAI_API_KEY"):
         raise HTTPException(status_code=400, detail="OPENAI_API_KEY is not set, so LLM mode is unavailable.")
-    return Saida(
+    return PromptAnalysisFrontend(
         config=SaidaConfig(
             llm=LlmConfig(
                 enabled=True,

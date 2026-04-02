@@ -40,7 +40,7 @@ from saida import Saida
 from saida.core.contracts import AnalysisPlan, PlanInput, PlanStep, StepInputRef, StepOutputSpec
 from saida.sources import CSVSource
 
-dataset = CSVSource("examples/datasets/support_tickets_500.csv").load()
+dataset = CSVSource("playground/example1/data/sales_data_800_rows.csv").load()
 
 plan = AnalysisPlan(
     task_type="descriptive",
@@ -148,7 +148,7 @@ Useful for:
 ```python
 from saida.sources import CSVSource
 
-dataset = CSVSource("examples/datasets/support_tickets_500.csv").load()
+dataset = CSVSource("playground/example1/data/sales_data_800_rows.csv").load()
 ```
 
 ### pandas

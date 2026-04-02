@@ -7,18 +7,20 @@ SRC_PATH = PROJECT_ROOT / "src"
 if str(SRC_PATH) not in sys.path:
     sys.path.insert(0, str(SRC_PATH))
 
+from _defaults import example1_dataset_paths
 from saida import PromptAnalysisFrontend
 from saida.sources import CSVSource
 
 
 def main() -> None:
+    dataset_path, context_path = example1_dataset_paths(PROJECT_ROOT)
     dataset = CSVSource(
-        PROJECT_ROOT / "examples" / "sales.csv",
-        context_path=PROJECT_ROOT / "examples" / "sales_context.md",
+        dataset_path,
+        context_path=context_path,
     ).load()
 
     engine = PromptAnalysisFrontend()
-    result = engine.analyze(dataset, "Why did revenue drop in March by region?")
+    result = engine.analyze(dataset, "Why did total_sales drop in March by region?")
 
     print(result.summary)
     print("Tables:", ", ".join(table.name for table in result.tables))

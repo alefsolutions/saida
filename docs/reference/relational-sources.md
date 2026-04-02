@@ -37,7 +37,7 @@ The core still works with:
 - `AnalysisPlan`
 - `AnalysisResult`
 
-That means relational logic stays in `src/saida/sources/` and prompt/frontend orchestration, not in the compute core.
+That means relational logic stays in `src/saida/sources/sql/` plus prompt/frontend orchestration, not in the compute core.
 
 ## Schema Discovery
 

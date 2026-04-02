@@ -21,7 +21,6 @@ src/saida/
 
 tests/
 playground/
-examples/
 ```
 
 ## Package Roles
@@ -53,7 +52,20 @@ Live responsibilities:
 - Excel loading
 - JSON loading
 - pandas loading
-- SQL-backed loading
+- SQL-backed loading through `src/saida/sources/sql/`
+
+### `src/saida/sources/sql/`
+
+Owns relational SQL source implementation details.
+
+Live responsibilities:
+
+- shared SQL source base implementations
+- SQLite / PostgreSQL / MySQL source modules
+- SQLAlchemy-backed schema introspection
+- relational schema models
+- deterministic access planning
+- SQL rendering for source-side materialization
 
 ### `src/saida/adapters/`
 
@@ -132,13 +144,9 @@ The test suite is centered on:
 
 ## Supporting Folders
 
-### `examples/`
-
-Contains sample datasets and dataset context markdown files.
-
 ### `playground/`
 
-Contains local scripts for trying SAIDA manually.
+Contains local scripts and scenario-based sample data for trying SAIDA manually.
 
 These are useful for experimentation, but they are not the framework contract itself.
 

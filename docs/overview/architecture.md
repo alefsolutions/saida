@@ -274,6 +274,7 @@ Main packages:
 
 - `src/saida/core/`
 - `src/saida/sources/`
+- `src/saida/sources/sql/`
 - `src/saida/adapters/`
 - `src/saida/outputs/`
 - `src/saida/plan_generation/`
@@ -281,5 +282,5 @@ Main packages:
 
 Important boundary:
 
-- relational schema discovery and source materialization live in `src/saida/sources/` and prompt/frontend orchestration
+- relational schema discovery and source materialization live in `src/saida/sources/sql/` and prompt/frontend orchestration
 - `src/saida/core/` still stays centered on `Dataset`, `AnalysisPlan`, and `AnalysisResult`

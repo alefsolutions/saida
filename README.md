@@ -35,8 +35,8 @@ The main runtime flow is:
 from saida.sources import CSVSource
 
 dataset = CSVSource(
-    "examples/datasets/support_tickets_500.csv",
-    context_path="examples/contexts/support_tickets_500.md",
+    "playground/example1/data/sales_data_800_rows.csv",
+    context_path="playground/example1/data/sales_data_800_rows.md",
 ).load()
 ```
 

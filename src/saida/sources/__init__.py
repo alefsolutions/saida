@@ -7,18 +7,15 @@ from saida.sources.excel_source import ExcelAdapter, ExcelSource
 from saida.sources.interfaces import SQLSourceInterface, SourceInterface
 from saida.sources.json_source import JSONAdapter, JSONSource
 from saida.sources.pandas_source import PandasAdapter, PandasSource
-from saida.sources.sql.base import (
-    MySQLAdapter,
-    MySQLSource,
-    PostgreSQLAdapter,
-    PostgreSQLSource,
+from saida.sources.sql.mysql import MySQLAdapter, MySQLSource
+from saida.sources.sql.postgresql import PostgreSQLAdapter, PostgreSQLSource
+from saida.sources.sql.query import (
     SQLAdapter,
     SQLQueryAdapter,
     SQLQuerySource,
     SQLSource,
-    SQLiteAdapter,
-    SQLiteSource,
 )
+from saida.sources.sql.sqlite import SQLiteAdapter, SQLiteSource
 from saida.sources.sql.relational_access import (
     RelationalAccessPlan,
     RelationalFilterSpec,
