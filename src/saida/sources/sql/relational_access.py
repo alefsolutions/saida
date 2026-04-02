@@ -7,11 +7,11 @@ import heapq
 from typing import Any
 
 from saida.exceptions import AdapterError
-from saida.sources.relational_semantics import RelationalTableSemantics, infer_relational_table_semantics
-from saida.sources.relational_schema import (
+from saida.sources.sql.relational_schema import (
     RelationalRelationshipModel,
     RelationalSchemaModel,
 )
+from saida.sources.sql.relational_semantics import RelationalTableSemantics, infer_relational_table_semantics
 
 
 @dataclass(slots=True)

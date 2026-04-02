@@ -11,7 +11,7 @@ import pandas as pd
 from saida.core.contracts import Dataset, DatasetProfile
 from saida.sources import SchemaDiscoveryService
 from saida.sources.interfaces import SQLSourceInterface, SourceInterface
-from saida.sources.relational_schema import RelationalSchemaModel
+from saida.sources.sql.relational_schema import RelationalSchemaModel
 
 
 @dataclass(slots=True)

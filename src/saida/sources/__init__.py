@@ -7,24 +7,7 @@ from saida.sources.excel_source import ExcelAdapter, ExcelSource
 from saida.sources.interfaces import SQLSourceInterface, SourceInterface
 from saida.sources.json_source import JSONAdapter, JSONSource
 from saida.sources.pandas_source import PandasAdapter, PandasSource
-from saida.sources.relational_access import (
-    RelationalAccessPlan,
-    RelationalFilterSpec,
-    RelationalJoinSpec,
-    RelationalOrderSpec,
-    RelationalProjectionSpec,
-)
-from saida.sources.relational_semantics import RelationalTableSemantics, infer_relational_table_semantics
-from saida.sources.relational_schema import (
-    RelationalColumnModel,
-    RelationalIndexModel,
-    RelationalRelationshipModel,
-    RelationalSchemaModel,
-    RelationalTableModel,
-    RelationalUniqueConstraintModel,
-)
-from saida.sources.sql_rendering import render_relational_access_query
-from saida.sources.sql_source import (
+from saida.sources.sql.base import (
     MySQLAdapter,
     MySQLSource,
     PostgreSQLAdapter,
@@ -36,6 +19,23 @@ from saida.sources.sql_source import (
     SQLiteAdapter,
     SQLiteSource,
 )
+from saida.sources.sql.relational_access import (
+    RelationalAccessPlan,
+    RelationalFilterSpec,
+    RelationalJoinSpec,
+    RelationalOrderSpec,
+    RelationalProjectionSpec,
+)
+from saida.sources.sql.relational_schema import (
+    RelationalColumnModel,
+    RelationalIndexModel,
+    RelationalRelationshipModel,
+    RelationalSchemaModel,
+    RelationalTableModel,
+    RelationalUniqueConstraintModel,
+)
+from saida.sources.sql.relational_semantics import RelationalTableSemantics, infer_relational_table_semantics
+from saida.sources.sql.rendering import render_relational_access_query
 
 __all__ = [
     "CSVAdapter",

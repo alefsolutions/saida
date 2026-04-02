@@ -11,10 +11,10 @@ from saida.core.contracts import Dataset
 from saida.exceptions import AdapterError
 from saida.sources._helpers import build_dataset, load_context
 from saida.sources.interfaces import SQLSourceInterface
-from saida.sources.relational_access import RelationalAccessPlan, build_relational_access_plan
-from saida.sources.relational_schema import RelationalSchemaModel
-from saida.sources.sql_introspection import discover_relational_schema
-from saida.sources.sql_rendering import render_relational_access_query
+from saida.sources.sql.introspection import discover_relational_schema
+from saida.sources.sql.relational_access import RelationalAccessPlan, build_relational_access_plan
+from saida.sources.sql.relational_schema import RelationalSchemaModel
+from saida.sources.sql.rendering import render_relational_access_query
 
 
 class SQLiteSource(SQLSourceInterface):

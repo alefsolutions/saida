@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
-from saida.sources.relational_schema import RelationalRelationshipModel, RelationalSchemaModel, RelationalTableModel
+from saida.sources.sql.relational_schema import RelationalRelationshipModel, RelationalSchemaModel, RelationalTableModel
 
 
 @dataclass(slots=True)

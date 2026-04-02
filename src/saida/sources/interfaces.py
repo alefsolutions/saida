@@ -6,8 +6,8 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 from saida.core.contracts import Dataset, SourceContext
-from saida.sources.relational_access import RelationalAccessPlan
-from saida.sources.relational_schema import RelationalSchemaModel
+from saida.sources.sql.relational_access import RelationalAccessPlan
+from saida.sources.sql.relational_schema import RelationalSchemaModel
 
 
 class SourceInterface(ABC):

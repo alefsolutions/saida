@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from saida.exceptions import AdapterError
-from saida.sources.relational_access import (
+from saida.sources.sql.relational_access import (
     RelationalAccessPlan,
     RelationalFilterSpec,
     RelationalJoinSpec,

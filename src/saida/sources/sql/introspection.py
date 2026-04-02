@@ -6,7 +6,7 @@ from collections.abc import Callable
 from typing import Any
 
 from saida.exceptions import AdapterError
-from saida.sources.relational_schema import (
+from saida.sources.sql.relational_schema import (
     RelationalColumnModel,
     RelationalIndexModel,
     RelationalRelationshipModel,
