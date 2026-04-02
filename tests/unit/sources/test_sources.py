@@ -610,3 +610,61 @@ def test_sql_query_source_can_materialize_dataset_from_access_plan(tmp_path) -> 
     assert dataset.data.to_dict(orient="records") == [{"order_id": "O1", "country": "Australia"}]
     assert dataset.metadata["materialization_mode"] == "relational_access_plan"
 
+
+def test_postgresql_source_renders_dialect_specific_date_filter_sql(tmp_path) -> None:
+    database_path = tmp_path / "warehouse.sqlite"
+    connection = sqlite3.connect(database_path)
+    try:
+        connection.execute("create table orders (order_id text primary key, order_date text, total_sales real)")
+        connection.commit()
+    finally:
+        connection.close()
+
+    source = PostgreSQLSource(
+        f"sqlite:///{database_path}",
+        'SELECT * FROM "orders"',
+        name="warehouse_sales",
+    )
+    plan = source.plan_access(
+        required_columns=["order_id", "order_date", "total_sales"],
+        filters={"order_date": {"op": "year_month_eq", "value": "2026-01"}},
+        sort_by="order_date",
+        sort_direction="desc",
+        limit=5,
+    )
+
+    query = source.render_access_query(plan)
+
+    assert 'to_char("orders"."order_date", \'YYYY-MM\') = \'2026-01\'' in query
+    assert 'ORDER BY "orders"."order_date" DESC' in query
+    assert "LIMIT 5" in query
+
+
+def test_mysql_source_renders_dialect_specific_date_filter_sql(tmp_path) -> None:
+    database_path = tmp_path / "warehouse.sqlite"
+    connection = sqlite3.connect(database_path)
+    try:
+        connection.execute("create table orders (order_id text primary key, order_date text, total_sales real)")
+        connection.commit()
+    finally:
+        connection.close()
+
+    source = MySQLSource(
+        f"sqlite:///{database_path}",
+        "SELECT * FROM orders",
+        name="warehouse_sales",
+    )
+    plan = source.plan_access(
+        required_columns=["order_id", "order_date", "total_sales"],
+        filters={"order_date": {"op": "quarter_eq", "value": 1}},
+        sort_by="order_date",
+        sort_direction="desc",
+        limit=5,
+    )
+
+    query = source.render_access_query(plan)
+
+    assert "QUARTER(`orders`.`order_date`) = 1" in query
+    assert "ORDER BY `orders`.`order_date` DESC" in query
+    assert "LIMIT 5" in query
+
